@@ -1,0 +1,14 @@
+site_name: Typhoid immune dynamics
+
+theme: material
+
+features:
+    - navigation.indexes
+
+nav:
+  - Home: index.md
+  - Blog: blog/index.md
+  - About: about.md
+
+plugins:
+  - blog
