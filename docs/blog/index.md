@@ -1,1 +1,1 @@
-# Blog
+# Typhoid immune dynamics working Notes
