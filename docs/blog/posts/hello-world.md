@@ -12,6 +12,6 @@ categories:
 
 Initial excerpt
 
-!-- more -->
+<!-- more -->
 
 and so on.

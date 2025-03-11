@@ -1,9 +1,11 @@
 site_name: Typhoid immune dynamics
+copyright: Institute for Disease Modeling &copy 
+repo_url: https://github.com/famulare/typhoid-immune-dynamics
+repo_name: famulare/typhoid-immune-dynamics
 
-theme: material
 
-features:
-    - navigation.indexes
+extra_css:
+  - stylesheets/extra.css
 
 nav:
   - Home: index.md
@@ -11,4 +13,38 @@ nav:
   - About: about.md
 
 plugins:
-  - blog
+  - blog:
+      post_readtime: TRUE
+  - search
+  - rss: 
+      enabled: !ENV [CI, false]
+      use_git: false
+      match_path: blog/posts/.*
+      date_from_meta:
+        as_creation: date
+      categories:
+        - categories
+
+theme: 
+  name: material
+  favicon: img/favicon.ico
+  logo: img/favicon.ico
+  icon:
+    repo: fontawesome/brands/github
+  palette:
+    scheme: idm
+  features:
+  - navigation.instant
+  - navigation.tabs
+  - navigation.tabs.sticky
+  - navigation.sections
+  - navigation.path
+  - toc.integrate
+  - navigation.top
+  - search.suggest
+  - search.highlight
+  - search.share
+
+extra:
+  generator: false
+      
