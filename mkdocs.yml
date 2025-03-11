@@ -8,8 +8,9 @@ extra_css:
 
 nav:
   - Home: index.md
-  - Blog: blog/index.md
   - About: about.md
+  - Blog: 
+      - blog/index.md
 
 plugins:
   - blog:
@@ -36,6 +37,8 @@ theme:
   - navigation.instant
   - navigation.sections
   - navigation.path
+  - navigation.tabs
+  - navigation.tabs.sticky
   - toc.integrate
   - navigation.top
   - search.suggest
