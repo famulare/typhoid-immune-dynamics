@@ -7,7 +7,7 @@ extra_css:
   - stylesheets/extra.css
 
 nav:
-  - Home: index.md
+  - Project overview: index.md
   - About: about.md
   - Blog: 
       - blog/index.md
@@ -24,7 +24,13 @@ plugins:
         as_creation: date
       categories:
         - categories
-
+  - open-in-new-tab             # https://github.com/squidfunk/mkdocs-material/discussions/3660#discussioncomment-5434673
+  - git-revision-date-localized:
+      enable_creation_date: true
+  - git-committers:
+      repository: famulare/typhoid-immune-dynamics
+      branch: main
+  
 theme: 
   name: material
   favicon: img/favicon.ico
