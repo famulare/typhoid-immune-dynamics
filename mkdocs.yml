@@ -3,7 +3,6 @@ copyright: Institute for Disease Modeling &copy
 repo_url: https://github.com/famulare/typhoid-immune-dynamics
 repo_name: famulare/typhoid-immune-dynamics
 
-
 extra_css:
   - stylesheets/extra.css
 
@@ -35,8 +34,6 @@ theme:
     scheme: idm
   features:
   - navigation.instant
-  - navigation.tabs
-  - navigation.tabs.sticky
   - navigation.sections
   - navigation.path
   - toc.integrate
