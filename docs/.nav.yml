@@ -1,0 +1,14 @@
+nav:
+  - Home: index.md
+  - Docs: 
+      - docs/overview.md
+      - 'docs/Literature Review/'
+      - 'docs/Model Architecture'
+      - docs/Calibration
+      - 'docs/Model Diagnostics'
+      - 'docs/Doing Science'
+      - docs/*
+  - Blog: 
+      - blog/index.md
+  - About: about.md
+

@@ -5,17 +5,12 @@ repo_name: famulare/typhoid-immune-dynamics
 
 extra_css:
   - stylesheets/extra.css
-
-nav:
-  - Project overview: index.md
-  - About: about.md
-  - Blog: 
-      - blog/index.md
-
+  
 plugins:
+  - awesome-nav
+  - search
   - blog:
       post_readtime: TRUE
-  - search
   - rss: 
       enabled: !ENV [CI, false]
       use_git: false
