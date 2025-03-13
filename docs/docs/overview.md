@@ -18,4 +18,4 @@ Major components include:
 
 Click through the menu for the content.
 
-The [**Blog**](/blog) exists share musings, work in progress, etc that complement these **Docs**.
+The [**Blog**](../blog) exists share musings, work in progress, etc that complement these **Docs**.
