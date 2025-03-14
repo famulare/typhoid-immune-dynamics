@@ -29,7 +29,7 @@ plugins:
 theme: 
   name: material
   favicon: img/favicon.ico
-  logo: img/favicon.ico
+  logo: img/IDM_white.png
   icon:
     repo: fontawesome/brands/github
   palette:
