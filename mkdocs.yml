@@ -9,6 +9,7 @@ extra_css:
 plugins:
   - awesome-nav
   - search
+  - meta
   - blog:
       post_readtime: TRUE
   - rss: 
@@ -28,6 +29,7 @@ plugins:
   
 theme: 
   name: material
+  custom_dir: overrides
   favicon: img/favicon.ico
   logo: img/IDM_white.png
   icon:

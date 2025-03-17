@@ -1,0 +1,10 @@
+{% if page.meta.comments %}
+  <h2 id="__comments">{{ lang.t("meta.comments") }}</h2>
+  <script src="https://utteranc.es/client.js"
+        repo="famulare/typhoid-immune-dynamics"
+        issue-term="title"
+        theme="github-light"
+        crossorigin="anonymous"
+        async>
+  </script>
+{% endif %}
