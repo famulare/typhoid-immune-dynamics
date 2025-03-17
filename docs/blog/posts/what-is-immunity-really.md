@@ -12,7 +12,7 @@ categories:
 
 The first thing anyone learns about epi modeling is how to represent people as "immune" or not. Is anyone either completely immune or not to anything? NO! Let's flesh that out and think through what it means to us, as modelers...
 
-![SIRS_Ralph.png](../assets/what-is-immunity-really/SIRS-Ralph.png)
+![SIRS_Ralph.png](what-is-immunity-really_files/SIRS-Ralph.png)
 
 <!-- more -->
 
