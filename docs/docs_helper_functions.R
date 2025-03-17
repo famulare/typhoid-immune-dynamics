@@ -3,7 +3,7 @@
 
 render_blog_post = function(input_file,
                             categories_list,
-                            date_created=today(),
+                            date_created=lubridate::today(),
                             authors_list='famulare',
                             draft = FALSE,
                             knit_root_dir = rprojroot::find_rstudio_root_file(),
@@ -31,7 +31,7 @@ render_blog_post = function(input_file,
   
   # input handling
     # categories_list is required and cannot be empty
-    if (is_empty(categories_list)){
+    if (length(categories_list)==0){
       simpleError('categories_list is required and has no default. Please include at least one valid category for the blog post.')
     }
   
@@ -41,11 +41,12 @@ render_blog_post = function(input_file,
     '---',
     paste0('draft: ',tolower(as.character(draft))),
     'date:',
-    paste0('  created: ', date_created_str),
+    paste0('  created: ', date_created),
     'authors:',
     paste('  - ',authors_list,collapse='\n', sep=''),
     'categories:',
     paste('  - ',categories_list,collapse='\n', sep=''),
+    'comments: true',
     '---\n'
     )
 

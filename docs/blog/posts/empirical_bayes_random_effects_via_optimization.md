@@ -7,6 +7,7 @@ authors:
 categories:
   - Calibration
   - Self-study
+comments: true
 ---
 
 # Hand rolling empirical Bayes estimation of a hierarchical model to learn how it works
