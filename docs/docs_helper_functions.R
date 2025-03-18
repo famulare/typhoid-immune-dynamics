@@ -46,7 +46,6 @@ render_blog_post = function(input_file,
     paste('  - ',authors_list,collapse='\n', sep=''),
     'categories:',
     paste('  - ',categories_list,collapse='\n', sep=''),
-    'comments: true',
     '---\n'
     )
 
