@@ -262,6 +262,7 @@ ggplot() +
 
 source('./docs/docs_helper_functions.R')
 render_blog_post(input_file = './scratch/empirical_bayes_random_effects_via_optimization.R',
-                 categories_list = c('Calibration','Self-study'))
+                 categories_list = c('Calibration','Self-study'),
+                 date_created = '2025-03-17')
 
 # */
