@@ -46,7 +46,6 @@ render_blog_post = function(input_file,
     paste('  - ',authors_list,collapse='\n', sep=''),
     'categories:',
     paste('  - ',categories_list,collapse='\n', sep=''),
-    'comments: true',
     '---\n'
     )
 
@@ -61,7 +60,8 @@ render_blog_post = function(input_file,
     # render knitr::spin commented or Rmd file
     rmarkdown::render(input_file,
                       knit_root_dir = knit_root_dir,
-                      output_dir = output_dir)
+                      output_dir = output_dir,
+                      envir = new.env())
     
     # read blog post
     blog_post = readLines(output_file)
