@@ -30,7 +30,7 @@ The Github repo is [famulare/typhoid-immune-dynamics](https://github.com/famular
 
 Technical project lead: [Mike Famulare](https://scholar.google.com/citations?user=TPWwr18AAAAJ&hl=en).
 
-Technical collaboration with: [Kyra Grantz](https://scholar.google.com/citations?user=pDS-Fk8AAAAJ&hl=en) and [Alicia Kraay](https://scholar.google.com/citations?user=Qc2kca0AAAAJ&hl=en&oi=ao).
+Technical collaboration with: [Kyra Grantz](https://scholar.google.com/citations?user=pDS-Fk8AAAAJ&hl=en), [Vince Buffalo](https://scholar.google.com/citations?user=7w_tyXUAAAAJ&hl=en), and [Alicia Kraay](https://scholar.google.com/citations?user=Qc2kca0AAAAJ&hl=en&oi=ao).
 
 IDM Typhoid research and strategy lead: [Jillian Gauld](https://pubmed.ncbi.nlm.nih.gov/?term=%28%28Gauld%2C+Jillian%5BAuthor%5D%29+OR+%28Gauld%2C+JS%5BAuthor%5D%29%29+NOT+%28Gauld%2C+JW%5BAuthor%5D%29&sort=pubdate).
 
