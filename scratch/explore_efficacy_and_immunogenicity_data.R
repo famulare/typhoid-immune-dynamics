@@ -23,10 +23,18 @@ plot_dat = d_eff |>
   filter(outcome %in% c('blood_culture_confirmed_typhoid_fever')) |>
   filter(vaccine == 'Typbar-TCV') |>
   arrange(study,age_label,timepoint_months_authors_mean)
-View(plot_dat)
+
 names(plot_dat)
 
-ggplot(plot_dat, aes(shape=dotname,color=age_label,fill=age_label,group=interaction(dotname,age_label,estimator))) +
+ggplot(plot_dat, aes(shape=dotname,color=age_label,fill=age_label,group=interaction(age_label,design_group))) +
+  geom_ribbon(aes(x=timepoint_months_authors_mean,ymin=lower,ymax=upper),color=NA,alpha=0.1) +
+  geom_line(aes(x=timepoint_months_authors_mean,y=estimate)) +
+  geom_point(aes(x=timepoint_months_authors_mean,y=estimate)) +
+  facet_grid('endpoint_duration ~ age_cohort') +
+  theme_bw() 
+
+
+ggplot(plot_dat, aes(color=dotname,fill=dotname,group=interaction(age_label,design_group))) +
   geom_ribbon(aes(x=timepoint_months_authors_mean,ymin=lower,ymax=upper),color=NA,alpha=0.1) +
   geom_line(aes(x=timepoint_months_authors_mean,y=estimate)) +
   geom_point(aes(x=timepoint_months_authors_mean,y=estimate)) +
@@ -55,8 +63,6 @@ d_imm = readxl::read_excel('data/typhoid_vaccine_study_data.xlsx',sheet = 'immun
   mutate(elisa_U_per_ml_upper_numeric = if_else(elisa_U_per_ml_upper=='<7.5',3.75,if_else(elisa_U_per_ml_upper=='<3.0',1.5,as.numeric(elisa_U_per_ml_upper)))) |>
   mutate(age_mean = 1/2*(age_min_years + age_max_years)) |>
   mutate(age_label = reorder(factor(paste(age_min_years,'-',age_max_years,sep='')),age_mean))
-
-View(d_imm)
 
 names(d_imm)
 
