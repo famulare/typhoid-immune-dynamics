@@ -87,4 +87,4 @@ Modeling the drivers of differential Typhoid Conjugate Vaccine (TCV) impact in P
 medRxiv. 2024 Aug 30:2024.08.30.24312839. doi:10.1101/2024.08.30.24312839
 https://www.medrxiv.org/content/10.1101/2024.08.30.24312839v1.full
 
-
+- Lee EY, Park JY, Kim DR, Song M, Sahastrabuddhe S, Kim H, Chon Y, Yang JS. Comparison of anti-Vi IgG responses between two clinical studies of typhoid Vi conjugate vaccines (Vi-DT vs Vi-TT). PLoS Negl Trop Dis. 2020 Mar 23;14(3):e0008171. doi: 10.1371/journal.pntd.0008171. PMID: 32203521; PMCID: PMC7156108. https://pmc.ncbi.nlm.nih.gov/articles/PMC7156108/
