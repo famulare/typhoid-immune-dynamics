@@ -19,6 +19,8 @@ Notes prepared from voice dictation with assistance of ChatGPT-4o.
 
 These notes provide the skeleton of a model that aims to simulate within-host dynamics of *Salmonella Typhi*, connecting immune responses (especially antibody titers) to protection outcomes. It bridges vaccine efficacy and immunogenicity study field data and controlled human infection models (CHIM), and serves as the foundation for a next-generation Typhoid intrahost model suitable for generalizing across all exposure and immunological histories.
 
+<!-- more -->
+
 **Note that we may not ever build this model** as it is beyond the scope of current vaccine schedule policy needs. However, it is essential to think through the whole problem to understand how to make incisive tactical simplifications of the science, the project scope, and deliverables.
 
 
