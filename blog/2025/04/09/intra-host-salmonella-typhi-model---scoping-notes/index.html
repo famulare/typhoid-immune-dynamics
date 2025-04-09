@@ -9,10 +9,8 @@
       
       
       
-        <link rel="prev" href="../why-not-use-off-the-shelf-pkpd-modeling-software-draft/">
+        <link rel="prev" href="../../../03/17/hand-rolling-empirical-bayes-estimation-of-a-hierarchical-model-to-learn-how-it-works/">
       
-      
-        <link rel="next" href="../../17/hand-rolling-empirical-bayes-estimation-of-a-hierarchical-model-to-learn-how-it-works/">
       
       
         <link rel="alternate" type="application/rss+xml" title="RSS feed" href="../../../../../feed_rss_created.xml">
@@ -23,7 +21,7 @@
     
     
       
-        <title>What do I look for from vaccine efficacy studies to inform model development? (DRAFT) - Typhoid immune dynamics</title>
+        <title>Intra-host Salmonella Typhi Model - scoping notes - Typhoid immune dynamics</title>
       
     
     
@@ -75,7 +73,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#what-do-i-look-for-from-vaccine-efficacy-studies-to-inform-model-development-draft" class="md-skip">
+        <a href="#intra-host-salmonella-typhi-model-scoping-notes" class="md-skip">
           Skip to content
         </a>
       
@@ -110,7 +108,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              What do I look for from vaccine efficacy studies to inform model development? (DRAFT)
+              Intra-host Salmonella Typhi Model - scoping notes
             
           </span>
         </div>
@@ -449,7 +447,7 @@
         
   
   <span class="md-ellipsis">
-    Typhoid Conjugate Vaccine Efficacy
+    Typhoid Conjugate Vaccine Efficacy (DRAFT)
     
   </span>
   
@@ -775,7 +773,7 @@
         
   
   <span class="md-ellipsis">
-    Immunity Models
+    Immunity models
     
   </span>
   
@@ -795,11 +793,35 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../../category/literature-review/" class="md-nav__link">
+      <a href="../../../../category/intrahost-models/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
-    Literature Review
+    Intrahost models
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../category/project-management/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Project Management
     
   </span>
   
@@ -847,7 +869,7 @@
         
   
   <span class="md-ellipsis">
-    Software Architecture
+    Software architecture
     
   </span>
   
@@ -950,7 +972,7 @@
                     <li class="md-nav__item">
                       <div class="md-nav__link">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 19H5V8h14m-3-7v2H8V1H6v2H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-1V1m-1 11h-5v5h5z"/></svg>
-                        <time datetime="2025-03-13 00:00:00+00:00" class="md-ellipsis">March 13, 2025</time>
+                        <time datetime="2025-04-09 00:00:00+00:00" class="md-ellipsis">April 9, 2025</time>
                       </div>
                     </li>
                     
@@ -961,8 +983,10 @@
                           <span class="md-ellipsis">
                             in
                             
-                              <a href="../../../../category/immunity-models/">Immunity Models</a>, 
-                              <a href="../../../../category/literature-review/">Literature Review</a></span>
+                              <a href="../../../../category/immunity-models/">Immunity models</a>, 
+                              <a href="../../../../category/intrahost-models/">Intrahost models</a>, 
+                              <a href="../../../../category/software-architecture/">Software architecture</a>, 
+                              <a href="../../../../category/project-management/">Project Management</a></span>
                         </div>
                       </li>
                     
@@ -973,7 +997,7 @@
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 20a8 8 0 0 0 8-8 8 8 0 0 0-8-8 8 8 0 0 0-8 8 8 8 0 0 0 8 8m0-18a10 10 0 0 1 10 10 10 10 0 0 1-10 10C6.47 22 2 17.5 2 12A10 10 0 0 1 12 2m.5 5v5.25l4.5 2.67-.75 1.23L11 13V7z"/></svg>
                           <span class="md-ellipsis">
                             
-                              1 min read
+                              3 min read
                             
                           </span>
                         </div>
@@ -995,6 +1019,194 @@
     
   
   
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#scope" class="md-nav__link">
+    <span class="md-ellipsis">
+      Scope
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#core-model-ingredients" class="md-nav__link">
+    <span class="md-ellipsis">
+      Core Model Ingredients
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Core Model Ingredients">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-immune-components" class="md-nav__link">
+    <span class="md-ellipsis">
+      1. Immune Components
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-host-outcomes" class="md-nav__link">
+    <span class="md-ellipsis">
+      2. Host Outcomes
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-vaccination-and-exposure" class="md-nav__link">
+    <span class="md-ellipsis">
+      3. Vaccination and Exposure
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-data-sources" class="md-nav__link">
+    <span class="md-ellipsis">
+      4. Data Sources
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#key-complexities" class="md-nav__link">
+    <span class="md-ellipsis">
+      Key Complexities
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Key Complexities">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-mixed-immunological-histories" class="md-nav__link">
+    <span class="md-ellipsis">
+      1. Mixed Immunological Histories
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-data-harmonization" class="md-nav__link">
+    <span class="md-ellipsis">
+      2. Data Harmonization
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-multi-scale-integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      3. Multi-scale Integration
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-parameter-identifiability" class="md-nav__link">
+    <span class="md-ellipsis">
+      4. Parameter Identifiability
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-model-parsimony-vs-fidelity" class="md-nav__link">
+    <span class="md-ellipsis">
+      5. Model Parsimony vs. Fidelity
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#key-deliverables" class="md-nav__link">
+    <span class="md-ellipsis">
+      Key Deliverables
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Key Deliverables">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-regression-model-prototype" class="md-nav__link">
+    <span class="md-ellipsis">
+      1. Regression Model Prototype
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-data-aggregation-and-visualization" class="md-nav__link">
+    <span class="md-ellipsis">
+      2. Data Aggregation and Visualization
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-calibration-harness" class="md-nav__link">
+    <span class="md-ellipsis">
+      3. Calibration harness
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-stochastic-cohort-simulation" class="md-nav__link">
+    <span class="md-ellipsis">
+      4. Stochastic Cohort Simulation
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-integration-into-transmission-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      5. Integration into transmission model
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
 </nav>
           
         </div>
@@ -1011,8 +1223,104 @@
   
 
 
-<h1 id="what-do-i-look-for-from-vaccine-efficacy-studies-to-inform-model-development-draft">What do I look for from vaccine efficacy studies to inform model development? (DRAFT)</h1>
-<!-- more -->
+<h1 id="intra-host-salmonella-typhi-model-scoping-notes">Intra-host <em>Salmonella Typhi</em> Model - scoping notes</h1>
+<p>Notes prepared from voice dictation with assistance of ChatGPT-4o.</p>
+<h2 id="scope">Scope</h2>
+<p>These notes provide the skeleton of a model that aims to simulate within-host dynamics of <em>Salmonella Typhi</em>, connecting immune responses (especially antibody titers) to protection outcomes. It bridges vaccine efficacy and immunogenicity study field data and controlled human infection models (CHIM), and serves as the foundation for a next-generation Typhoid intrahost model suitable for generalizing across all exposure and immunological histories.</p>
+<p><strong>Note that we may not ever build this model</strong> as it is beyond the scope of current vaccine schedule policy needs. However, it is essential to think through the whole problem to understand how to make incisive tactical simplifications of the science, the project scope, and deliverables.</p>
+<hr />
+<h2 id="core-model-ingredients">Core Model Ingredients</h2>
+<h3 id="1-immune-components">1. Immune Components</h3>
+<ul>
+<li>Serum antibody titers from vaccination (e.g. anti-Vi IgG) or natural exposure (e.g. anti-hemolysin-E IgG).</li>
+<li>Potential mucosal or cellular immunity (to be abstracted, as likely not directly modelable since not measured).</li>
+<li>Waning of immunity over time.</li>
+</ul>
+<h3 id="2-host-outcomes">2. Host Outcomes</h3>
+<ul>
+<li>Probability of infection upon exposure.</li>
+<li>Probability of developing disease given infection.<ul>
+<li>Multiple levels of disease severity?</li>
+</ul>
+</li>
+<li>Probability of bacteremia given exposure</li>
+<li>Probablity of converse to carrier given exposure (likely mediated by bacteremia (+ host factors)). </li>
+</ul>
+<h3 id="3-vaccination-and-exposure">3. Vaccination and Exposure</h3>
+<ul>
+<li>Vaccine type, dose, and schedule.<ul>
+<li>Primary focus on Typbar-TCV (Vi-TT)</li>
+<li>also relevant is Vi-polysachharide, other conjugate VI (Vi-rEPA, non-Typbar Vi-TT)</li>
+<li>Non-Vi-based vaccine (Ty21a) probably well out of scope but may get "for free" with natural infection model</li>
+</ul>
+</li>
+<li>Time since vaccination or prior infection.</li>
+<li>Natural exposure characteristics (dose, infection frequency).</li>
+</ul>
+<h3 id="4-data-sources">4. Data Sources</h3>
+<ul>
+<li>Field efficacy trials.</li>
+<li>Cross-study immunogenicity and serological datasets.</li>
+<li>Controlled Human Infection Model (CHIM) studies.</li>
+</ul>
+<hr />
+<h2 id="key-complexities">Key Complexities</h2>
+<h3 id="1-mixed-immunological-histories">1. Mixed Immunological Histories</h3>
+<ul>
+<li>Real-world individuals often have overlapping natural exposure and vaccine histories.</li>
+<li>Hard to isolate clean correlates of protection.</li>
+</ul>
+<h3 id="2-data-harmonization">2. Data Harmonization</h3>
+<ul>
+<li>Assay variability and inconsistent outcome definitions across studies.</li>
+<li>Need for preprocessing and standardization.</li>
+</ul>
+<h3 id="3-multi-scale-integration">3. Multi-scale Integration</h3>
+<ul>
+<li>Bridging within-host protection dynamics with population-level outcomes.</li>
+<li>Eventually feeding into stochastic cohort model and transmission model.</li>
+</ul>
+<h3 id="4-parameter-identifiability">4. Parameter Identifiability</h3>
+<ul>
+<li>Difficult to separate effects of different immune components from limited data.</li>
+<li>Identify data sources for each model component.<ul>
+<li>Current gap to be filled in: boosting.</li>
+<li>Nice to have: dose response vs immunity via challenge studies</li>
+</ul>
+</li>
+</ul>
+<h3 id="5-model-parsimony-vs-fidelity">5. Model Parsimony vs. Fidelity</h3>
+<ul>
+<li>A minimal model should balance simplicity (for calibration and communication) with enough biological realism to be meaningful and extensible.</li>
+</ul>
+<hr />
+<h2 id="key-deliverables">Key Deliverables</h2>
+<h3 id="1-regression-model-prototype">1. Regression Model Prototype</h3>
+<ul>
+<li><strong>Goal:</strong> Connect antibody titers to vaccine efficacy.</li>
+<li><strong>Scope:</strong> Exclude complexities such as mixed cohorts (e.g., vaccination and natural infection).</li>
+<li><strong>Deadline:</strong> <em>Thursday April 17, 2025</em>.</li>
+<li><strong>Output:</strong> A documented prototype, even if incomplete, embedded in the current modeling framework.</li>
+</ul>
+<h3 id="2-data-aggregation-and-visualization">2. Data Aggregation and Visualization</h3>
+<ul>
+<li><strong>Goal:</strong> Collect and visualize immunogenicity and efficacy data from multiple studies.</li>
+<li><strong>Status:</strong> First tangible deliverable to support model design and communication.</li>
+</ul>
+<h3 id="3-calibration-harness">3. Calibration harness</h3>
+<ul>
+<li><strong>Goal:</strong> calibration framework that links data to be ingested with future model. Defines likelihood functions and model API interface requirements.</li>
+<li><strong>Status:</strong> to be assigned.</li>
+</ul>
+<h3 id="4-stochastic-cohort-simulation">4. Stochastic Cohort Simulation</h3>
+<ul>
+<li><strong>Goal:</strong> Build a simulation that captures variability in infection and protection at the population level.</li>
+<li><strong>Timeline:</strong> Follows the completion of the regression model and calibration harness.</li>
+</ul>
+<h3 id="5-integration-into-transmission-model">5. Integration into transmission model</h3>
+<ul>
+<li>** Goal:** integrate immunity model into TyphoidSim member of the <a href="https://starsim.org/">Starsim family</a>. </li>
+</ul>
 
 
 
@@ -1035,7 +1343,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="March 13, 2025 23:32:21">March 13, 2025</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="April 9, 2025 22:01:37">April 9, 2025</span>
   </span>
 
     
@@ -1045,7 +1353,7 @@
     <span class="md-icon" title="Created">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14.47 15.08 11 13V7h1.5v5.25l3.08 1.83c-.41.28-.79.62-1.11 1m-1.39 4.84c-.36.05-.71.08-1.08.08-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8c0 .37-.03.72-.08 1.08.69.1 1.33.32 1.92.64.1-.56.16-1.13.16-1.72 0-5.5-4.5-10-10-10S2 6.5 2 12s4.47 10 10 10c.59 0 1.16-.06 1.72-.16-.32-.59-.54-1.23-.64-1.92M18 15v3h-3v2h3v3h2v-3h3v-2h-3v-3z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="March 13, 2025 23:32:21">March 13, 2025</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="April 9, 2025 22:01:37">April 9, 2025</span>
   </span>
 
     

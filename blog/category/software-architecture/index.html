@@ -23,7 +23,7 @@
     
     
       
-        <title>Software Architecture - Typhoid immune dynamics</title>
+        <title>Software architecture - Typhoid immune dynamics</title>
       
     
     
@@ -110,7 +110,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Software Architecture
+              Software architecture
             
           </span>
         </div>
@@ -447,7 +447,7 @@
         
   
   <span class="md-ellipsis">
-    Typhoid Conjugate Vaccine Efficacy
+    Typhoid Conjugate Vaccine Efficacy (DRAFT)
     
   </span>
   
@@ -773,7 +773,7 @@
         
   
   <span class="md-ellipsis">
-    Immunity Models
+    Immunity models
     
   </span>
   
@@ -793,11 +793,35 @@
   
   
     <li class="md-nav__item">
-      <a href="../literature-review/" class="md-nav__link">
+      <a href="../intrahost-models/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
-    Literature Review
+    Intrahost models
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../project-management/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Project Management
     
   </span>
   
@@ -856,7 +880,7 @@
         
   
   <span class="md-ellipsis">
-    Software Architecture
+    Software architecture
     
   </span>
   
@@ -916,7 +940,7 @@
   <div class="md-content" data-md-component="content">
     <div class="md-content__inner">
       <header class="md-typeset">
-        <h1 id="software-architecture">Software Architecture</h1>
+        <h1 id="software-architecture">Software architecture</h1>
       </header>
       
         <article class="md-post md-post--excerpt">
@@ -933,19 +957,21 @@
     <div class="md-post__meta md-meta">
       <ul class="md-meta__list">
         <li class="md-meta__item">
-          <time datetime="2025-03-13 00:00:00+00:00">March 13, 2025</time></li>
+          <time datetime="2025-04-09 00:00:00+00:00">April 9, 2025</time></li>
         
           <li class="md-meta__item">
             in
             
-              <a href="./" class="md-meta__link">Software Architecture</a>, 
-              <a href="../calibration/" class="md-meta__link">Calibration</a></li>
+              <a href="../immunity-models/" class="md-meta__link">Immunity models</a>, 
+              <a href="../intrahost-models/" class="md-meta__link">Intrahost models</a>, 
+              <a href="./" class="md-meta__link">Software architecture</a>, 
+              <a href="../project-management/" class="md-meta__link">Project Management</a></li>
         
         
           
           <li class="md-meta__item">
             
-              1 min read
+              3 min read
             
           </li>
         
@@ -954,8 +980,104 @@
     </div>
   </header>
   <div class="md-post__content md-typeset">
-    <h2 id="why-not-use-off-the-shelf-pkpd-modeling-software-draft"><a class="toclink" href="../../2025/03/13/why-not-use-off-the-shelf-pkpd-modeling-software-draft/">Why not use off-the-shelf PK/PD modeling software? (DRAFT)</a></h2>
-
+    <h2 id="intra-host-salmonella-typhi-model-scoping-notes"><a class="toclink" href="../../2025/04/09/intra-host-salmonella-typhi-model---scoping-notes/">Intra-host <em>Salmonella Typhi</em> Model - scoping notes</a></h2>
+<p>Notes prepared from voice dictation with assistance of ChatGPT-4o.</p>
+<h3 id="scope"><a class="toclink" href="../../2025/04/09/intra-host-salmonella-typhi-model---scoping-notes/#scope">Scope</a></h3>
+<p>These notes provide the skeleton of a model that aims to simulate within-host dynamics of <em>Salmonella Typhi</em>, connecting immune responses (especially antibody titers) to protection outcomes. It bridges vaccine efficacy and immunogenicity study field data and controlled human infection models (CHIM), and serves as the foundation for a next-generation Typhoid intrahost model suitable for generalizing across all exposure and immunological histories.</p>
+<p><strong>Note that we may not ever build this model</strong> as it is beyond the scope of current vaccine schedule policy needs. However, it is essential to think through the whole problem to understand how to make incisive tactical simplifications of the science, the project scope, and deliverables.</p>
+<hr />
+<h3 id="core-model-ingredients"><a class="toclink" href="../../2025/04/09/intra-host-salmonella-typhi-model---scoping-notes/#core-model-ingredients">Core Model Ingredients</a></h3>
+<h4 id="1-immune-components"><a class="toclink" href="../../2025/04/09/intra-host-salmonella-typhi-model---scoping-notes/#1-immune-components">1. Immune Components</a></h4>
+<ul>
+<li>Serum antibody titers from vaccination (e.g. anti-Vi IgG) or natural exposure (e.g. anti-hemolysin-E IgG).</li>
+<li>Potential mucosal or cellular immunity (to be abstracted, as likely not directly modelable since not measured).</li>
+<li>Waning of immunity over time.</li>
+</ul>
+<h4 id="2-host-outcomes"><a class="toclink" href="../../2025/04/09/intra-host-salmonella-typhi-model---scoping-notes/#2-host-outcomes">2. Host Outcomes</a></h4>
+<ul>
+<li>Probability of infection upon exposure.</li>
+<li>Probability of developing disease given infection.<ul>
+<li>Multiple levels of disease severity?</li>
+</ul>
+</li>
+<li>Probability of bacteremia given exposure</li>
+<li>Probablity of converse to carrier given exposure (likely mediated by bacteremia (+ host factors)). </li>
+</ul>
+<h4 id="3-vaccination-and-exposure"><a class="toclink" href="../../2025/04/09/intra-host-salmonella-typhi-model---scoping-notes/#3-vaccination-and-exposure">3. Vaccination and Exposure</a></h4>
+<ul>
+<li>Vaccine type, dose, and schedule.<ul>
+<li>Primary focus on Typbar-TCV (Vi-TT)</li>
+<li>also relevant is Vi-polysachharide, other conjugate VI (Vi-rEPA, non-Typbar Vi-TT)</li>
+<li>Non-Vi-based vaccine (Ty21a) probably well out of scope but may get "for free" with natural infection model</li>
+</ul>
+</li>
+<li>Time since vaccination or prior infection.</li>
+<li>Natural exposure characteristics (dose, infection frequency).</li>
+</ul>
+<h4 id="4-data-sources"><a class="toclink" href="../../2025/04/09/intra-host-salmonella-typhi-model---scoping-notes/#4-data-sources">4. Data Sources</a></h4>
+<ul>
+<li>Field efficacy trials.</li>
+<li>Cross-study immunogenicity and serological datasets.</li>
+<li>Controlled Human Infection Model (CHIM) studies.</li>
+</ul>
+<hr />
+<h3 id="key-complexities"><a class="toclink" href="../../2025/04/09/intra-host-salmonella-typhi-model---scoping-notes/#key-complexities">Key Complexities</a></h3>
+<h4 id="1-mixed-immunological-histories"><a class="toclink" href="../../2025/04/09/intra-host-salmonella-typhi-model---scoping-notes/#1-mixed-immunological-histories">1. Mixed Immunological Histories</a></h4>
+<ul>
+<li>Real-world individuals often have overlapping natural exposure and vaccine histories.</li>
+<li>Hard to isolate clean correlates of protection.</li>
+</ul>
+<h4 id="2-data-harmonization"><a class="toclink" href="../../2025/04/09/intra-host-salmonella-typhi-model---scoping-notes/#2-data-harmonization">2. Data Harmonization</a></h4>
+<ul>
+<li>Assay variability and inconsistent outcome definitions across studies.</li>
+<li>Need for preprocessing and standardization.</li>
+</ul>
+<h4 id="3-multi-scale-integration"><a class="toclink" href="../../2025/04/09/intra-host-salmonella-typhi-model---scoping-notes/#3-multi-scale-integration">3. Multi-scale Integration</a></h4>
+<ul>
+<li>Bridging within-host protection dynamics with population-level outcomes.</li>
+<li>Eventually feeding into stochastic cohort model and transmission model.</li>
+</ul>
+<h4 id="4-parameter-identifiability"><a class="toclink" href="../../2025/04/09/intra-host-salmonella-typhi-model---scoping-notes/#4-parameter-identifiability">4. Parameter Identifiability</a></h4>
+<ul>
+<li>Difficult to separate effects of different immune components from limited data.</li>
+<li>Identify data sources for each model component.<ul>
+<li>Current gap to be filled in: boosting.</li>
+<li>Nice to have: dose response vs immunity via challenge studies</li>
+</ul>
+</li>
+</ul>
+<h4 id="5-model-parsimony-vs-fidelity"><a class="toclink" href="../../2025/04/09/intra-host-salmonella-typhi-model---scoping-notes/#5-model-parsimony-vs-fidelity">5. Model Parsimony vs. Fidelity</a></h4>
+<ul>
+<li>A minimal model should balance simplicity (for calibration and communication) with enough biological realism to be meaningful and extensible.</li>
+</ul>
+<hr />
+<h3 id="key-deliverables"><a class="toclink" href="../../2025/04/09/intra-host-salmonella-typhi-model---scoping-notes/#key-deliverables">Key Deliverables</a></h3>
+<h4 id="1-regression-model-prototype"><a class="toclink" href="../../2025/04/09/intra-host-salmonella-typhi-model---scoping-notes/#1-regression-model-prototype">1. Regression Model Prototype</a></h4>
+<ul>
+<li><strong>Goal:</strong> Connect antibody titers to vaccine efficacy.</li>
+<li><strong>Scope:</strong> Exclude complexities such as mixed cohorts (e.g., vaccination and natural infection).</li>
+<li><strong>Deadline:</strong> <em>Thursday April 17, 2025</em>.</li>
+<li><strong>Output:</strong> A documented prototype, even if incomplete, embedded in the current modeling framework.</li>
+</ul>
+<h4 id="2-data-aggregation-and-visualization"><a class="toclink" href="../../2025/04/09/intra-host-salmonella-typhi-model---scoping-notes/#2-data-aggregation-and-visualization">2. Data Aggregation and Visualization</a></h4>
+<ul>
+<li><strong>Goal:</strong> Collect and visualize immunogenicity and efficacy data from multiple studies.</li>
+<li><strong>Status:</strong> First tangible deliverable to support model design and communication.</li>
+</ul>
+<h4 id="3-calibration-harness"><a class="toclink" href="../../2025/04/09/intra-host-salmonella-typhi-model---scoping-notes/#3-calibration-harness">3. Calibration harness</a></h4>
+<ul>
+<li><strong>Goal:</strong> calibration framework that links data to be ingested with future model. Defines likelihood functions and model API interface requirements.</li>
+<li><strong>Status:</strong> to be assigned.</li>
+</ul>
+<h4 id="4-stochastic-cohort-simulation"><a class="toclink" href="../../2025/04/09/intra-host-salmonella-typhi-model---scoping-notes/#4-stochastic-cohort-simulation">4. Stochastic Cohort Simulation</a></h4>
+<ul>
+<li><strong>Goal:</strong> Build a simulation that captures variability in infection and protection at the population level.</li>
+<li><strong>Timeline:</strong> Follows the completion of the regression model and calibration harness.</li>
+</ul>
+<h4 id="5-integration-into-transmission-model"><a class="toclink" href="../../2025/04/09/intra-host-salmonella-typhi-model---scoping-notes/#5-integration-into-transmission-model">5. Integration into transmission model</a></h4>
+<ul>
+<li>** Goal:** integrate immunity model into TyphoidSim member of the <a href="https://starsim.org/">Starsim family</a>. </li>
+</ul>
     
   </div>
 </article>
