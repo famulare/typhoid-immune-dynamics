@@ -101,7 +101,5 @@ These notes provide the skeleton of a model that aims to simulate within-host dy
 - **Timeline:** Follows the completion of the regression model and calibration harness.
 
 ### 5. Integration into transmission model
-- ** Goal:** integrate immunity model into TyphoidSim member of the [Starsim family](https://starsim.org/). 
-
-
+- **Goal:** integrate immunity model into TyphoidSim member of the [Starsim family](https://starsim.org/). 
 
