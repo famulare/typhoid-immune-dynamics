@@ -1,7 +1,7 @@
 # getting titer model going
 
 library(tidyverse)
-library(stat4)
+library(stats4)
 
 # time series function for waning
 # units in days
@@ -9,7 +9,7 @@ t_peak=21
 t = seq(0,1e3,by=1)
 
 titer_vs_time = function(t,T_decay=100,alpha=1,C_max=10,
-                 C_min=1,T_rise=1.5,t_start=2,t_peak=21){
+                 C_min=1,T_rise=1.5,t_start=3,t_peak=28){
   # power law decay
   titer = (1+(t-t_peak)/(alpha*T_decay))^(-alpha)
   
@@ -79,14 +79,15 @@ fit_dat = d_imm |>
   filter(antigen == 'IgG') |>
   # filter(age_label %in% c('5-9','5-10')) |>
   filter(vaccine_schedule == 'single_dose') |>
-  filter(day>0)
+  filter(day>0) |>
+  filter(study !='Jin2017') #excluding outlier for now...
 
 log_lsq_likelihood = function(C_max,T_decay,alpha,beta_C_max_age_mean=0,beta_T_decay_age_mean=0,beta_alpha_age_mean=0){
   
   titer=rep(NA,nrow(fit_dat))
-  Cma=C_max*(1+beta_C_max_age_mean * (fit_dat$age_mean-fit_dat$age_mean[1]))
-  Tda = T_decay*(1+beta_T_decay_age_mean * (fit_dat$age_mean-fit_dat$age_mean[1]))
-  alpha_a = alpha*(1+beta_alpha_age_mean * (fit_dat$age_mean-fit_dat$age_mean[1]))
+  Cma=C_max*(1+beta_C_max_age_mean * fit_dat$age_mean)
+  Tda = T_decay*(1+beta_T_decay_age_mean * fit_dat$age_mean)
+  alpha_a = alpha*(1+beta_alpha_age_mean * fit_dat$age_mean)
  
    for (row in 1:length(titer)){
     titer[row]=titer_vs_time(t=fit_dat$day[row],C_max=Cma[row],T_decay=Tda[row],alpha=alpha_a[row])
@@ -102,13 +103,13 @@ log_lsq_likelihood = function(C_max,T_decay,alpha,beta_C_max_age_mean=0,beta_T_d
 mod = mle(log_lsq_likelihood,
           start=list(C_max=4000,T_decay=100,alpha=1,beta_C_max_age_mean=0,beta_T_decay_age_mean=0,beta_alpha_age_mean=0),
           fixed=list(),
-          control=list(parscale=c(1000,10,0.05,0.01,0.01,0.01)))
+          control=list(parscale=c(1000,10,0.05,0.001,0.001,0.001)))
 summary(mod) 
 
-coef(mod)[1]*(1+coef(mod)[4]*(fit_dat$age_mean-fit_dat$age_mean[1]))
-coef(mod)[2]*(1+coef(mod)[5]*(fit_dat$age_mean-fit_dat$age_mean[1]))
-coef(mod)[3]*(1+coef(mod)[6]*(fit_dat$age_mean-fit_dat$age_mean[1]))
-view(fit_dat)
+coef(mod)[1]*(1+coef(mod)[4]*fit_dat$age_mean)
+coef(mod)[2]*(1+coef(mod)[5]*fit_dat$age_mean)
+coef(mod)[3]*(1+coef(mod)[6]*fit_dat$age_mean)
+# view(fit_dat)
 
 # fit
 fitted= expand.grid(day=seq(0,2000,by=10),
@@ -120,9 +121,9 @@ age_means=unique(fitted$age_mean)
 for (k in 1:length(age_means)){
   idx = fitted$age_mean==age_means[k]
   fitted$titer[idx] = titer_vs_time( t=seq(0,2000,by=10),
-                              C_max=coef(mod)[1]*(1+coef(mod)[4]*(age_means[k]-fit_dat$age_mean[1])),
-                              T_decay=coef(mod)[2]*(1+coef(mod)[5]*(age_means[k]-fit_dat$age_mean[1])),
-                              alpha=coef(mod)[3]*(1+coef(mod)[6]*(age_means[k]-fit_dat$age_mean[1])))
+                              C_max=coef(mod)[1]*(1+coef(mod)[4]*age_means[k]),
+                              T_decay=coef(mod)[2]*(1+coef(mod)[5]*age_means[k]),
+                              alpha=coef(mod)[3]*(1+coef(mod)[6]*age_means[k]))
 }
 
 
