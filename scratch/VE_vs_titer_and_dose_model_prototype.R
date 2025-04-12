@@ -21,7 +21,6 @@
 #+ echo=TRUE, message=FALSE, results = 'hide'
 # set up the environment
 library(tidyverse)
-library(stats4)
 
 #' ## Define the model
 
@@ -45,7 +44,7 @@ library(stats4)
   # assume titer =50 because that's half of waned level after 5 years in Bangladesh teens...
   
   # rescale variable to remove immune confound
-  gamma=0.3 #0.25
+  gamma=0.3 
   # rescale alpha
   alpha_prime=50^gamma*0.175
   
@@ -212,93 +211,91 @@ t_peak=21
 t = seq(0,1e3,by=1)
 
 param_df = param_df |>
-  rbind(data.frame(value=c(T_decay=9.3,k=0.98,
-                           beta_C_max_age_mean=-0.029, beta_T_decay_age_mean=0.15, beta_k_age_mean=-0.023,
+  rbind(data.frame(value=c(T_decay=9.6,k=1.04,
+                           beta_C_max_age_mean=-0.055, beta_T_decay_age_mean=0.056, beta_k_age_mean=-0.037,
                            C_min=1,T_rise=1.5,t_start=3,t_peak=28), 
                    component = 'anti_Vi_IgG_elisa') )
 
-titer_vs_time = function(t,C_max, age_years,params=param_df){
+titer_vs_time = function(t,C_max, age_years,params=param_df,C_pre=1){
   
-  Cma=C_max*(1+params['beta_C_max_age_mean','value'] * age_years)
-  Tda = params['T_decay','value'] *(1+params['beta_T_decay_age_mean','value']  * age_years)
-  ka = params['k','value']*(1+params['beta_k_age_mean','value']  * age_years)
-  
+  Cma=C_max*exp(params['beta_C_max_age_mean','value'] * age_years)
+  Tda = params['T_decay','value'] *exp(params['beta_T_decay_age_mean','value']  * age_years)
+  ka = params['k','value']*exp(params['beta_k_age_mean','value']  * age_years)
+
   # power law decay
-  titer = (1+(t-params['t_peak','value'] )/(ka*Tda))^(-ka)
+  titer = params['C_min','value']  + (Cma-params['C_min','value'])*(1+(t-params['t_peak','value'] )/(ka*Tda))^(-ka)
   
   # simple logistic interpolator rise (this is just for continuity/realism. plays no role in the model)
   titer[t<params['t_peak','value'] ] =
+    C_pre + (Cma-C_pre)*
     (1/(1+exp(-(t[t<params['t_peak','value'] ]-params['t_start','value'] *5)/params['T_rise','value'])) - 1/(1+exp(-(0-params['t_start','value']*5)/params['T_rise','value'])))/
     (1/(1+exp(-(params['t_peak','value'] -params['t_start','value']*5)/params['T_rise','value'])) - 1/(1+exp(-(0-params['t_start','value']*5)/params['T_rise','value'])))
-  
-  # scale dimensions
-  titer = params['C_min','value'] + (Cma-params['C_min','value'])*titer
   
   return(titer)
 }
 
-plot_dat = data.frame(t=seq(1,20*365,by=1),
-                      dose = 5e1,
+plot_dat = data.frame(t=seq(28,20*365,by=1),
+                      dose = 1e3,
                       age_years=8,
                       location='Malawi-like',
                       vaccine='Typbar-TCV') |>
-  mutate(CoP=titer_vs_time(t=t,C_max=3650,age_years=age_years)) |>
+  mutate(CoP=titer_vs_time(t=t,C_max=4307,age_years=age_years)) |>
   mutate(ve = vaccine_efficacy(dose,CoP,outcome = 'fever_given_dose'),
          outcome = 'fever given dose') |>
-  rbind(data.frame(t=seq(1,20*365,by=1),
+  rbind(data.frame(t=seq(28,20*365,by=1),
                    dose = 1e3,
                    age_years=1.4,
                    location='Malawi-like',
                    vaccine='Typbar-TCV') |>
-          mutate(CoP=titer_vs_time(t=t,C_max=3650,age_years=age_years)) |>
+          mutate(CoP=titer_vs_time(t=t,C_max=4307,age_years=age_years)) |>
           mutate(ve = vaccine_efficacy(dose,CoP,outcome = 'fever_given_dose'),
                  outcome = 'fever given dose')) |>
-  rbind(data.frame(t=seq(1,20*365,by=1),
+  rbind(data.frame(t=seq(28,20*365,by=1),
                    dose = 5e4,
                    age_years=8,
                    location='Dhaka-like',
                    vaccine='Typbar-TCV') |>
-          mutate(CoP=titer_vs_time(t=t,C_max=3650,age_years=age_years)) |>
+          mutate(CoP=titer_vs_time(t=t,C_max=4307,age_years=age_years)) |>
           mutate(ve = vaccine_efficacy(dose,CoP,outcome = 'fever_given_dose'),
                  outcome = 'fever given dose')) |>
-  rbind(data.frame(t=seq(1,20*365,by=1),
-                   dose = 1e6,
+  rbind(data.frame(t=seq(28,20*365,by=1),
+                   dose = 5e4,
                    age_years=1.4,
                    location='Dhaka-like',
                    vaccine='Typbar-TCV') |>
-          mutate(CoP=titer_vs_time(t=t,C_max=3650,age_years=age_years)) |>
+          mutate(CoP=titer_vs_time(t=t,C_max=4307,age_years=age_years)) |>
           mutate(ve = vaccine_efficacy(dose,CoP,outcome = 'fever_given_dose'),
                  outcome = 'fever given dose')) |>
-  rbind(data.frame(t=seq(1,20*365,by=1),
-                     dose = 5e1,
+  rbind(data.frame(t=seq(28,20*365,by=1),
+                     dose = 1e3,
                      age_years=8,
                      location='Malawi-like',
                      vaccine='Typbar-TCV') |>
-          mutate(CoP=titer_vs_time(t=t,C_max=3650,age_years=age_years)) |>
+          mutate(CoP=titer_vs_time(t=t,C_max=4307,age_years=age_years)) |>
           mutate(ve = vaccine_efficacy(dose,CoP,outcome = 'infection_given_dose'),
                  outcome = 'infection given dose')) |>
-  rbind(data.frame(t=seq(1,20*365,by=1),
+  rbind(data.frame(t=seq(28,20*365,by=1),
                    dose = 1e3,
                    age_years=1.4,
                    location='Malawi-like',
                    vaccine='Typbar-TCV') |>
-          mutate(CoP=titer_vs_time(t=t,C_max=3650,age_years=age_years)) |>
+          mutate(CoP=titer_vs_time(t=t,C_max=4307,age_years=age_years)) |>
           mutate(ve = vaccine_efficacy(dose,CoP,outcome = 'infection_given_dose'),
                  outcome = 'infection given dose')) |>
-  rbind(data.frame(t=seq(1,20*365,by=1),
+  rbind(data.frame(t=seq(28,20*365,by=1),
                    dose = 5e4,
                    age_years=8,
                    location='Dhaka-like',
                    vaccine='Typbar-TCV') |>
-          mutate(CoP=titer_vs_time(t=t,C_max=3650,age_years=age_years)) |>
+          mutate(CoP=titer_vs_time(t=t,C_max=4307,age_years=age_years)) |>
           mutate(ve = vaccine_efficacy(dose,CoP,outcome = 'infection_given_dose'),
                  outcome = 'infection given dose')) |>
-  rbind(data.frame(t=seq(1,20*365,by=1),
-                   dose = 1e6,
+  rbind(data.frame(t=seq(28,20*365,by=1),
+                   dose = 5e4,
                    age_years=1.4,
                    location='Dhaka-like',
                    vaccine='Typbar-TCV') |>
-          mutate(CoP=titer_vs_time(t=t,C_max=3650,age_years=age_years)) |>
+          mutate(CoP=titer_vs_time(t=t,C_max=4307,age_years=age_years)) |>
           mutate(ve = vaccine_efficacy(dose,CoP,outcome = 'infection_given_dose'),
                  outcome = 'infection given dose')) |>
   mutate(year=t/365) |>
@@ -314,7 +311,149 @@ ggplot(plot_dat) +
   theme_bw() +
   scale_y_continuous(limits=c(0,1),breaks=seq(0,1,by=0.1)) +
   ylab('VE') +
-  xlab('dose [bacilli]')
+  xlab('years post-TCV')
+
+
+
+#' Boosting model
+#' 
+#' Parameters taken from boosting section of titer_model_fit_scratch.R
+#' 
+fold_rise_model = function(CoP_pre,mu_0=3.3,CoP_max=2160, CoP_min=1){
+  fold_rise = pmax(1,10^(mu_0*(1-(log10(CoP_pre)-log10(CoP_min))/(log10(CoP_max)-log10(CoP_min)))))
+  return(fold_rise)
+}
+
+boost_dat = data.frame(pre_vax_elisa = 10^seq(0,4.3,by=0.1)) |>
+  mutate(fold_rise = fold_rise_model(CoP_pre = pre_vax_elisa)) |>
+  mutate(post_vax_elisa = fold_rise*pre_vax_elisa)
+ggplot(boost_dat) +
+  geom_line(aes(x=pre_vax_elisa,y=fold_rise)) +
+  theme_bw() +
+  scale_y_continuous(trans='log10') +
+  scale_x_continuous(trans='log10') +
+  xlab('pre-vaccination IgG [EU/ml]') + ylab('fold-rise')
+
+ggplot(boost_dat) +
+  geom_line(aes(x=pre_vax_elisa,y=post_vax_elisa)) +
+  theme_bw() +
+  scale_y_continuous(trans='log10',limits=c(1,10^4.3)) +
+  scale_x_continuous(trans='log10') +
+  xlab('pre-vaccination IgG [EU/ml]') +
+  ylab('post-vaccination IgG [EU/ml]') 
+
+#' What we see is the little bit of data on boosting are consistent with, for Typbar-TCV (and Vi-rEPA, another conjugate vaccine),
+#' is that the immunogenicity appears to be maxed out such that titers cannot reliably get (much) higher than achieved by first vaccination.
+#' Boosting thus restores Vi titers, but doesn't seem to be able to significantly raise them beyond what one dose achieves.
+#' This is in contrast with the less immunogenic Vi-polysaccharide vaccine, where boosting may lead to increases in peak titers since the first dose 
+#' doesn't max titer out...
+#' 
+#' Also, we almost certainly need to think about age. Some of the odd behavior may be not including age properly...
+
+# let's add a boost to the waning model above
+# boost at 10 years
+boost_year = 10
+
+plot_dat = data.frame(t=seq(28,20*365,by=1),
+                      dose = 1e3,
+                      age_years=8,
+                      location='Malawi-like',
+                      vaccine='Typbar-TCV') |>
+  mutate(CoP=titer_vs_time(t=t,C_max=4307,age_years=age_years)) |>
+  mutate(ve = vaccine_efficacy(dose,CoP,outcome = 'fever_given_dose'),
+         outcome = 'fever given dose') |>
+  rbind(data.frame(t=seq(28,20*365,by=1),
+                   dose = 1e3,
+                   age_years=1.4,
+                   location='Malawi-like',
+                   vaccine='Typbar-TCV') |>
+          mutate(CoP=titer_vs_time(t=t,C_max=4307,age_years=age_years)) |>
+          mutate(ve = vaccine_efficacy(dose,CoP,outcome = 'fever_given_dose'),
+                 outcome = 'fever given dose')) |>
+  rbind(data.frame(t=seq(28,20*365,by=1),
+                   dose = 5e4,
+                   age_years=8,
+                   location='Dhaka-like',
+                   vaccine='Typbar-TCV') |>
+          mutate(CoP=titer_vs_time(t=t,C_max=4307,age_years=age_years)) |>
+          mutate(ve = vaccine_efficacy(dose,CoP,outcome = 'fever_given_dose'),
+                 outcome = 'fever given dose')) |>
+  rbind(data.frame(t=seq(28,20*365,by=1),
+                   dose = 5e4,
+                   age_years=1.4,
+                   location='Dhaka-like',
+                   vaccine='Typbar-TCV') |>
+          mutate(CoP=titer_vs_time(t=t,C_max=4307,age_years=age_years)) |>
+          mutate(ve = vaccine_efficacy(dose,CoP,outcome = 'fever_given_dose'),
+                 outcome = 'fever given dose')) |>
+  rbind(data.frame(t=seq(28,20*365,by=1),
+                   dose = 1e3,
+                   age_years=8,
+                   location='Malawi-like',
+                   vaccine='Typbar-TCV') |>
+          mutate(CoP=titer_vs_time(t=t,C_max=4307,age_years=age_years)) |>
+          mutate(ve = vaccine_efficacy(dose,CoP,outcome = 'infection_given_dose'),
+                 outcome = 'infection given dose')) |>
+  rbind(data.frame(t=seq(28,20*365,by=1),
+                   dose = 1e3,
+                   age_years=1.4,
+                   location='Malawi-like',
+                   vaccine='Typbar-TCV') |>
+          mutate(CoP=titer_vs_time(t=t,C_max=4307,age_years=age_years)) |>
+          mutate(ve = vaccine_efficacy(dose,CoP,outcome = 'infection_given_dose'),
+                 outcome = 'infection given dose')) |>
+  rbind(data.frame(t=seq(28,20*365,by=1),
+                   dose = 5e4,
+                   age_years=8,
+                   location='Dhaka-like',
+                   vaccine='Typbar-TCV') |>
+          mutate(CoP=titer_vs_time(t=t,C_max=4307,age_years=age_years)) |>
+          mutate(ve = vaccine_efficacy(dose,CoP,outcome = 'infection_given_dose'),
+                 outcome = 'infection given dose')) |>
+  rbind(data.frame(t=seq(28,20*365,by=1),
+                   dose = 5e4,
+                   age_years=1.4,
+                   location='Dhaka-like',
+                   vaccine='Typbar-TCV') |>
+          mutate(CoP=titer_vs_time(t=t,C_max=4307,age_years=age_years)) |>
+          mutate(ve = vaccine_efficacy(dose,CoP,outcome = 'infection_given_dose'),
+                 outcome = 'infection given dose')) |>
+  mutate(year=t/365) |>
+  mutate(year_groups = if_else(year<=2,'0-2',if_else(year<=5,'3-5','>5'))) |>
+  group_by(year_groups,outcome,location,age_years,vaccine) |>
+  mutate(mean=if_else(year<=5,mean(ve),NA)) |>
+  ungroup()
+
+# I should've called it a day two hours ago but here we are
+vaccines=unique(plot_dat$vaccine)
+ages=unique(plot_dat$age_years)
+locations=unique(plot_dat$location)
+outcomes = unique(plot_dat$outcome)
+for (k in 1:length(vaccines)){
+  for (n in 1:length(ages)){
+    for (m in 1:length(outcomes)){
+      for (q in 1:length(locations)){
+        idx = plot_dat$vaccine[k]==vaccines[k] & plot_dat$age_years==ages[n] & plot_dat$outcome==outcomes[m] & plot_dat$location==locations[q] & plot_dat$t >= boost_year*365
+        plot_dat$CoP[idx] = titer_vs_time(t=plot_dat$t[idx]-boost_year*365,
+                                          C_max=fold_rise_model(CoP_pre = plot_dat$CoP[idx & plot_dat$t==boost_year*365])*plot_dat$CoP[idx & plot_dat$t==boost_year*365],
+                                          age_years=ages[n]+boost_year,
+                                          C_pre=plot_dat$CoP[idx & plot_dat$t==boost_year*365])
+      }
+    }
+  }
+}
+
+plot_dat = plot_dat |> group_by(location, outcome, age_years,vaccine) |>
+  mutate(ve = vaccine_efficacy(dose=unique(dose),CoP=CoP,outcome=gsub(' ','_',unique(outcome))))
+
+ggplot(plot_dat) +
+  geom_line(aes(x=year,y=ve,group=interaction(location,age_years,vaccine),color=location)) +
+  geom_line(aes(x=year,y=mean,group=interaction(location,age_years,vaccine),color=location)) + 
+  facet_grid('~outcome') +
+  theme_bw() +
+  scale_y_continuous(limits=c(0,1),breaks=seq(0,1,by=0.1)) +
+  ylab('VE') +
+  xlab('years post-TCV')
 
 
 # /* back matter for exporting as a blog post
