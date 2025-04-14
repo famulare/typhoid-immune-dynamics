@@ -88,3 +88,5 @@ medRxiv. 2024 Aug 30:2024.08.30.24312839. doi:10.1101/2024.08.30.24312839
 https://www.medrxiv.org/content/10.1101/2024.08.30.24312839v1.full
 
 - Lee EY, Park JY, Kim DR, Song M, Sahastrabuddhe S, Kim H, Chon Y, Yang JS. Comparison of anti-Vi IgG responses between two clinical studies of typhoid Vi conjugate vaccines (Vi-DT vs Vi-TT). PLoS Negl Trop Dis. 2020 Mar 23;14(3):e0008171. doi: 10.1371/journal.pntd.0008171. PMID: 32203521; PMCID: PMC7156108. https://pmc.ncbi.nlm.nih.gov/articles/PMC7156108/
+
+- Syed KA, Saluja T, Cho H, Hsiao A, Shaikh H, Wartel TA, Mogasale V, Lynch J, Kim JH, Excler JL, Sahastrabuddhe S. Review on the recent advances on typhoid vaccine development and challenges ahead. Clin Infect Dis. 2020 Jul 29;71(Suppl 2):S141–S150. doi: 10.1093/cid/ciaa504. PMID: 32725225; PMCID: PMC7388714. *Note*: thorough review with many references to consider.
