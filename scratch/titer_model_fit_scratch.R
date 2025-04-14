@@ -81,6 +81,12 @@ relevant_data |> group_by(age_min_years,day) |>
 Kossaczka_multiplier = (25.2 + 21.5)/2
 Kossaczka_multiplier 
 
+d_imm |> 
+  filter(study == 'Kossaczka1999') |>
+  filter(antigen =='IgG') |>
+  select(study,antigen,age_min_years, age_max_years, age_mean,day, elisa_U_per_ml_median_numeric) |>
+  print(n=35)
+
 # rescale all Kossaczka data, including IgA (which is a leap!)
 
 names(d_imm)
@@ -88,6 +94,14 @@ d_imm = d_imm |>
   mutate(elisa_U_per_ml_median_numeric = if_else(study=='Kossaczka1999', Kossaczka_multiplier*elisa_U_per_ml_median_numeric,elisa_U_per_ml_median_numeric),
          elisa_U_per_ml_lower_numeric = if_else(study=='Kossaczka1999', Kossaczka_multiplier*elisa_U_per_ml_lower_numeric,elisa_U_per_ml_lower_numeric),
          elisa_U_per_ml_upper_numeric = if_else(study=='Kossaczka1999', Kossaczka_multiplier*elisa_U_per_ml_upper_numeric,elisa_U_per_ml_upper_numeric))
+
+# linear proportional scaling seems unlikely, with the very high 18-35 day 42 titer...
+d_imm |> 
+  filter(study == 'Kossaczka1999') |>
+  filter(antigen =='IgG') |>
+  select(study,day,vaccine,age_min_years, age_max_years, age_mean,day, elisa_U_per_ml_median,elisa_U_per_ml_median_numeric) |>
+  print(n=35)
+
 
 # plot total individual VE for bacteriologically-confirmed typhoid fever vs time
 plot_dat = d_imm |>
@@ -187,7 +201,8 @@ names(d_imm)
 boosting_data = d_imm |> filter(study %in% c('Kossaczka1999','Mohan2015')) |>
   filter(antigen=='IgG') |>
   filter( (study == 'Kossaczka1999' & age_min_years == 2) | 
-            (study == 'Mohan2015' & age_min_years == 2 & age_max_years == 45) | 
+            (study == 'Kossaczka1999' & age_min_years == 18) | 
+            (study == 'Mohan2015' & age_min_years == 2 & age_max_years == 45) |
             (study == 'Mohan2015' & age_min_years == 0.5 & age_max_years == 2)) |>
   mutate(group_label = interaction(vaccine,age_label, vaccine_schedule))
 boosting_data
@@ -342,31 +357,64 @@ ggplot() +
   scale_y_continuous(trans='log10') +
   scale_x_continuous(trans='log10')
 
-
-# let's see what happens if we just force the intercept
 max(d_imm$elisa_U_per_ml_median_numeric)
 max(d_imm$elisa_U_per_ml_upper_numeric)
 
+# actually hmmm the one really high titer is an outlier, which is revealing that linear proportional scaling of the old assay to new is probably wrong
+# otherwise, this all works to a factor of 2, which is within expected precision.
+max_titer_df =d_imm |> 
+  filter(antigen == 'IgG') |>
+  filter(day<50 & day >0) |>
+  filter(vaccine != 'Vi_polysaccharide') |>
+  group_by(age_mean,age_label,study,day,assay,vaccine) |>
+  summarize(max_EUpml_median = max(elisa_U_per_ml_median_numeric),
+                                          max_EUpml_upper = max(elisa_U_per_ml_upper_numeric))
+print(max_titer_df,n=30)
+
+max_titer_df |>
+  ggplot() +
+    geom_point(aes(x=age_mean,y=max_EUpml_median,color=assay,shape=vaccine)) +
+    geom_hline(yintercept = coef(mod)[4],linetype='dashed') +
+    scale_y_continuous(trans='log2',limits=2^c(7,14),breaks=2^seq(7,14),minor_breaks = NULL)
+
+
+# hmm... it is interesting that if, maybe, you happen to get to a higher titer than the boost max, that we wouldn't expect a boost again...
+# Ah I see what's happening! It looks like the conjugate vaccines hit the maximum possible antibody level in one dose. 
+# And so each re-dose just brings you back up.
+# 
+
+# so let's refit dropping Vi-rEPA since I probably don't understand that titer data
+boosting_data = boosting_data |> filter(vaccine != 'Vi-rEPA2')
+fold_rise_mlogL = function(mu_TCV,mu_Vips,CoP_max){
+  mlogL=0
+  for (row in 1:nrow(boosting_data)){
+    if (boosting_data$vaccine[row]=='Typbar-TCV'){
+      fold_rise = fold_rise_model(CoP_pre = boosting_data$pre_vax_elisa[row],mu_0=mu_TCV,CoP_max=CoP_max)
+    } else if (boosting_data$vaccine[row]=='Vi-polysaccharide'){
+      fold_rise = fold_rise_model(CoP_pre = boosting_data$pre_vax_elisa[row],mu_0=mu_Vips,CoP_max=CoP_max)
+    }
+    fold_rise = fold_rise
+    mlogL = mlogL + (log(boosting_data$fold_rise_adjusted[row])-log(fold_rise))^2
+  }
+  return(mlogL)
+}
+
 mod = mle(fold_rise_mlogL,
-          start=list(mu_TCV=3,mu_Vips=2,mu_VirEPA=3),
-          fixed=list(CoP_max=20e3),
-          control=list(parscale=c(0.1,0.1,0.1)))
+          start=list(mu_TCV=3,mu_Vips=2,CoP_max=2000),
+          control=list(parscale=c(0.1,0.1,10)))
 summary(mod) 
 
 vaccines = unique(boosting_data$vaccine)
 fitted_boosting = expand.grid(vaccine=vaccines,
-                              pre_vax_elisa = 10^seq(0,4.3,by=0.01))
+                              pre_vax_elisa = 10^seq(0,4,by=0.01))
 for (row in 1:nrow(fitted_boosting)){
   if (fitted_boosting$vaccine[row]=='Typbar-TCV'){
-    fitted_boosting$fold_rise[row] = fold_rise_model(CoP_pre = fitted_boosting$pre_vax_elisa[row],mu_0=coef(mod)[1],CoP_max=20e3)
+    fitted_boosting$fold_rise[row] = fold_rise_model(CoP_pre = fitted_boosting$pre_vax_elisa[row],mu_0=coef(mod)[1],CoP_max=coef(mod)[3])
   } else if (fitted_boosting$vaccine[row]=='Vi-polysaccharide'){
-    fitted_boosting$fold_rise[row] = fold_rise_model(CoP_pre = fitted_boosting$pre_vax_elisa[row],mu_0=coef(mod)[2],CoP_max=20e3)
-  } else if (fitted_boosting$vaccine[row]=='Vi-rEPA2'){
-    fitted_boosting$fold_rise[row] = fold_rise_model(CoP_pre = fitted_boosting$pre_vax_elisa[row],mu_0=coef(mod)[3],CoP_max=20e3)
-  }
+    fitted_boosting$fold_rise[row] = fold_rise_model(CoP_pre = fitted_boosting$pre_vax_elisa[row],mu_0=coef(mod)[2],CoP_max=coef(mod)[3])
+  } 
 }
 
-# yay! this works, except that there are many observed values above the so-called maximum. 
 ggplot() +
   geom_line(data=fitted_boosting,aes(x=pre_vax_elisa,y=fold_rise,
                                      color=vaccine,group=vaccine)) +
@@ -376,11 +424,16 @@ ggplot() +
   scale_y_continuous(trans='log10') +
   scale_x_continuous(trans='log10')
 
-# hmm... it is interesting that if, maybe, you happen to get to a higher titer than the boost max, that we wouldn't expect a boost again...
-# Ah I see what's happening! It looks like the conjugate vaccines hit the maximum possible antibody level in one dose. 
-# And so each re-dose just brings you back up.
-# 
+max_titer_df |>
+  ggplot() +
+  geom_point(aes(x=age_mean,y=max_EUpml_median,color=assay,shape=vaccine)) +
+  geom_hline(yintercept = coef(mod)[3],linetype='dashed') +
+  scale_y_continuous(trans='log2',limits=2^c(7,14),breaks=2^seq(7,14),minor_breaks = NULL)
+
+
+
 # It's also interesting that the polysaccharide data looks like it has a shared slope with the conjugates and not a shared intercept.
 # My expectation is the intercept should be a human host property, not a vaccine property. But perhaps this is wrong. Not much to say confidently
 # either way with just 2 points, but I'm sure there's more Vi-polysaccharide vaccine data out there to add...
+
 

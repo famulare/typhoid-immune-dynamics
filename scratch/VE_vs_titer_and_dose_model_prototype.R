@@ -319,12 +319,13 @@ ggplot(plot_dat) +
 #' 
 #' Parameters taken from boosting section of titer_model_fit_scratch.R
 #' 
-fold_rise_model = function(CoP_pre,mu_0=3.3,CoP_max=2160, CoP_min=1){
+fold_rise_model = function(CoP_pre,mu_0=3.3,CoP_max=2^11, CoP_min=1){
   fold_rise = pmax(1,10^(mu_0*(1-(log10(CoP_pre)-log10(CoP_min))/(log10(CoP_max)-log10(CoP_min)))))
   return(fold_rise)
 }
 
-boost_dat = data.frame(pre_vax_elisa = 10^seq(0,4.3,by=0.1)) |>
+
+boost_dat = data.frame(pre_vax_elisa = 10^seq(0,3.31,by=0.1)) |>
   mutate(fold_rise = fold_rise_model(CoP_pre = pre_vax_elisa)) |>
   mutate(post_vax_elisa = fold_rise*pre_vax_elisa)
 ggplot(boost_dat) +
@@ -337,7 +338,7 @@ ggplot(boost_dat) +
 ggplot(boost_dat) +
   geom_line(aes(x=pre_vax_elisa,y=post_vax_elisa)) +
   theme_bw() +
-  scale_y_continuous(trans='log10',limits=c(1,10^4.3)) +
+  scale_y_continuous(trans='log10',limits=c(1,10^3.31)) +
   scale_x_continuous(trans='log10') +
   xlab('pre-vaccination IgG [EU/ml]') +
   ylab('post-vaccination IgG [EU/ml]') 
