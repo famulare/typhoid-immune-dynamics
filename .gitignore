@@ -5,3 +5,11 @@
 .DS_Store
 site
 .cache
+
+# Excel debris
+~$*.xls*
+*.tmp
+*.bak
+*.lock
+*.xlk
+*.xlsb.autosave

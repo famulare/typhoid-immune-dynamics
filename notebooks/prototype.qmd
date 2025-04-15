@@ -1,0 +1,155 @@
+---
+title: "Prototype VE titer-dose model"
+format: html
+execute:
+  echo: true
+  output: true
+editor: visual
+
+---
+
+## Load libraries
+
+```{r}
+# Load required libraries
+suppressPackageStartupMessages(library(tidyverse))
+library(knitr)
+
+source(here::here("R", "functions.R"))
+```
+
+## Dose-Response Models
+
+As the [Quantitative Microbial Risk Assessment (QMRA)
+wiki](https://qmrawiki.canr.msu.edu/) explains, there are three main types of
+dose-response models which we call: exponential, immunologically naive
+Beta-Poisson, and the immune-adjusted Beta-Poisson model we will build up here.
+The exponential model is the simplest and is based on thinking about the
+probability of infection as a Poisson process with a rate proportional to the
+**dose** $d$ (e.g., CFU) and $r$ is the **per dose infectivity rate** (units of
+1/CFU). The probability of infection is given by:
+
+$$ P(\mathrm{response} \; \mid \; d, r) = 1 - e^{-r d}$$
+
+As the QMRA wiki explains, this model is a very poor fit to the data, and
+not used. Instead, they use an immunologically naive Beta-Poisson model, which
+has a parametric form like,
+
+$$
+P(\mathrm{response}) = 1 - \left[1 + \frac{\text{dose} \cdot \left(2^{1/\alpha} - 1\right)}{N_{50}} \right]^{-\alpha}
+$$
+
+
+Where:
+
+ - $d$ = dose (CFU)
+ - $\alpha$ = shape parameter
+ - $N_{50}$ = dose at which 50% of the population is infected (CFU)
+
+```{r}
+# Define the parameter table
+typhoid_dose_response <- tibble::tibble(
+    study_id = c("79", "80", "79 + 80"),
+    number_doses = c(3, 5, 8),
+    N50 = c(3.45e6, 8.53e5, 1.11e6),
+    alpha = c(0.111, 0.203, 0.175),
+    study = c(
+        "Hornick et al., 1970",
+        "Levine et al., 1973",
+        "QMRA Wiki pooled model"
+    )
+)
+
+# Print as pretty table
+knitr::kable(typhoid_dose_response, caption = "Beta-Poisson Dose-Response Models for *Salmonella Typhi* (Quailes strain)")
+```
+
+One interesting note from the [QMRA
+wiki](https://qmrawiki.org/experiments/salmonella-typhi) is "Neither the
+exponential nor beta-Poisson fits well; beta-Poisson is less bad."
+
+### Dose-Response Curve
+
+```{r}
+# Beta-Poisson function (no immune scaling)
+beta_poisson <- function(dose, alpha, N50) {
+    1 - (1 + dose * (2^(1 / alpha) - 1) / N50)^(-alpha)
+}
+
+# Generate dose range
+dose_vals <- 10^seq(2, 9, by = 0.05)
+
+# Expand across studies
+plot_df <- typhoid_dose_response |>
+    rowwise() |>
+    mutate(data = list(tibble(
+        dose = dose_vals,
+        p = beta_poisson(dose_vals, alpha, N50),
+        study = study
+    ))) |>
+    select(data) |>
+    unnest(cols = c(data))
+
+# Plot
+ggplot(plot_df, aes(x = dose, y = p, color = study)) +
+    geom_line(size = 1.2) +
+    scale_x_log10(breaks = 10^seq(2, 9, by = 1)) +
+    scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.1)) +
+    labs(
+        x = "Dose (CFU)",
+        y = "Probability of Response (e.g., Fever)",
+        title = "Typhoid Dose-Response Curves",
+        subtitle = "Based on beta-Poisson fits from QMRA Wiki (Quailes strain)",
+        color = "Study"
+    ) +
+    theme_bw()
+```
+
+### Adjusted model for uncertain prior exposure
+
+This prison population is likely to have some prior exposure to *Salmonella
+typhi*, and thus their response is not immunologically naive. For reference,
+the [CDC estimates](https://www.cdc.gov/mmwr/preview/mmwrhtml/mm4840a1.htm) the
+incidence of typhoid fever in the US in 1900 was 100 per 100,000, so it's
+likely the prison population has some prior exposure earlier in life that leads
+to immunological confounding.
+
+To adjust for this, we can use the following immune-adjusted
+Beta-Poisson model:
+
+$$
+P(\mathrm{response} \; \mid \; d, \alpha, N_{50}, \gamma, \text{CoP}) = 1 - \left(1 + \frac{d \cdot \left(2^{1/\alpha} - 1\right)}{N_{50}} \right)^{-\alpha / \text{CoP}^{\gamma}}
+$$
+
+Where:
+
+ - $d$ = dose (CFU)
+ - $\alpha$ = shape parameter
+ - $N_{50}$ = dose at which 50% of the population is infected (CFU)
+
+- $\gamma$ = **immune scaling parameter**, which determines how strongly the correlate of protection modulates susceptibility. 
+  - When $\gamma = 0$, CoP has no effect, and the model reduces to the standard
+    beta-Poisson.
+  - When $\gamma = 1$, risk is inversely proportional to CoP, implying a
+    **log-linear relationship** between protection (e.g. titer level). This is
+    unlikely in practice, as usually protection flattens out with higher
+    protection.
+ - $\text{CoP}$ = **correlate of protection** (e.g. antibody titer),
+   $\text{CoP} = 1$ is immunologically naive.
+
+The [Quantitative Microbial Risk Assessment (QMRA)
+wiki](https://qmrawiki.canr.msu.edu/) contains an optimized dose response model
+for *S. typhi*, based on pooling the results of two studies: [Hornick et al.
+(1970)](https://europepmc.org/article/med/5929469) and [Levine et al.
+(1973)](https://academic.oup.com/jid/article-abstract/127/3/261/2189218). The
+model is based on the Quailes strain of *Salmonella typhi* and is a
+beta-Poisson model with the following parameters:
+
+
+
+$$
+
+$$
+
+
+

@@ -30,16 +30,18 @@ library(tidyverse)
 
   ## set up a parameters data.frame that we will build up as we write the model
 
-  # probability of fever given dose (quailes strain, skim milk) 
-  # default used in Typhoidsim, from https://qmrawiki.canr.msu.edu/experiments/salmonella-typhi recommended model
-  # param_df=data.frame(value=c(n50_fever_given_dose=1.11e6, 
-  #                             alpha_fever_given_dose=0.175,  
-  #                             gamma_fever_given_dose=0.2), # fuzzy guestimate from  https://pmc.ncbi.nlm.nih.gov/articles/PMC5720597/
-  #                     component = 'p_fever_given_dose')  |>
+  # probability of fever given dose (quailes strain, skim milk) default used in
+# Typhoidsim, from https://qmrawiki.canr.msu.edu/experiments/salmonella-typhi
+# recommended model param_df=data.frame(value=c(n50_fever_given_dose=1.11e6,
+# alpha_fever_given_dose=0.175,  gamma_fever_given_dose=0.2), # fuzzy
+# guestimate from  https://pmc.ncbi.nlm.nih.gov/articles/PMC5720597/
+#                     component = 'p_fever_given_dose')  |>
   #   
 
-  # I think there is some unknown background history of typhoid fever in the dose response challenge study cohorts
-  # trying to make a crappy guess at what an equivalent mean titer might look like if inmates saw typhoid in childhood # https://www.cdc.gov/mmwr/preview/mmwrhtml/mm4840a1.htm
+  # I think there is some unknown background history of typhoid fever in the
+# dose response challenge study cohorts trying to make a crappy guess at what
+# an equivalent mean titer might look like if inmates saw typhoid in childhood
+# # https://www.cdc.gov/mmwr/preview/mmwrhtml/mm4840a1.htm
 
   # assume titer =50 because that's half of waned level after 5 years in Bangladesh teens...
   
