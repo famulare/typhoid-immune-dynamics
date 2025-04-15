@@ -13,7 +13,9 @@ editor: visual
 ```{r}
 # Load required libraries
 suppressPackageStartupMessages(library(tidyverse))
-library(knitr)
+suppressPackageStartupMessages(library(assertthat))
+suppressPackageStartupMessages(library(knitr))
+suppressPackageStartupMessages(library(scales))
 
 source(here::here("R", "functions.R"))
 ```
@@ -31,9 +33,9 @@ probability of infection as a Poisson process with a rate proportional to the
 
 $$ P(\mathrm{response} \; \mid \; d, r) = 1 - e^{-r d}$$
 
-As the QMRA wiki explains, this model is a very poor fit to the data, and
-not used. Instead, they use an immunologically naive Beta-Poisson model, which
-has a parametric form like,
+As the QMRA wiki explains, this model is a very poor fit to the data, and not
+used. Instead, they use a basic Beta-Poisson model dose-response, which has a
+parametric form,
 
 $$
 P(\mathrm{response}) = 1 - \left[1 + \frac{\text{dose} \cdot \left(2^{1/\alpha} - 1\right)}{N_{50}} \right]^{-\alpha}
@@ -46,76 +48,89 @@ Where:
  - $\alpha$ = shape parameter
  - $N_{50}$ = dose at which 50% of the population is infected (CFU)
 
+The [Quantitative Microbial Risk Assessment (QMRA)
+wiki](https://qmrawiki.canr.msu.edu/) contains an optimized
+Beta-Poisson dose-response model for *S. typhi*, based on
+pooling the results of two studies: [Hornick et al.
+(1970)](https://europepmc.org/article/med/5929469) and
+[Levine et al.
+(1973)](https://academic.oup.com/jid/article-abstract/127/3/261/2189218).
+The model is based on the Quailes strain of *Salmonella
+typhi* and is a beta-Poisson model with the following
+parameters:
+
+
 ```{r}
 # Define the parameter table
-typhoid_dose_response <- tibble::tibble(
-    study_id = c("79", "80", "79 + 80"),
-    number_doses = c(3, 5, 8),
-    N50 = c(3.45e6, 8.53e5, 1.11e6),
-    alpha = c(0.111, 0.203, 0.175),
-    study = c(
-        "Hornick et al., 1970",
-        "Levine et al., 1973",
-        "QMRA Wiki pooled model"
-    )
+qmra_df <- tibble::tibble(
+  study_id = c("79", "80", "79 + 80"),
+  number_doses = c(3, 5, 8),
+  N50 = c(3.45e6, 8.53e5, 1.11e6),
+  alpha = c(0.111, 0.203, 0.175),
+  outcome = "fever | dose",
+  study = c(
+    "Hornick et al., 1970",
+    "Levine et al., 1973",
+    "QMRA Wiki pooled model"
+  )
 )
 
 # Print as pretty table
-knitr::kable(typhoid_dose_response, caption = "Beta-Poisson Dose-Response Models for *Salmonella Typhi* (Quailes strain)")
+caption <- "Beta-Poisson Dose-Response Models for *S. Typhi* (Quailes strain)"
+knitr::kable(qmra_df, caption = caption)
 ```
 
 One interesting note from the [QMRA
 wiki](https://qmrawiki.org/experiments/salmonella-typhi) is "Neither the
 exponential nor beta-Poisson fits well; beta-Poisson is less bad."
 
-### Dose-Response Curve
+### Beta-Poisson Dose-Response Curve
+
+Using the pooled model from the QMRA wiki, we can plot the
+dose-response curve for *S. typhi*:
 
 ```{r}
-# Beta-Poisson function (no immune scaling)
-beta_poisson <- function(dose, alpha, N50) {
-    1 - (1 + dose * (2^(1 / alpha) - 1) / N50)^(-alpha)
-}
-
 # Generate dose range
 dose_vals <- 10^seq(2, 9, by = 0.05)
 
 # Expand across studies
-plot_df <- typhoid_dose_response |>
-    rowwise() |>
-    mutate(data = list(tibble(
-        dose = dose_vals,
-        p = beta_poisson(dose_vals, alpha, N50),
-        study = study
-    ))) |>
-    select(data) |>
-    unnest(cols = c(data))
+plot_df <- qmra_df |>
+  rowwise() |>
+  mutate(data = list(tibble(
+    dose = dose_vals,
+    # beta_poisson is defined in functions.R
+    p = beta_poisson(dose_vals, alpha, N50),
+    study = study
+  ))) |>
+  select(data) |>
+  unnest(cols = c(data))
 
-# Plot
+# Create dose-response plot
 ggplot(plot_df, aes(x = dose, y = p, color = study)) +
-    geom_line(size = 1.2) +
-    scale_x_log10(breaks = 10^seq(2, 9, by = 1)) +
-    scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.1)) +
-    labs(
-        x = "Dose (CFU)",
-        y = "Probability of Response (e.g., Fever)",
-        title = "Typhoid Dose-Response Curves",
-        subtitle = "Based on beta-Poisson fits from QMRA Wiki (Quailes strain)",
-        color = "Study"
-    ) +
-    theme_bw()
+  geom_line(linewidth = 1.2) +
+  scale_x_log10(
+    breaks = 10^seq(1, 10, by = 2),
+    labels = label_log(digits = 2),
+    minor_breaks = NULL
+  ) + 
+  scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.1)) +
+  labs(
+    x = "Dose (CFU)",
+    y = "Probability of Response (Fever)",
+    title = "Typhoid Dose-Response Curves",
+    subtitle = "Based on beta-Poisson fits from QMRA Wiki (Quailes strain)",
+    color = "Study"
+  ) +
+  theme_bw()
 ```
 
-### Adjusted model for uncertain prior exposure
+### The Beta-Poisson Model with Correlates of Protection
 
-This prison population is likely to have some prior exposure to *Salmonella
-typhi*, and thus their response is not immunologically naive. For reference,
-the [CDC estimates](https://www.cdc.gov/mmwr/preview/mmwrhtml/mm4840a1.htm) the
-incidence of typhoid fever in the US in 1900 was 100 per 100,000, so it's
-likely the prison population has some prior exposure earlier in life that leads
-to immunological confounding.
-
-To adjust for this, we can use the following immune-adjusted
-Beta-Poisson model:
+Here, we extend the Beta-Poisson model to include
+**correlates of protection** (CoP), which is a general term
+for a covariate (e.g. a biomarker like antibody titer) that
+is associated with protection from disease. The functional
+form is,
 
 $$
 P(\mathrm{response} \; \mid \; d, \alpha, N_{50}, \gamma, \text{CoP}) = 1 - \left(1 + \frac{d \cdot \left(2^{1/\alpha} - 1\right)}{N_{50}} \right)^{-\alpha / \text{CoP}^{\gamma}}
@@ -137,19 +152,261 @@ Where:
  - $\text{CoP}$ = **correlate of protection** (e.g. antibody titer),
    $\text{CoP} = 1$ is immunologically naive.
 
-The [Quantitative Microbial Risk Assessment (QMRA)
-wiki](https://qmrawiki.canr.msu.edu/) contains an optimized dose response model
-for *S. typhi*, based on pooling the results of two studies: [Hornick et al.
-(1970)](https://europepmc.org/article/med/5929469) and [Levine et al.
-(1973)](https://academic.oup.com/jid/article-abstract/127/3/261/2189218). The
-model is based on the Quailes strain of *Salmonella typhi* and is a
-beta-Poisson model with the following parameters:
+### Adjusted model for uncertain prior exposure
 
+This prison population studies used to calibrate the basic
+Beta-Poisson model are likely to have had some prior
+exposure to *Salmonella typhi*, and thus their response is
+not immunologically naive. For reference, the [CDC
+estimates](https://www.cdc.gov/mmwr/preview/mmwrhtml/mm4840a1.htm)
+the incidence of typhoid fever in the US in 1900 was 100
+per 100,000, so it's likely some fraction of an adult
+prison population had prior exposure earlier in life,
+leading to possible immunological confounding.
 
+However, the basic Beta-Poisson model described above and
+used in the QMRA wiki implicitly assumes an immunologically
+naive population ($\gamma =0$). However, prior infection is
+a correlate of protection. To account for this, we need to
+rescale the dose-response curve to account for previous
+exposure. First, we need a rough guesstimate of
+$\gamma_{F\mid D}$ (where $F\mid D$ indicates fever given
+dose). A controlled human infection model (CHIM) study of
+*S. typhi* ([Jin et al., *Lancet*,
+2017](https://pmc.ncbi.nlm.nih.gov/articles/PMC5720597/))
+shows diminishing returns in antibody titer as a CoP,
+suggesting $\gamma_{F\mid D} \approx 0.2-0.4$. Second, we
+need a guesstimate for the titer level ($\text{CoP}$) for a
+waned immunity in this population; we assume $\text{CoP}$ =
+50, which is half of waned level after 5 years in
+Bangladesh teens.
+
+Then, the best-fitting Beta-Poisson model from the QMRA
+wiki would imply 
 
 $$
-
+\begin{align*}
+\alpha &= \frac{\alpha'}{\text{CoP}^{\gamma}} \\
+\alpha' &= \alpha \; \text{CoP}^{\gamma} \\
+\alpha' &= \alpha \; 50^\gamma \\
+\end{align*}
 $$
 
+(where we omit the subscript on $\gamma$ for clarity).
+Since $N_{50}$ is defined as the dose at which 50% of the
+population is infected (i.e., $P(\mathrm{response} =
+0.5)$), we must also adjust this too. The adjusted
+$N_{50}'$ is given by:
+
+$$
+N_{50}' = N_{50} \; \frac{2^{1/\alpha'} - 1}{2^{1/\alpha} - 1}
+$$
+
+```{r}
+rescale_N50 <- function(N50, alpha, gamma, CoP) {
+  alpha_prime <- CoP^gamma * alpha
+  N50_prime <- N50 * ((2^(1 / alpha_prime) - 1) / (2^(1 / alpha) - 1))
+  return(list(
+    N50 = N50_prime,
+    alpha = alpha_prime,
+    # Pass through the gamma and CoP
+    gamma = gamma,
+    CoP = CoP
+  ))
+}
+
+# Extract the primary pooled study parameters from the QMRA wiki
+fever_dose_df <- qmra_df |>
+  filter(study_id == "79 + 80") |>
+  select(N50, alpha, outcome, study) |>
+  # Add in the guessstimate parameters
+  mutate(gamma = 0.3, CoP = 50)
+
+fever_dose_df
+
+adj_fever_dose_df <- do.call(rescale_N50, fever_dose_df |>
+                             select(names(formals(rescale_N50)))) |>
+  as_tibble() |>
+  mutate(outcome = "fever | dose", study = "Adjusted infection model")
+
+adj_fever_dose_df
+# NOTE: these numbers agree with Mike's calculations.
+```
+
+Given that our response variable here is **fever given dose**, and we also care
+about **infection given dose**, we also seek a simple guesstimate of response
+model parameters for this response, based on Table 2 of [Hornick et al.
+(1970)](https://doi.org/10.1056/NEJM197009242831306) and stool culture data
+from [Jin et al. (2017)](https://pmc.ncbi.nlm.nih.gov/articles/PMC5720597/). 
+
+```{r}
+
+# Create a fever dose-response parameter dataframe, based on the adjusted
+# values from the QMRA wiki table and the guesstimate parameters.
+inf_dose_df <- adj_fever_dose_df |>
+  transmute(
+    N50 = N50 / 10,
+    alpha = alpha * 2,
+    gamma = gamma * 0.2,
+    outcome = "inf | dose",
+    study = "Guesstimate"
+  )
+
+# Combine the fever and infection dose-response into a parameter dataframe.
+param_df <- bind_rows(adj_fever_dose_df, inf_dose_df)
+param_df
+```
+
+Now, given the parameters for the fever and infection, we
+can define a function to calculate the dose-response for
+each.
+
+```{r}
+# Create a list of parameters for each outcome
+param_list <- param_df |> split(~ outcome) |> 
+  map(~ list(alpha = .x$alpha, N50 = .x$N50, gamma = .x$gamma))
+
+# Test run
+beta_poisson_CoP(
+  dose = 1e4,
+  alpha = adj_fever_dose_df$alpha,
+  N50 = adj_fever_dose_df$N50,
+  gamma = adj_fever_dose_df$gamma,
+  CoP = 50
+)
+```
+
+
+```{r}
+# Define outcome labels and display names
+outcomes <- c("fever | dose", "inf | dose", "fever | inf")
+cop_levels <- c(1, 50, 563)
+dose_vals <- 10^seq(0, 10, by = 0.05)
+
+# Generate all combinations for a plot
+dose_response_df <- expand_grid(
+  dose = dose_vals,
+  CoP = cop_levels,
+  outcome = outcomes
+) |>
+  rowwise() |>
+  mutate(
+    prob_outcome = p_outcome_given_dose(
+      param_list = param_list,
+      dose = dose,
+      CoP = CoP,
+      outcome = outcome
+    )
+  ) |>
+  ungroup()
+```
+
+```{r}
+
+p <- dose_response_df |> 
+    mutate(CoP_label = make_CoP_labels(CoP)) |>
+  ggplot() +
+  geom_line(aes(x = dose, y = prob_outcome, group = outcome, color = outcome),
+            linewidth = 1.2) +
+  facet_wrap(~ CoP_label) +
+  theme_bw() +
+  scale_x_log10(
+    breaks = 10^seq(1, 10, by = 2),
+    labels = label_log(digits = 2),
+    minor_breaks = NULL
+  ) +
+  scale_y_continuous(
+    limits = c(0, 1),
+    breaks = seq(0, 1, by = 0.1)
+  ) +
+  ylab("probability of outcome") +
+  xlab("dose [bacilli]")
+
+p
+```
+
+## Vaccine Efficacy
+
+Now, given our new dose-response model, we can calculate
+vaccine efficacy (VE) using the following formula:
+
+$$
+\mathrm{VE} = 1 - \frac{P(\mathrm{response} \; \mid \; d, \text{CoP})}{P(\mathrm{response} \; \mid \; d, 1)}
+$$
+
+Where $P(\mathrm{response} \; \mid \; d, 1)$ is the probability of response
+given a dose and a CoP of 1 (immunologically naive). The numerator is the
+probability of response given a dose and a CoP of 1 (immunologically naive).
+The denominator is the probability of response
+
+
+```{r}
+# Define vaccine efficacy function using param_list
+vaccine_efficacy <- function(param_list,
+                             dose = 1e4, CoP = 1,
+                             outcome = "fever | dose",
+                             CoP_control = 1) {
+  p_outcome_vax <- p_outcome_given_dose(
+    dose = dose,
+    CoP = CoP,
+    outcome = outcome,
+    param_list = param_list
+  )
+  p_outcome_control <- p_outcome_given_dose(
+    dose = dose,
+    CoP = CoP_control,
+    outcome = outcome,
+    param_list = param_list
+  )
+  VE <- 1 - (p_outcome_vax / p_outcome_control)
+  return(VE)
+}
+
+# Define inputs
+cop_levels <- c(50, 563, 3300)
+outcomes <- c("fever | dose", "inf | dose", "fever | inf")
+dose_vals <- 10^seq(0, 10, by = 0.05)
+
+# Generate vaccine efficacy data frame
+ve_df <- expand_grid(
+  dose = dose_vals,
+  CoP = cop_levels,
+  outcome = outcomes
+) |>
+  rowwise() |>
+  mutate(
+    ve = vaccine_efficacy(
+      param_list = param_list,
+      dose = dose,
+      CoP = CoP,
+      outcome = outcome,
+      CoP_control = 1
+    )
+  ) |>
+  ungroup()
+
+
+# Plot vaccine efficacy
+ve_plot <- ve_df |>
+  mutate(CoP_label = factor(CoP, cop_levels, labels=make_CoP_labels(cop_levels))) |>
+  ggplot(aes(x = dose, y = ve, color = CoP_label)) +
+  geom_line(linewidth = 1.2) +
+  facet_wrap(~ outcome) +
+  theme_bw() +
+  scale_x_log10(
+                breaks = 10^seq(1, 10, by = 2),
+                labels = label_log(digits = 2),
+                minor_breaks = NULL) +
+  scale_y_continuous(limits = c(0, 1),
+                     breaks = seq(0, 1, by = 0.1)) +
+  ylab("vaccine efficacy") +
+  xlab("dose [bacilli]") +
+  labs(color = "CoP")
+
+ve_plot
+
+```
+
+## Waning Immunity Model
 
 
