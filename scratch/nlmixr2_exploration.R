@@ -6,6 +6,8 @@
 # simple ODEs, but superpositions of simple odes. But let's see.
 
 # following example here: https://nlmixr2.org/reference/nlmixr2-package/#example
+# LOL they broke backward compatibility in the docs since last month 
+# this is the closest parallel I noticed https://nlmixr2.org/articles/running_nlmixr.html
 
 library(nlmixr2)
 library(xpose)
