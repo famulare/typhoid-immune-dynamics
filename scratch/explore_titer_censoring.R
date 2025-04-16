@@ -36,24 +36,27 @@ ggplot(d_titer,aes(y=day_factor,x=Vi_IgG_U_per_ml)) +
   theme_bw() +
   scale_x_continuous(trans='log10')
 
-ggplot(d_titer,aes(y=day_factor,x=Vi_IgG_U_per_ml,color=age_label)) +
-  facet_grid('day~group') +
-  geom_density_ridges(jittered_points = TRUE, fill = NA, scale = 0.85,alpha=0.1) +
+p1=ggplot(d_titer |> filter(Vi_IgG_U_per_ml>7),
+       aes(y=day_factor,x=Vi_IgG_U_per_ml)) +
+  facet_grid('group~age_label') +
+  geom_density_ridges(jittered_points = TRUE, fill = NA, scale = 0.85,alpha=0.1, bandwidth=0.15) +
   theme_bw() +
   scale_x_continuous(trans='log10')
+p1
 
 
-# best signle guess at a once-infected-ish group is 0.75-2 and 2-4  controls + day 0 treatments
+# best single guess at a once-infected-ish group is 0.75-2 and 2-4  controls + day 0 treatments
 d_titer = d_titer |> mutate(probably_infected_once_group = 
                               (age_min_years<5 & !(group=='treatment' & day==28)))
 
-ggplot(d_titer,aes(y=day_factor,x=Vi_IgG_U_per_ml,color=probably_infected_once_group)) +
+ggplot(d_titer |> filter(Vi_IgG_U_per_ml>7),
+       aes(y=day_factor,x=Vi_IgG_U_per_ml,color=probably_infected_once_group)) +
   facet_grid('group~age_label') +
   geom_density_ridges(jittered_points = TRUE, fill = NA, scale = 0.85,alpha=0.1) +
   theme_bw() +
   scale_x_continuous(trans='log10')
 
-ggplot(d_titer |> filter(probably_infected_once_group==TRUE),
+ggplot(d_titer |> filter(probably_infected_once_group==TRUE) |> filter(Vi_IgG_U_per_ml>7),
        aes(y=probably_infected_once_group,x=Vi_IgG_U_per_ml))+
   geom_density_ridges(jittered_points = TRUE, fill = NA, scale = 0.85,alpha=0.1) +
   theme_bw() +
@@ -72,33 +75,71 @@ ptnorm <- function(x, mean, sd, lower=0, upper=Inf) {
     (pnorm(upper,mean,sd) - pnorm(lower,mean,sd))
 }
 
-
-TLN_likelihood = function(x,mu,sd,lower=log10(7),upper=Inf){
-  sum(dtnorm(x, mu, sd,lower,upper))
+TLN_likelihood = function(x,mu,sd,lower=log10(7),upper=100){
+  dtnorm(x=x, mean=mu, sd=sd,lower,upper)
 }
 
-log10_data=log10(d_titer$Vi_IgG_U_per_ml[d_titer$probably_infected_once_group & d_titer$Vi_IgG_U_per_ml>7])
+log10_data=log10(d_titer$Vi_IgG_U_per_ml[
+  d_titer$probably_infected_once_group & 
+    d_titer$Vi_IgG_U_per_ml>7 &
+    d_titer$Vi_IgG_U_per_ml<100])
 mean(log10_data)
 sd(log10_data)
-TLN_likelihood(x=log10_data,mu=1.44,sd=0.55)
 
 mod = fitdistr( x=log10_data, 
               TLN_likelihood, 
               method="L-BFGS-B",
-              start=list(mu=1.44,sd=0.54),
-              lower=c(0,0.3),upper=c(5,3),
-              hessian=TRUE)
+              start=list(mu=1.34,sd=0.36),
+              lower=c(-Inf,0.3),upper=c(Inf,3),
+              hessian=FALSE)
+mod
 
-TLN_likelihood = function(mu,sd){
-  sum(dtnorm(log10_data, mu, sd,lower=log10(7),upper=Inf))
-}
 
-mod = mle(
-                TLN_likelihood, 
+fit_dat = data.frame(Vi_IgG_U_per_ml=10^seq(-1,3,by=0.1)) |>
+  mutate(model_censored = dtnorm(x=log10(Vi_IgG_U_per_ml),mean=mod$estimate[1],sd=mod$estimate[2],lower=log10(7))) |>
+  mutate(model = dnorm(x=log10(Vi_IgG_U_per_ml),mean=mod$estimate[1],sd=mod$estimate[2]))
+
+ggplot()+
+  geom_density_ridges(data = d_titer |> filter(probably_infected_once_group==TRUE) |> 
+                        filter(Vi_IgG_U_per_ml>=7 & Vi_IgG_U_per_ml<300), 
+                      aes(y=probably_infected_once_group,x=Vi_IgG_U_per_ml),
+                      jittered_points = TRUE, fill = NA, scale = 1,alpha=0.1) +
+  geom_line(data=fit_dat,aes(x=Vi_IgG_U_per_ml,y=1+model_censored*0.88),color='red') +
+  geom_line(data=fit_dat,aes(x=Vi_IgG_U_per_ml,y=1+model*1.33),color='blue') +
+  theme_bw() +
+  scale_x_continuous(trans='log10')
+
+p1
+
+# probability positive but below detection
+pnorm(q=log10(7),mean=mod$estimate[1],sd=mod$estimate[2], lower.tail=TRUE)
+
+# looks like the assay misses about a third of the positives
+
+
+
+# quick check of variance on treated vs controls, to get a feel for what's assay variability vs real human diversity
+
+log10_data=log10(d_titer$Vi_IgG_U_per_ml[(d_titer$group=='treatment' & d_titer$day==28)])
+log10_data=log10_data[log10_data>log10(300)]
+mean(log10_data)
+sd(log10_data)
+
+tmp=function(x,mu,sd){TLN_likelihood(x,mu,sd, upper=Inf)}
+tmp(x=log10_data,mu=3.5,sd=0.54)
+mod2 = fitdistr( x=log10_data, 
+                tmp, 
                 method="L-BFGS-B",
-                start=list(mu=1.44,sd=0.54),
-                lower=c(-Inf,0.01),upper=c(Inf,3))
+                start=list(mu=3.5,sd=0.54),
+                lower=c(-Inf,0.3),upper=c(Inf,3),
+                hessian=FALSE)
+mod2
+10^3.5 # true median peak titer
+mod
 
-summary(mod)
-
-hist(log10_data)
+# so basically, the implied variance near the threshold of detection, ater accounting for censoring,
+# and the variance after boosting, are the same. 
+# To a first approximation, this implies to me that what we're seeing with the variance is dominated by
+# assay variation and not biology.
+# To a second, insofar as the variance does appear to get wider with age, that is showing the biology effect,
+# as the life histories of people will affect individual-level antibody expression and boosting etc. 

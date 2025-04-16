@@ -278,6 +278,22 @@ boosting_data$pre_vax_elisa[boosting_data$day>0] = boosting_data$elisa_U_per_ml_
 
 boosting_data = boosting_data |> filter(day>0)
   
+# shoehorn in some natural infection pseudodata, from a mix of https://www.thelancet.com/journals/lanmic/article/PIIS2666-5247(22)00114-8/fulltext
+# and explore_titer_censoring.R (which are both roughly compatible)
+
+boosting_data = boosting_data |> 
+  rbind(setNames(data.frame(matrix(nrow=3,ncol=ncol(boosting_data))),names(boosting_data)) |>
+          mutate(study = 'natural',
+                 vaccine = 'infection',
+                 vaccine_schedule='none',
+                 age_label = c('<5','5-15','16+'),
+                 pre_vax_elisa = c(0.6,165,202), # units seem comparable but it is a different assay...
+                 fold_rise = c(325/0.6,400/165,650/202)) |>
+          mutate(group_label = interaction(study,vaccine,age_label, vaccine_schedule)))
+
+# filter out natural infection point starting from limit of detection?
+boosting_data = boosting_data |> filter(pre_vax_elisa>1)
+
 # fold-rise vs pre-challenge correlate. It's a joy when the theory holds for a new system!
 # https://famulare.github.io/2024/03/18/Hypothesis-why-do-neutralizing-antibody-titers-max-out.html
 ggplot(boosting_data) +
@@ -303,6 +319,7 @@ for (row in 1:nrow(boosting_data)){
                   T_decay=coef(mod)[2]*exp(coef(mod)[5]*age_means[k]),
                   alpha=coef(mod)[3]*exp(coef(mod)[6]*age_means[k]))
 }
+boosting_data$fold_rise_adjusted[is.na(boosting_data$fold_rise_adjusted)]=boosting_data$fold_rise[is.na(boosting_data$fold_rise_adjusted)]
 
 plot(boosting_data$fold_rise,boosting_data$fold_rise_adjusted-boosting_data$fold_rise)
 
@@ -313,7 +330,7 @@ fold_rise_model = function(CoP_pre,mu_0,CoP_max, CoP_min=1){
 }
 
 
-fold_rise_mlogL = function(mu_TCV,mu_Vips,mu_VirEPA,CoP_max){
+fold_rise_mlogL = function(mu_TCV,mu_Vips,mu_VirEPA,mu_inf,CoP_max){
   mlogL=0
   for (row in 1:nrow(boosting_data)){
     if (boosting_data$vaccine[row]=='Typbar-TCV'){
@@ -322,6 +339,8 @@ fold_rise_mlogL = function(mu_TCV,mu_Vips,mu_VirEPA,CoP_max){
       fold_rise = fold_rise_model(CoP_pre = boosting_data$pre_vax_elisa[row],mu_0=mu_Vips,CoP_max=CoP_max)
     } else if (boosting_data$vaccine[row]=='Vi-rEPA2'){
       fold_rise = fold_rise_model(CoP_pre = boosting_data$pre_vax_elisa[row],mu_0=mu_VirEPA,CoP_max=CoP_max)
+    } else if (boosting_data$vaccine[row]=='infection'){
+      fold_rise = fold_rise_model(CoP_pre = boosting_data$pre_vax_elisa[row],mu_0=mu_inf,CoP_max=CoP_max)
     }
     fold_rise = fold_rise
   mlogL = mlogL + (log(boosting_data$fold_rise_adjusted[row])-log(fold_rise))^2
@@ -330,8 +349,8 @@ fold_rise_mlogL = function(mu_TCV,mu_Vips,mu_VirEPA,CoP_max){
 }
 
 mod = mle(fold_rise_mlogL,
-          start=list(mu_TCV=3,mu_Vips=2,mu_VirEPA=3,CoP_max=2000),
-          control=list(parscale=c(0.1,0.1,0.1,10)))
+          start=list(mu_TCV=3,mu_Vips=2,mu_VirEPA=3,mu_inf=1,CoP_max=2000),
+          control=list(parscale=c(0.1,0.1,0.1,0.1,10)))
 summary(mod) 
 
 vaccines = unique(boosting_data$vaccine)
@@ -339,11 +358,13 @@ fitted_boosting = expand.grid(vaccine=vaccines,
                               pre_vax_elisa = 10^seq(0,4,by=0.01))
 for (row in 1:nrow(fitted_boosting)){
   if (fitted_boosting$vaccine[row]=='Typbar-TCV'){
-    fitted_boosting$fold_rise[row] = fold_rise_model(CoP_pre = fitted_boosting$pre_vax_elisa[row],mu_0=coef(mod)[1],CoP_max=coef(mod)[4])
+    fitted_boosting$fold_rise[row] = fold_rise_model(CoP_pre = fitted_boosting$pre_vax_elisa[row],mu_0=coef(mod)[1],CoP_max=coef(mod)[5])
   } else if (fitted_boosting$vaccine[row]=='Vi-polysaccharide'){
-    fitted_boosting$fold_rise[row] = fold_rise_model(CoP_pre = fitted_boosting$pre_vax_elisa[row],mu_0=coef(mod)[2],CoP_max=coef(mod)[4])
+    fitted_boosting$fold_rise[row] = fold_rise_model(CoP_pre = fitted_boosting$pre_vax_elisa[row],mu_0=coef(mod)[2],CoP_max=coef(mod)[5])
   } else if (fitted_boosting$vaccine[row]=='Vi-rEPA2'){
-    fitted_boosting$fold_rise[row] = fold_rise_model(CoP_pre = fitted_boosting$pre_vax_elisa[row],mu_0=coef(mod)[3],CoP_max=coef(mod)[4])
+    fitted_boosting$fold_rise[row] = fold_rise_model(CoP_pre = fitted_boosting$pre_vax_elisa[row],mu_0=coef(mod)[3],CoP_max=coef(mod)[5])
+  } else if (fitted_boosting$vaccine[row]=='infection'){
+    fitted_boosting$fold_rise[row] = fold_rise_model(CoP_pre = fitted_boosting$pre_vax_elisa[row],mu_0=coef(mod)[4],CoP_max=coef(mod)[5])
   }
 }
 
@@ -357,8 +378,15 @@ ggplot() +
   scale_y_continuous(trans='log10') +
   scale_x_continuous(trans='log10')
 
+# hmmm wondering if maybe Vi isn't actually a bad correlate of immunity for natural infection, but that
+# natural infection isn't all that immunogenic, the human responses are quite heterogeneous, and
+# the elisa assays aren't very good....
+
+
 max(d_imm$elisa_U_per_ml_median_numeric)
 max(d_imm$elisa_U_per_ml_upper_numeric)
+
+
 
 # actually hmmm the one really high titer is an outlier, which is revealing that linear proportional scaling of the old assay to new is probably wrong
 # otherwise, this all works to a factor of 2, which is within expected precision.
@@ -383,8 +411,8 @@ max_titer_df |>
 # And so each re-dose just brings you back up.
 # 
 
-# so let's refit dropping Vi-rEPA since I probably don't understand that titer data
-boosting_data = boosting_data |> filter(vaccine != 'Vi-rEPA2')
+# so let's refit dropping Vi-rEPA and infection since I probably don't understand that titer data
+boosting_data = boosting_data |> filter(vaccine %in% c('Typbar-TCV','Vi-polysaccharide'))
 fold_rise_mlogL = function(mu_TCV,mu_Vips,CoP_max){
   mlogL=0
   for (row in 1:nrow(boosting_data)){
