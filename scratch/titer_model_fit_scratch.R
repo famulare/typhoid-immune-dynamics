@@ -55,10 +55,20 @@ d_imm = readxl::read_excel('data/typhoid_vaccine_study_data.xlsx',sheet = 'immun
   mutate(elisa_U_per_ml_lower_numeric = if_else(elisa_U_per_ml_lower=='<7.5',3.75,if_else(elisa_U_per_ml_lower=='<3.0',1.5,as.numeric(elisa_U_per_ml_lower)))) |>
   mutate(elisa_U_per_ml_upper_numeric = if_else(elisa_U_per_ml_upper=='<7.5',3.75,if_else(elisa_U_per_ml_upper=='<3.0',1.5,as.numeric(elisa_U_per_ml_upper)))) |>
   mutate(age_mean = 1/2*(age_min_years + age_max_years)) |>
-  mutate(age_label = reorder(factor(paste(age_min_years,'-',age_max_years,sep='')),age_mean))
+  mutate(age_label = reorder(factor(paste(age_min_years,'-',age_max_years,sep='')),age_mean)) |>
+  mutate(age_label_coarse=cut(age_mean,breaks=c(0,1,2.5,7.5,15,40),
+                              labels=c('infant','toddler','younger child','children','adult'),ordered_result=TRUE)) |>
+  mutate(assay = factor(assay)) |>
+  mutate(assay_simple=fct_recode(assay,VaccZyme = 'anti_Vi_IgG_VaccZyme',
+                                 VaccZyme = 'anti_Vi_IgA_VaccZyme',
+                                 Jackson_ImmunoResearch = 'anti_Vi_IgG_Jackson_ImmunoResearch_Laboratories',
+                                 George_Carlone_CDC='anti_Vi_IgA_HP6107_George_Carlone_CDC')) |>
+  mutate(assay_simple=fct_relevel(assay_simple,c('VaccZyme','Jackson_ImmunoResearch','George_Carlone_CDC')))
 
-names(d_imm)
+sort(unique(d_imm$age_mean))
+d_imm$assay_simple
 
+d_imm$age_label_coarse
 
 # need to rescale the Kossaczka1999 Vietnam data that uses a different elisa assay to match VaccZyme standard
 # common reference is from Vi-polysaccharide vaccine
@@ -87,6 +97,7 @@ d_imm |>
   select(study,antigen,age_min_years, age_max_years, age_mean,day, elisa_U_per_ml_median_numeric) |>
   print(n=35)
 
+
 # rescale all Kossaczka data, including IgA (which is a leap!)
 
 names(d_imm)
@@ -107,16 +118,17 @@ d_imm |>
 plot_dat = d_imm |>
   filter(cohort == 'treatment') 
 
-ggplot(plot_dat, aes(shape=dotname,color=age_label,fill=age_label,group=age_label)) +
+ggplot(plot_dat, aes(shape=dotname,color=age_label_coarse,fill=age_label_coarse,group=age_label,linetype=assay_simple)) +
   geom_ribbon(aes(x=day,ymin=elisa_U_per_ml_lower_numeric,ymax=elisa_U_per_ml_upper_numeric),color=NA,alpha=0.1) +
   geom_line(aes(x=day,y=elisa_U_per_ml_median_numeric)) +
   geom_point(aes(x=day,y=elisa_U_per_ml_median_numeric)) +
   facet_grid('antigen ~ vaccine') +
   theme_bw() +
-  scale_y_continuous(trans='log10')
+  scale_y_continuous(trans='log10',limits=c(1,12e3))
+ggsave('scratch/figures/titer_data.png',units='in',width=9, height=5)
 
 
-# fit to a single study group
+# fit 
 fit_dat = d_imm |>
   filter(cohort == 'treatment') |>
   # filter(vaccine == 'Typbar-TCV') |> 
@@ -129,23 +141,47 @@ fit_dat = d_imm |>
 fit_dat = fit_dat |> arrange(age_mean)
 
 log_lsq_likelihood = function(C_max_TCV,T_decay,alpha,
-                              beta_C_max_age_mean=0,beta_T_decay_age_mean=0,beta_alpha_age_mean=0,
+                              beta_C_max_age=0,beta_T_decay_age=0,beta_alpha_age=0,
                               Delta_C_max_Vips=0,Delta_C_max_VirEPA=0){
   
+  # use age_mean
   titer=rep(NA,nrow(fit_dat))
-  Tda = T_decay*exp(beta_T_decay_age_mean * fit_dat$age_mean)
-  alpha_a = alpha*exp(beta_alpha_age_mean * fit_dat$age_mean)
-  Cma=C_max_TCV*exp(beta_C_max_age_mean * fit_dat$age_mean)
- 
-   for (row in 1:length(titer)){
-     if (fit_dat$vaccine[row] == 'Vi-polysaccharide'){
-       Cma[row] = Cma[row]*exp(Delta_C_max_Vips)
-     } else if (fit_dat$vaccine[row] == 'Vi-rEPA2'){
-       Cma[row] = Cma[row]*exp(Delta_C_max_VirEPA)
-     }
-     
-    titer[row]=titer_vs_time(t=fit_dat$day[row],C_max=Cma[row],T_decay=Tda[row],alpha=alpha_a[row])
-  }
+  # if(age_method=='age_mean'){
+  #   Tda = T_decay*exp(beta_T_decay_age * fit_dat$age_mean)
+  #   alpha_a = alpha*exp(beta_alpha_age * fit_dat$age_mean)
+  #   Cma=C_max_TCV*exp(beta_C_max_age * fit_dat$age_mean)
+  #  
+  #    for (row in 1:length(titer)){
+  #      if (fit_dat$vaccine[row] == 'Vi-polysaccharide'){
+  #        Cma[row] = Cma[row]*exp(Delta_C_max_Vips)
+  #      } else if (fit_dat$vaccine[row] == 'Vi-rEPA2'){
+  #        Cma[row] = Cma[row]*exp(Delta_C_max_VirEPA)
+  #      }
+  #      
+  #     titer[row]=titer_vs_time(t=fit_dat$day[row],C_max=Cma[row],T_decay=Tda[row],alpha=alpha_a[row])
+  #   }
+  # } else if (age_method=='endpoint'){
+    Tda_lower = T_decay*exp(beta_T_decay_age * fit_dat$age_min_years)
+    alpha_a_lower = alpha*exp(beta_alpha_age * fit_dat$age_min_years)
+    Cma_lower=C_max_TCV*exp(beta_C_max_age * fit_dat$age_min_years)
+    
+    Tda_upper = T_decay*exp(beta_T_decay_age * fit_dat$age_max_years)
+    alpha_a_upper = alpha*exp(beta_alpha_age * fit_dat$age_max_years)
+    Cma_upper=C_max_TCV*exp(beta_C_max_age * fit_dat$age_max_years)
+    
+    for (row in 1:length(titer)){
+      if (fit_dat$vaccine[row] == 'Vi-polysaccharide'){
+        Cma_lower[row] = Cma_lower[row]*exp(Delta_C_max_Vips)
+        Cma_upper[row] = Cma_upper[row]*exp(Delta_C_max_Vips)
+      } else if (fit_dat$vaccine[row] == 'Vi-rEPA2'){
+        Cma_lower[row] = Cma_lower[row]*exp(Delta_C_max_VirEPA)
+        Cma_upper[row] = Cma_upper[row]*exp(Delta_C_max_VirEPA)
+      }
+      
+      titer[row]=1/2*(titer_vs_time(t=fit_dat$day[row],C_max=Cma_lower[row],T_decay=Tda_lower[row],alpha=alpha_a_lower[row]) +
+                        titer_vs_time(t=fit_dat$day[row],C_max=Cma_upper[row],T_decay=Tda_upper[row],alpha=alpha_a_upper[row]))
+    }
+  # }
   
   # quick and dirty mean to mean log-lsq for now
     mlogL = sum((log(fit_dat$elisa_U_per_ml_median_numeric)-log(titer))^2/(log(fit_dat$elisa_U_per_ml_upper_numeric)-log(fit_dat$elisa_U_per_ml_lower_numeric))^2)
@@ -155,42 +191,59 @@ log_lsq_likelihood = function(C_max_TCV,T_decay,alpha,
 
 
 mod = mle(log_lsq_likelihood,
-          start=list(C_max_TCV=4000,T_decay=100,alpha=1,beta_C_max_age_mean=0,beta_T_decay_age_mean=0,beta_alpha_age_mean=0,Delta_C_max_Vips=-0,Delta_C_max_VirEPA=0),
+          start=list(C_max_TCV=4000,T_decay=100,alpha=1,beta_C_max_age=0,beta_T_decay_age=0,beta_alpha_age=0,Delta_C_max_Vips=-0,Delta_C_max_VirEPA=0),
           fixed=list(),
           control=list(parscale=c(1000,10,0.05,0.001,0.001,0.001,1,1)))
 summary(mod) 
 
 # fit
 fitted= expand.grid(day=seq(0,2000,by=10),
-                    age_mean=unique(fit_dat$age_mean),
+                    age_label=unique(fit_dat$age_label),
                     antigen='IgG',
                     vaccine = unique(fit_dat$vaccine),
-                    titer=NA) 
-age_means=unique(fitted$age_mean)
+                    titer=NA) |>
+  mutate(age_min_years = as.numeric(sub('-.*','',age_label))) |>
+  mutate(age_max_years = as.numeric(sub('.*-','',age_label)))
+age_labels=unique(fit_dat$age_label)
 vaccines=unique(fit_dat$vaccine)
 Delta_coeff_C = c(0, coef(mod)['Delta_C_max_VirEPA'],coef(mod)['Delta_C_max_Vips'])
-for (k in 1:length(age_means)){
+for (k in 1:length(age_labels)){
   for (n in 1:length(vaccines)){
-    idx = fitted$age_mean==age_means[k] & fitted$vaccine==vaccines[n]
-    fitted$titer[idx] = titer_vs_time( t=seq(0,2000,by=10),
-                                C_max=coef(mod)[1]*exp(coef(mod)[4]*age_means[k])*exp(Delta_coeff_C[n]),
-                                T_decay=coef(mod)[2]*exp(coef(mod)[5]*age_means[k]),
-                                alpha=coef(mod)[3]*exp(coef(mod)[6]*age_means[k]))
+    idx = fitted$age_label==age_labels[k] & fitted$vaccine==vaccines[n]
+    # fitted$titer[idx] = titer_vs_time( t=seq(0,2000,by=10),
+    #                             C_max=coef(mod)[1]*exp(coef(mod)[4]*age_means[k])*exp(Delta_coeff_C[n]),
+    #                             T_decay=coef(mod)[2]*exp(coef(mod)[5]*age_means[k]),
+    #                             alpha=coef(mod)[3]*exp(coef(mod)[6]*age_means[k]))
+    age_min=unique(fitted$age_min_years[idx])
+    age_max=unique(fitted$age_max_years[idx])
+    fitted$titer[idx] = 1/2*(titer_vs_time( t=seq(0,2000,by=10),
+                                       C_max=coef(mod)[1]*exp(coef(mod)[4]*age_min)*exp(Delta_coeff_C[n]),
+                                       T_decay=coef(mod)[2]*exp(coef(mod)[5]*age_min),
+                                       alpha=coef(mod)[3]*exp(coef(mod)[6]*age_min)) +
+                               titer_vs_time( t=seq(0,2000,by=10),
+                                              C_max=coef(mod)[1]*exp(coef(mod)[4]*age_max)*exp(Delta_coeff_C[n]),
+                                              T_decay=coef(mod)[2]*exp(coef(mod)[5]*age_max),
+                                              alpha=coef(mod)[3]*exp(coef(mod)[6]*age_max)))
   }
 }
-fitted = fitted |> filter(interaction(age_mean,vaccine) %in% unique(interaction(fit_dat$age_mean,fit_dat$vaccine)))
+fitted = fitted |> filter(interaction(age_label,vaccine) %in% unique(interaction(fit_dat$age_label,fit_dat$vaccine))) |>
+  mutate(age_label=factor(age_label,levels=levels(d_imm$age_label)))
 
 ggplot() +
+  geom_point(data=fit_dat,aes(x=day,y=elisa_U_per_ml_median_numeric,
+                              shape=dotname,color=age_label,group=age_label)) +
   geom_ribbon(data=fit_dat,aes(x=day,ymin=elisa_U_per_ml_lower_numeric,ymax=elisa_U_per_ml_upper_numeric,
                                 fill=age_label,group=age_label),alpha=0.1) +
   geom_line(data=fit_dat,aes(x=day,y=elisa_U_per_ml_median_numeric,
                               color=age_label,group=age_label)) +
-  geom_point(data=fit_dat,aes(x=day,y=elisa_U_per_ml_median_numeric,
-                               shape=dotname,color=age_label,group=age_label)) +
-  geom_line(data=fitted,aes(x=day,y=titer,group=interaction(age_mean,vaccine)),color='black') +
-  facet_wrap('vaccine ~ age_mean') +
+  
+  geom_line(data=fitted,aes(x=day,y=titer,group=interaction(age_label,vaccine)),color='black') +
+  facet_wrap('vaccine ~ age_label',ncol=8) +
   theme_bw() +
-  scale_y_continuous(trans='log10')
+  scale_y_continuous(trans='log10') +
+  guides(color='none',fill='none') +
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=1))
+ggsave('scratch/figures/fitted_titers.png',units='in',width=9, height=5)
 
 
 
@@ -234,7 +287,7 @@ ggplot(boosting_data) +
                 color=vaccine_schedule,group=group_label)) +
   geom_point(aes(x=day,y=elisa_U_per_ml_median_numeric,
                  shape=study,color=vaccine_schedule,group=group_label)) +
-  facet_wrap('vaccine ~ age_mean') +
+  facet_wrap('vaccine ~ age_label') +
   theme_bw() +
   scale_y_continuous(trans='log10')
 
@@ -259,12 +312,15 @@ ggplot(boosting_data) +
   geom_ribbon(aes(x=day,ymin=elisa_U_per_ml_lower_numeric,ymax=elisa_U_per_ml_upper_numeric,
                   fill=vaccine_schedule,group=group_label),alpha=0.1) +
   geom_line(aes(x=day,y=elisa_U_per_ml_median_numeric,
-                color=vaccine_schedule,group=group_label)) +
+                color=vaccine_schedule,group=group_label,linetype=assay_simple)) +
   geom_point(aes(x=day,y=elisa_U_per_ml_median_numeric,
                  shape=study,color=vaccine_schedule,group=group_label)) +
   facet_wrap('vaccine ~ age_mean') +
   theme_bw() +
-  scale_y_continuous(trans='log10')
+  scale_y_continuous(trans='log10') +
+  xlab('pre-vaccination IgG [EU/ml]') + ylab('post-vaccination IgG [EU/ml]')
+ggsave('scratch/figures/pre_post_titers.png',units='in',width=7, height=5)
+
 
 # convert to fold rise
 boosting_data = boosting_data |>
@@ -347,10 +403,9 @@ fold_rise_mlogL = function(mu_TCV,mu_Vips,mu_VirEPA,mu_inf,CoP_max){
   }
   return(mlogL)
 }
-
 mod = mle(fold_rise_mlogL,
-          start=list(mu_TCV=3,mu_Vips=2,mu_VirEPA=3,mu_inf=1,CoP_max=2000),
-          control=list(parscale=c(0.1,0.1,0.1,0.1,10)))
+          start=list(mu_TCV=3,mu_Vips=2,mu_VirEPA=3,mu_inf=1,CoP_max=10^3.5),
+          control=list(parscale=c(0.01,0.01,0.01,0.01,1)))
 summary(mod) 
 
 vaccines = unique(boosting_data$vaccine)
@@ -375,8 +430,23 @@ ggplot() +
   geom_point(data=boosting_data,aes(x=pre_vax_elisa,y=fold_rise_adjusted,
                  shape=age_label,color=vaccine,group=group_label)) +
   theme_bw() +
+  scale_y_continuous(trans='log10',limits=c(1,10^3.51)) +
+  scale_x_continuous(trans='log10',limits=c(1,10^3.51)) +
+  xlab('pre-vaccination IgG [EU/ml]') + ylab('fold-rise')
+
+ggsave('scratch/figures/boosting_model_foldrise_data.png',units='in',width=5, height=3)
+
+ggplot() +
+  geom_line(data=fitted_boosting,aes(x=pre_vax_elisa,y=fold_rise*pre_vax_elisa,
+                                     color=vaccine,group=vaccine)) +
+  geom_point(data=boosting_data,aes(x=pre_vax_elisa,y=fold_rise_adjusted*pre_vax_elisa,
+                                    shape=age_label,color=vaccine,group=group_label)) +
+  theme_bw() +
   scale_y_continuous(trans='log10') +
-  scale_x_continuous(trans='log10')
+  scale_x_continuous(trans='log10',limits=c(1,10^3.51),breaks=round(10^seq(0,3.5,by=0.5),0),minor_breaks = NULL) +
+  xlab('pre-vaccination IgG [EU/ml]') + ylab('post-vaccination IgG [EU/ml]')
+ggsave('scratch/figures/boosting_model_pre_post.png',units='in',width=5, height=3)
+
 
 # hmmm wondering if maybe Vi isn't actually a bad correlate of immunity for natural infection, but that
 # natural infection isn't all that immunogenic, the human responses are quite heterogeneous, and

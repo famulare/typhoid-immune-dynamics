@@ -10,36 +10,41 @@ d_eff = readxl::read_excel('data/typhoid_vaccine_study_data.xlsx',sheet = 'effic
          age_min_years = as.numeric(age_min_years),
          age_max_years = as.numeric(age_max_years)) |>
   mutate(timepoint_months_authors_mean=1/2*(timepoint_months_authors_min + timepoint_months_authors_max)) |>
-  mutate(age_mean=1/2*(age_min_years + age_max_years)) |>
-  mutate(age_label = factor(paste(age_min_years,'-',age_max_years,sep=''))) |>
-  mutate(age_label = reorder(age_label, age_mean))
+  mutate(age_mean = 1/2*(age_min_years + age_max_years)) |>
+  mutate(age_label = reorder(factor(paste(age_min_years,'-',age_max_years,sep='')),age_mean)) |>
+  mutate(age_label_coarse=cut(age_mean,breaks=c(0,2.5,6.35,10,15,40),
+                              labels=c('toddler','younger child','children','early teen','late teen'),ordered_result=TRUE))
+  
   
 names(d_eff)
 
-
 # plot total individual VE for bacteriologically-confirmed typhoid fever vs time
-plot_dat = d_eff |> 
+plot_efficacy_df = d_eff |> 
   filter(endpoint == 'total_individual_VE') |>
   filter(outcome %in% c('blood_culture_confirmed_typhoid_fever')) |>
   filter(vaccine == 'Typbar-TCV') |>
   arrange(study,age_label,timepoint_months_authors_mean)
 
-names(plot_dat)
+names(plot_efficacy_df)
 
-ggplot(plot_dat, aes(shape=dotname,color=age_label,fill=age_label,group=interaction(age_label,design_group))) +
+ggplot(plot_efficacy_df, aes(shape=dotname,color=age_label_coarse,fill=age_label_coarse,group=interaction(age_label_coarse,design_group))) +
   geom_ribbon(aes(x=timepoint_months_authors_mean,ymin=lower,ymax=upper),color=NA,alpha=0.1) +
-  geom_line(aes(x=timepoint_months_authors_mean,y=estimate)) +
+  geom_line(aes(x=timepoint_months_authors_mean,y=estimate,linetype=estimator)) +
   geom_point(aes(x=timepoint_months_authors_mean,y=estimate)) +
   facet_grid('endpoint_duration ~ age_cohort') +
   theme_bw() 
+ggsave('scratch/figures/efficacy_time_age.png',units='in',width=7, height=5)
 
 
-ggplot(plot_dat, aes(color=dotname,fill=dotname,group=interaction(age_label,design_group))) +
+
+ggplot(plot_efficacy_df, aes(color=dotname,fill=dotname,group=interaction(age_label,design_group))) +
   geom_ribbon(aes(x=timepoint_months_authors_mean,ymin=lower,ymax=upper),color=NA,alpha=0.1) +
-  geom_line(aes(x=timepoint_months_authors_mean,y=estimate)) +
+  geom_line(aes(x=timepoint_months_authors_mean,y=estimate,linetype=estimator)) +
   geom_point(aes(x=timepoint_months_authors_mean,y=estimate)) +
   facet_grid('endpoint_duration ~ age_cohort') +
   theme_bw() 
+ggsave('scratch/figures/efficacy_time_location.png',units='in',width=7, height=5)
+
 
 # immunogenicitiy data
 d_imm = readxl::read_excel('data/typhoid_vaccine_study_data.xlsx',sheet = 'immunogenicity') |>
