@@ -5,7 +5,6 @@ library(stats4)
 
 # time series function for waning
 # units in days
-t_peak=21
 t = seq(0,1e3,by=1)
 
 titer_vs_time = function(t,T_decay=100,alpha=1,C_max=10,
@@ -142,7 +141,7 @@ fit_dat = fit_dat |> arrange(age_mean)
 
 log_lsq_likelihood = function(C_max_TCV,T_decay,alpha,
                               beta_C_max_age=0,beta_T_decay_age=0,beta_alpha_age=0,
-                              Delta_C_max_Vips=0,Delta_C_max_VirEPA=0){
+                              Delta_C_max_Vips=0,Delta_C_max_VirEPA=0,tp=28){
   
   # use age_mean
   titer=rep(NA,nrow(fit_dat))
@@ -178,8 +177,8 @@ log_lsq_likelihood = function(C_max_TCV,T_decay,alpha,
         Cma_upper[row] = Cma_upper[row]*exp(Delta_C_max_VirEPA)
       }
       
-      titer[row]=1/2*(titer_vs_time(t=fit_dat$day[row],C_max=Cma_lower[row],T_decay=Tda_lower[row],alpha=alpha_a_lower[row]) +
-                        titer_vs_time(t=fit_dat$day[row],C_max=Cma_upper[row],T_decay=Tda_upper[row],alpha=alpha_a_upper[row]))
+      titer[row]=1/2*(titer_vs_time(t=fit_dat$day[row],C_max=Cma_lower[row],T_decay=Tda_lower[row],alpha=alpha_a_lower[row],t_peak=tp) +
+                        titer_vs_time(t=fit_dat$day[row],C_max=Cma_upper[row],T_decay=Tda_upper[row],alpha=alpha_a_upper[row],t_peak=tp))
     }
   # }
   
@@ -191,9 +190,9 @@ log_lsq_likelihood = function(C_max_TCV,T_decay,alpha,
 
 
 mod = mle(log_lsq_likelihood,
-          start=list(C_max_TCV=4000,T_decay=100,alpha=1,beta_C_max_age=0,beta_T_decay_age=0,beta_alpha_age=0,Delta_C_max_Vips=-0,Delta_C_max_VirEPA=0),
+          start=list(C_max_TCV=4000,T_decay=10,alpha=1,beta_C_max_age=0,beta_T_decay_age=0,beta_alpha_age=0,Delta_C_max_Vips=-0,Delta_C_max_VirEPA=0,tp=28),
           fixed=list(),
-          control=list(parscale=c(1000,10,0.05,0.001,0.001,0.001,1,1)))
+          control=list(parscale=c(1000,1,0.05,0.001,0.001,0.001,1,1,0.01)))
 summary(mod) 
 
 # fit
@@ -219,11 +218,13 @@ for (k in 1:length(age_labels)){
     fitted$titer[idx] = 1/2*(titer_vs_time( t=seq(0,2000,by=10),
                                        C_max=coef(mod)[1]*exp(coef(mod)[4]*age_min)*exp(Delta_coeff_C[n]),
                                        T_decay=coef(mod)[2]*exp(coef(mod)[5]*age_min),
-                                       alpha=coef(mod)[3]*exp(coef(mod)[6]*age_min)) +
+                                       alpha=coef(mod)[3]*exp(coef(mod)[6]*age_min),
+                                       t_peak=coef(mod)[9]) +
                                titer_vs_time( t=seq(0,2000,by=10),
                                               C_max=coef(mod)[1]*exp(coef(mod)[4]*age_max)*exp(Delta_coeff_C[n]),
                                               T_decay=coef(mod)[2]*exp(coef(mod)[5]*age_max),
-                                              alpha=coef(mod)[3]*exp(coef(mod)[6]*age_max)))
+                                              alpha=coef(mod)[3]*exp(coef(mod)[6]*age_max),
+                                              t_peak=coef(mod)[9]))
   }
 }
 fitted = fitted |> filter(interaction(age_label,vaccine) %in% unique(interaction(fit_dat$age_label,fit_dat$vaccine))) |>
@@ -430,8 +431,8 @@ ggplot() +
   geom_point(data=boosting_data,aes(x=pre_vax_elisa,y=fold_rise_adjusted,
                  shape=age_label,color=vaccine,group=group_label)) +
   theme_bw() +
-  scale_y_continuous(trans='log10',limits=c(1,10^3.51)) +
-  scale_x_continuous(trans='log10',limits=c(1,10^3.51)) +
+  scale_y_continuous(trans='log10',limits=c(1,10^3.51),breaks=round(10^seq(0,3.5,by=0.5),0),minor_breaks = NULL) +
+  scale_x_continuous(trans='log10',limits=c(1,10^3.51),breaks=round(10^seq(0,3.5,by=0.5),0),minor_breaks = NULL) +
   xlab('pre-vaccination IgG [EU/ml]') + ylab('fold-rise')
 
 ggsave('scratch/figures/boosting_model_foldrise_data.png',units='in',width=5, height=3)
@@ -442,7 +443,7 @@ ggplot() +
   geom_point(data=boosting_data,aes(x=pre_vax_elisa,y=fold_rise_adjusted*pre_vax_elisa,
                                     shape=age_label,color=vaccine,group=group_label)) +
   theme_bw() +
-  scale_y_continuous(trans='log10') +
+  scale_y_continuous(trans='log10',limits=c(1,10^4.2),breaks=round(10^seq(0,4,by=0.5),0),minor_breaks = NULL) +
   scale_x_continuous(trans='log10',limits=c(1,10^3.51),breaks=round(10^seq(0,3.5,by=0.5),0),minor_breaks = NULL) +
   xlab('pre-vaccination IgG [EU/ml]') + ylab('post-vaccination IgG [EU/ml]')
 ggsave('scratch/figures/boosting_model_pre_post.png',units='in',width=5, height=3)
