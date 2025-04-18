@@ -4,7 +4,7 @@ library(tidyverse)
 
 # define cohort
 
-N=10000
+N=1000
 year_max=60
 dt=365/12
 
@@ -23,11 +23,10 @@ population = expand.grid(id=1:N,
 
 
 # model equations
-param_df = param_df |>
-  rbind(data.frame(value=c(T_decay=11,k=1.16,
+param_df = data.frame(value=c(T_decay=11,k=1.16,
                            beta_T_decay_age=0.057, beta_k_age=-0.060,
                            C_min=1,T_rise=1.5,t_start=3,t_peak=30.4), 
-                   component = 'anti_Vi_IgG_elisa') )
+                   component = 'anti_Vi_IgG_elisa') 
 
 titer_vs_time = function(t,C_max=10^3.5, age_years,params=param_df,C_pre=1){
   
@@ -114,9 +113,9 @@ exposure_rate=1/(12*4) # per month
 
 # medium
 exposure_dose = 5e2
-exposure_rate=1/(12*10) # per month
+exposure_rate=1/(12*15) # per month
 
-exposure_rate_multiplier = c(rep(0.1,13),rep(0.5,12),rep(1,12*13),rep(1,year_max*12-24-12*10))
+exposure_rate_multiplier = c(rep(0.1,13),rep(0.5,12),rep(1,12*13),rep(1,year_max*12-24-12*13))
 
 # expose
 for (id in (1:N)){
