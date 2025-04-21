@@ -8,7 +8,7 @@ library(MASS)
 library(stats4)
 
 
-# efficacy data
+# individual-level titer data
 d_titer = readxl::read_excel('data/typhoid_vaccine_study_data.xlsx',sheet = 'Qadri2021_pre_post_given_positi')  |>
   mutate(day=as.numeric(day),
          Vi_IgG_U_per_ml=as.numeric(Vi_IgG_U_per_ml),

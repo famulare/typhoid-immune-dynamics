@@ -1,99 +1,60 @@
 # incidence model scratch
 
 library(tidyverse)
+library(patchwork)
+library(ggridges)
 
-# define cohort
+# age binning function
+age_width = function(age_group,age_max){
+  round(as.numeric(as.character(fct_recode( age_group,
+    `2`='[0,2]',`3`='(2,5]',`5`='(5,10]',`5.1`='(10,15]',`45`=paste('(15,',age_max,']',sep='')))))
+}
 
-N=1000
-year_max=60
-dt=365/12
-
-population = expand.grid(id=1:N,
-                         month=seq(0,year_max*12,by=1),
-                         titer=1,
-                         exposed=0,
-                         infected=0,
-                         fever=0,
-                         exposure_month=0,
-                         infection_month=0,
-                         fever_month=0) |>
-  mutate(year=month/12,
-         age_group=cut(year,breaks=c(0,2,5,10,15,year_max),include.lowest = TRUE)) |>
-  mutate(age_range = round(as.numeric(as.character(fct_recode( age_group, `2`='[0,2]',`3`='(2,5]',`5`='(5,10]',`5.1`='(10,15]',`45`='(15,60]')))))
-
-
-# model equations
-param_df = data.frame(value=c(T_decay=11,k=1.16,
-                           beta_T_decay_age=0.057, beta_k_age=-0.060,
-                           C_min=1,T_rise=1.5,t_start=3,t_peak=30.4), 
-                   component = 'anti_Vi_IgG_elisa') 
-
-titer_vs_time = function(t,C_max=10^3.5, age_years,params=param_df,C_pre=1){
+##### indvidual-level model functions
+# model functions
+titer_vs_time = function(t,age_years, CoP_max=10^3.5, CoP_pre=1,
+                         T_decay=11, alpha=1.16,
+                         beta_T_decay_age=0.057, beta_alpha_age=-0.060,
+                         CoP_min=1,T_rise=1.5,t_start=3,t_peak=30.4){
   
-  Cma=C_max
-  Tda = params['T_decay','value'] *exp(params['beta_T_decay_age','value']  * age_years)
-  ka = params['k','value']*exp(params['beta_k_age','value']  * age_years)
+  Tda = T_decay * exp(beta_T_decay_age * age_years)
+  ka = alpha * exp(beta_alpha_age * age_years)
   
   # power law decay
-  titer = params['C_min','value']  + (Cma-params['C_min','value'])*(1+(t-params['t_peak','value'] )/(ka*Tda))^(-ka)
+  titer = CoP_min + (CoP_max-CoP_min)*(1+(t-t_peak)/(ka*Tda))^(-ka)
   
   # simple logistic interpolator rise (this is just for continuity/realism. plays no role in the model)
-  titer[t<params['t_peak','value'] ] =
-    C_pre + (Cma-C_pre)*
-    (1/(1+exp(-(t[t<params['t_peak','value'] ]-params['t_start','value'] *5)/params['T_rise','value'])) - 1/(1+exp(-(0-params['t_start','value']*5)/params['T_rise','value'])))/
-    (1/(1+exp(-(params['t_peak','value'] -params['t_start','value']*5)/params['T_rise','value'])) - 1/(1+exp(-(0-params['t_start','value']*5)/params['T_rise','value'])))
+  titer[t<t_peak ] =
+    CoP_pre + (CoP_max-CoP_pre)*
+    (1/(1+exp(-(t[t<t_peak] - t_start*5)/T_rise)) - 1/(1+exp(-(0-t_start*5)/T_rise)))/
+    (1/(1+exp(-(t_peak - t_start*5)/T_rise)) - 1/(1+exp(-(0-t_start*5)/T_rise)))
   
   return(titer)
 }
 
-# natural immunity defaults
+# fold-rise model. defaults set to natural immunity defaults
 fold_rise_model = function(CoP_pre,mu_0=1.25,CoP_max=10^3.5, CoP_min=1){
   fold_rise = 10^(mu_0*(1-(log10(CoP_pre)-log10(CoP_min))/(log10(CoP_max)-log10(CoP_min))))
   return(fold_rise)
 }
 
 # dose response
-
-# rescale variable to remove immune confound
-gamma=0.4
-# rescale alpha
-alpha_prime=50^gamma*0.175
-
-# rescale n50
-N50_prime=1.11e6*(2^(1/alpha_prime)-1)/(2^(1/0.175)-1)
-N50_prime
-
-# note that this rescaling actually gets the control of the Jin2017 study decently right if bicarbonate right before challenge is worth ~a factor of 10 in dose
-param_df= param_df |>
-  rbind(data.frame(value=c(n50_fever_given_dose=N50_prime, 
-                            alpha_fever_given_dose=alpha_prime,  
-                            gamma_fever_given_dose=gamma), # guesstimated
-                    component = 'p_fever_given_dose'))  |>
-  
-  # probability of infection given dose
-  # not well measured, but relevant for transmission. 
-  # guesstimated from table 2 of https://doi.org/10.1056/NEJM197009242831306  
-  # and stool vax vs control https://pmc.ncbi.nlm.nih.gov/articles/PMC5720597/
-  rbind(data.frame(value=c(n50_infection_given_dose=N50_prime/10, 
-                           alpha_infection_given_dose=alpha_prime*2, 
-                           gamma_infection_given_dose=gamma*0.2), 
-                   component = 'p_infection_given_dose') )
-
-
-p_outcome_given_dose = function(dose=1e4,  CoP=1, outcome = 'fever_given_dose', params=param_df){
+p_outcome_given_dose = function(dose=1e4,  CoP_pre=1, outcome = 'fever_given_dose', 
+                                n50_fever_given_dose=27800, alpha_fever_given_dose=0.84, gamma_fever_given_dose=0.4,
+                                n50_infection_given_dose=27800/10,alpha_infection_given_dose = 0.84*2, gamma_infection_given_dose=0.4/5){
   
   if(outcome == 'fever_given_dose'){
     
-    p = 1 - (1+dose*(2^(1/params['alpha_fever_given_dose','value'])-1)/params['n50_fever_given_dose','value'])^(-params['alpha_fever_given_dose','value']/(CoP^params['gamma_fever_given_dose','value']))
+    p = 1 - (1+dose*(2^(1/alpha_fever_given_dose)-1)/n50_fever_given_dose)^(-alpha_fever_given_dose/(CoP_pre^gamma_fever_given_dose))
     
   } else if (outcome == 'infection_given_dose'){
     
-    p = 1 - (1+dose*(2^(1/params['alpha_infection_given_dose','value'])-1)/params['n50_infection_given_dose','value'])^(-params['alpha_infection_given_dose','value']/(CoP^params['gamma_infection_given_dose','value']))
+    p = 1 - (1+dose*(2^(1/alpha_infection_given_dose)-1)/n50_infection_given_dose)^(-alpha_infection_given_dose/(CoP_pre^gamma_infection_given_dose))
     
   } else if (outcome == 'fever_given_infection'){
     
-    p = (1 - (1+dose*(2^(1/params['alpha_fever_given_dose','value'])-1)/params['n50_fever_given_dose','value'])^(-params['alpha_fever_given_dose','value']/(CoP^params['gamma_fever_given_dose','value']))) /
-      (1 - (1+dose*(2^(1/params['alpha_infection_given_dose','value'])-1)/params['n50_infection_given_dose','value'])^(-params['alpha_infection_given_dose','value']/(CoP^params['gamma_infection_given_dose','value'])))
+    p = (1 - (1+dose*(2^(1/alpha_fever_given_dose)-1)/n50_fever_given_dose)^(-alpha_fever_given_dose/(CoP_pre^gamma_fever_given_dose))) /
+      (1 - (1+dose*(2^(1/alpha_infection_given_dose)-1)/n50_infection_given_dose)^(-alpha_infection_given_dose/(CoP_pre^gamma_infection_given_dose)))
     
   }
   
@@ -101,101 +62,301 @@ p_outcome_given_dose = function(dose=1e4,  CoP=1, outcome = 'fever_given_dose', 
 }
 
 
-# run model
-
-# very high
-exposure_dose = 5e4
-exposure_rate=1/(12*4) # per month
-
-# high
-exposure_dose = 5e3
-exposure_rate=1/(12*4) # per month
-
-# medium
-exposure_dose = 5e2
-exposure_rate=1/(12*15) # per month
-
-exposure_rate_multiplier = c(rep(0.1,13),rep(0.5,12),rep(1,12*13),rep(1,year_max*12-24-12*13))
-
-# expose
-for (id in (1:N)){
-  idx = population$id == id
-  population$exposed[idx] = rpois(length(exposure_rate_multiplier),exposure_rate*exposure_rate_multiplier)
-  population$exposure_month[idx & population$exposed>0] = population$month[idx & population$exposed>0]
-}
-
-# infect and titer
-for (id in (1:N)){
-  idx = population$id == id
+##### wrap the cohort model in a function
+cohort_model = function(exposure_dose,exposure_rate,
+                        N=1000,age_max=75,
+                        titer_dt=365/12, # monthly timesteps so I don't have to worry about blocking reinfection during current infection
+                        max_titer_id = 1000 # saving every titer above ~1000 gets really slow
+                        ){
   
-  tmp_month=population$month[idx]
-  tmp_titer =population$titer[idx]
-  tmp_exposed = population$exposed[idx]
-  tmp_infected = population$infected[idx]
-  tmp_fever =population$fever[idx]
+  simulation_months = seq(0,age_max*12-1,by=1)
   
-  for (exposure in which(tmp_exposed>0)){
-    p_once = p_outcome_given_dose(dose=exposure_dose,CoP=tmp_titer[exposure],outcome='infection_given_dose')
-    p_inf = 1-(1-p_once)^tmp_exposed[exposure]
+  # titer tracker
+  titer_df = expand.grid(id=1:max_titer_id, 
+                         month=simulation_months,
+                         titer=1) |>
+    mutate(age_years=month/12,
+           age_group=cut(age_years,breaks=c(0,2,5,10,15,age_max),include.lowest = TRUE)) |>
+    mutate(age_width = age_width(age_group,age_max))
+  
+  # disease events tracker
+  events_list =  replicate(N, list(exposure_month = NULL, exposure_count=NULL,
+                                   infected = NULL, 
+                                   fever = NULL), 
+                           simplify = FALSE)
+  
+  # age-dependent exposure rate, to account for kids under 2y having less exposure to food and sewage
+  exposure_rate_multiplier = c(rep(0.1,13),rep(0.5,12),rep(1,length(simulation_months)-25))
+  
+  # expose
+  for (id in (1:N)){
+    tmp_exposed = rpois(length(exposure_rate_multiplier),exposure_rate*exposure_rate_multiplier)
+    events_list[[id]]$exposure_month = which(tmp_exposed>0)
+    events_list[[id]]$exposure_count = tmp_exposed[events_list[[id]]$exposure_month]
     
-    if(runif(1)<=p_inf){
-      tmp_infected[exposure]=1
-      tmp_titer[exposure:length(tmp_titer)]= titer_vs_time(t=(dt*(tmp_month-exposure+1))[(exposure):length(tmp_month)],
-                                                           age_years = min(exposure/12,15),
-                                                           C_pre = tmp_titer[exposure],
-                                                           C_max=tmp_titer[exposure]*fold_rise_model(CoP_pre = tmp_titer[exposure]))
-      tmp_titer[exposure:length(tmp_titer)] = round(tmp_titer[exposure:length(tmp_titer)],2)
+    # declare needed fields
+    events_list[[id]]$infected = rep(0, length(events_list[[id]]$exposure_month))
+    events_list[[id]]$fever = rep(0, length(events_list[[id]]$exposure_month))
+  }
+  
+  # infect and titer
+  for (id in (1:N)){
+    
+    tmp_titer =rep(1,length(simulation_months))
+    
+    if (length(events_list[[id]]$exposure_month) >0){
+      for (k in 1:length(events_list[[id]]$exposure_month)){
+        
+        exposure_month = events_list[[id]]$exposure_month[k]
+        
+        p_once = p_outcome_given_dose(dose=exposure_dose,CoP_pre=tmp_titer[exposure_month],outcome='infection_given_dose')
+        p_inf = 1-(1-p_once)^events_list[[id]]$exposure_count[k]
+        
+        if(runif(1)>p_inf){
+          events_list[[id]]$infected[k] = 0
+          events_list[[id]]$fever[k]    = 0
+        } else {
+          
+          # update infection list
+          events_list[[id]]$infected[k]=1
+          
+          # update fever list 
+          p_fever = p_outcome_given_dose(dose=exposure_dose,CoP_pre=tmp_titer[exposure_month],outcome='fever_given_infection')
+          if (runif(n=1)<=p_fever){
+            events_list[[id]]$fever[k]=1
+          } else {
+            events_list[[id]]$fever[k]=0
+          }
+          
+          tmp_titer[exposure_month:length(tmp_titer)]= titer_vs_time(t=(titer_dt*(simulation_months-exposure_month+1))[(exposure_month):length(simulation_months)],
+                                                               age_years = exposure_month/12,
+                                                               CoP_pre = tmp_titer[exposure_month],
+                                                               CoP_max=tmp_titer[exposure_month]*fold_rise_model(CoP_pre = tmp_titer[exposure_month]))
+          tmp_titer[exposure_month:length(tmp_titer)] = round(tmp_titer[exposure_month:length(tmp_titer)],2)
+        }
+        
+      }
+      
+      if(id <= max_titer_id){
+        idx = titer_df$id == id
+        titer_df$titer[idx] = tmp_titer
+      }
     }
   }
   
-  # fever
-  infections = which(tmp_infected==1)
-  p_fever = p_outcome_given_dose(dose=exposure_dose,CoP=tmp_titer[infections],outcome='fever_given_infection')
-  fever_idx=runif(n=length(p_fever))<p_fever
-  tmp_fever[infections[fever_idx]]=1
-  
-  population$titer[idx] = tmp_titer
-  population$infected[idx] = tmp_infected
-  population$fever[idx] = tmp_fever
-  
-  population$infection_month[idx & population$infected>0] = population$month[idx & population$infected>0]
-  population$fever_month[idx & population$fever>0] = population$month[idx & population$fever>0]
+  # make the events_list into a nice data frame
+  not_empty_idx = which(!sapply(events_list, function(x){ is_empty(x$exposure_month)}))
+  events_df = tibble(id = not_empty_idx, data = events_list[not_empty_idx]) |>
+    unnest_wider(data) |>
+    unnest_longer(c(exposure_month,exposure_count,infected,fever), keep_empty = TRUE) |>
+    mutate(exposure_age=exposure_month/12,
+           age_group=cut(exposure_age,breaks=c(0,2,5,10,15,age_max),include.lowest = TRUE)) |>
+    mutate(age_width=age_width(age_group,age_max)) |>
+    group_by(id) |>
+    mutate(infection_age = if_else(infected==1,exposure_age,NA)) |>
+    mutate(fever_age = if_else(fever==1,exposure_age,NA)) |>
+    mutate(infected = factor(infected),
+           fever = factor(fever)) |>
+    mutate(outcome = interaction(infected,fever)) |>
+    mutate(outcome = fct_recode(outcome,exposed='0.0',infected='1.0',fever='1.1')) |>
+    mutate(outcome = factor(outcome,levels=c('exposed', 'infected', 'fever')))
+
+  # combine some events with titer for plotting
+  titer_df = titer_df |>
+    left_join(events_df |> select(id,infection_age,infected,fever) |> 
+                # mutate(fever = if_else(is.na(fever),0,fever)) |>
+                drop_na(infected),by=join_by(id ==id, age_years == infection_age))
+
+  return(list(titer_df=titer_df,
+              events_df=events_df,
+              config=data.frame(exposure_dose,exposure_rate,N,age_max,titer_dt)))
   
 }
 
-ggplot(population |> filter(id<=10)) +
-  geom_point(aes(x=exposure_month/12,y=id)) + xlim(c(1/12,70))
+###### run the model for the three different reference incidence levels
 
-ggplot(population |> filter(id<=10)) +
-  geom_point(aes(x=infection_month/12,y=id)) + xlim(c(1/12,70))
+# define setting ecology: exposure rate and dose
 
-ggplot(population |> filter(id<=10)) +
-  geom_point(aes(x=fever_month/12,y=id)) + xlim(c(1/12,70))
+output=list()
 
-ggplot(population |> filter(id<=10)) +
-  geom_line(aes(x=year,y=titer,color=id)) + xlim(c(1,70)) +
-  facet_wrap('id')
+# N_cohort=2e4 # a lot faster for playing
+N_cohort=1e6 # made huge to get good stats at lower incidence
 
+# medium
+output[['medium']] = cohort_model(exposure_dose = 5e2,
+                                  exposure_rate=1/(12*40), # per month
+                                  N=N_cohort)
+
+# high
+output[['high']] = cohort_model(exposure_dose = 5e3,
+                                exposure_rate=1/(12*10), # per month
+                                N=N_cohort/5)
+
+# very high
+output[['very_high']] = cohort_model(exposure_dose = 5e4,
+                                     exposure_rate=1/(12*10), # per month
+                                     N=N_cohort/10)
+
+
+# plots 
 
 # incidence targets
 incidence_fever_targets = c(medium = 53,high=214,very_high=1255)
-incidence_fever_targets
 
-# incidence
-incidence_vs_age =
-  population |> group_by(age_group) |>
-    summarize(incidence_fever = sum(fever==1)/(N*unique(age_range))*1e5,
-              incidence_infection = sum(infected==1)/(N*unique(age_range))*1e5,
-              symptomatic_fraction = sum(fever==1,na.rm=TRUE)/sum(infected==1,na.rm=TRUE))
+# calculate incidence
+for (k in 1:length(output)){
+  
+  N = output[[k]]$config$N
+  
+  output[[k]]$incidence_vs_age =
+    output[[k]]$events_df |> group_by(age_group) |>
+    summarize(incidence_fever = sum(fever==1)/(N*unique(age_width))*1e5,
+              incidence_infection = sum(infected==1)/(N*unique(age_width))*1e5,
+              symptomatic_fraction = sum(fever==1,na.rm=TRUE)/sum(infected==1,na.rm=TRUE),
+              age_width = unique(age_width)) |>
+    mutate(incidence_fever_overall = sum(incidence_fever*age_width/sum(age_width)),
+           incidence_infection_overall = sum(incidence_infection*age_width/sum(age_width)),
+           incidence_fever_target = incidence_fever_targets[names(output)[k]])
+}
 
-ggplot(incidence_vs_age) +
-  geom_bar(aes(x=age_group,y=incidence_fever),stat='identity') +
-  ggtitle(paste('medium: dose = ',exposure_dose,', average years b/w exposures = ',1/(12*exposure_rate),sep=''))
-ggsave('scratch/figures/cohort_model_incidence_by_age_medium.png',units='in',width=6,height=4)
+##### make lots of plots
 
-# ggplot(incidence_vs_age) +
-#   geom_bar(aes(x=age_group,y=incidence_infection),stat='identity')
-# 
-# 
-# ggplot(incidence_vs_age) +
-#   geom_bar(aes(x=age_group,y=symptomatic_fraction),stat='identity')
+p_incidence_fever=list()
+p_incidence_infection=list()
+p_symptomatic_fraction=list()
+for (k in 1:length(output)){
+  p_incidence_fever[[k]]=ggplot(output[[k]]$incidence_vs_age) +
+    geom_bar(aes(x=age_group,y=incidence_fever),stat='identity') +
+    geom_hline(aes(yintercept=incidence_fever_overall[1]),linetype='solid') +
+    geom_hline(aes(yintercept=incidence_fever_target[1]),linetype='dashed') +
+    theme_bw() +
+    xlab('') +
+    ylab('annual incidence of fever per 100k') +
+    labs(title = paste(sub('_',' ',names(output)[k]),' incidence',sep=''),
+         subtitle=paste('dose = ',output[[k]]$config$exposure_dose,' bacilli\nmean years b/w exposures = ',
+                        1/(12*output[[k]]$config$exposure_rate),sep='')) +
+    theme(plot.title=element_text(size=10),plot.subtitle=element_text(size=8),
+          axis.title = element_text(size=10))
+  
+  p_incidence_infection[[k]]=ggplot(output[[k]]$incidence_vs_age) +
+    geom_bar(aes(x=age_group,y=incidence_infection),stat='identity') +
+    geom_hline(aes(yintercept=incidence_infection_overall[1]),linetype='solid') +
+    theme_bw() +
+    xlab('') +
+    ylab('annual incidence of infection per 100k') +
+    labs(title = paste(sub('_',' ',names(output)[k]),' incidence',sep=''),
+         subtitle=paste('dose = ',output[[k]]$config$exposure_dose,' bacilli\nmean years b/w exposures = ',
+                        1/(12*output[[k]]$config$exposure_rate),sep='')) +
+    theme(plot.title=element_text(size=10),plot.subtitle=element_text(size=8),
+          axis.title = element_text(size=10))
+  
+  p_symptomatic_fraction[[k]]=ggplot(output[[k]]$incidence_vs_age) +
+    geom_bar(aes(x=age_group,y=symptomatic_fraction),stat='identity') +
+    theme_bw() +
+    xlab('') +
+    ylab('symptomatic fraction') +
+    ylim(c(0,1)) +
+    labs(title = paste(sub('_',' ',names(output)[k]),' incidence',sep=''),
+         subtitle=paste('dose = ',output[[k]]$config$exposure_dose,' bacilli\nmean years b/w exposures = ',
+                        1/(12*output[[k]]$config$exposure_rate),sep='')) +
+    theme(plot.title=element_text(size=10),plot.subtitle=element_text(size=8),
+          axis.title = element_text(size=10))
+}
+
+wrap_plots(p_incidence_fever) + plot_layout(guides = "collect",axes='collect')
+ggsave('scratch/figures/cohort_model_incidence_fever_by_age.png',units='in',width=7,height=4)
+
+wrap_plots(p_incidence_infection) + plot_layout(guides = "collect",axes='collect')
+ggsave('scratch/figures/cohort_model_incidence_infection_by_age.png',units='in',width=7,height=4)
+
+wrap_plots(p_symptomatic_fraction) + plot_layout(guides = "collect",axes='collect')
+ggsave('scratch/figures/cohort_model_symptomatic_fraction.png',units='in',width=7,height=4)
+
+
+p_exposure=list()
+for (k in 1:length(output)){
+  p_exposure[[k]] = ggplot(output[[k]]$events_df |> filter(id<=40)) +
+                      geom_point(aes(x=exposure_age,color=outcome,y=id)) +
+                      theme_bw() +
+                      xlab('age') +
+      labs(title = paste(sub('_',' ',names(output)[k]),' incidence',sep=''),
+              subtitle=paste('dose = ',output[[k]]$config$exposure_dose,' bacilli\nmean years b/w exposures = ',
+                    1/(12*output[[k]]$config$exposure_rate),sep='')) +
+    theme(plot.title=element_text(size=10),plot.subtitle=element_text(size=8),
+          axis.title = element_text(size=10)) +
+    scale_color_discrete(drop = FALSE)
+}
+wrap_plots(p_exposure) + plot_layout(guides = "collect",axes='collect')
+ggsave('scratch/figures/cohort_model_individual_level_exposure_examples.png',units='in',width=7,height=6)
+
+p_titer_examples=list()
+for (k in 1:length(output)){
+  p_titer_examples[[k]] = ggplot() +
+    geom_line(data=output[[k]]$titer_df |> filter(id<=20),aes(x=age_years,y=titer)) + 
+    geom_point(data=output[[k]]$titer_df |> filter(id<=20) |> filter(!is.na(infected)),
+               aes(x=age_years,y=titer,color=fever)) +
+    scale_y_continuous(trans='log10',limits=c(1,10^3.5)) +
+    facet_wrap('id') +
+    theme_bw() +
+    xlab('age') +
+    labs(title = paste(sub('_',' ',names(output)[k]),' incidence',sep=''),
+         subtitle=paste('dose = ',output[[k]]$config$exposure_dose,' bacilli\nmean years b/w exposures = ',
+                        1/(12*output[[k]]$config$exposure_rate),sep='')) +
+    theme(plot.title=element_text(size=10),plot.subtitle=element_text(size=8),
+          axis.title = element_text(size=10))  +
+    scale_color_discrete(drop = FALSE)
+}
+wrap_plots(p_titer_examples) + plot_layout(guides = "collect",axes='collect')
+ggsave('scratch/figures/cohort_model_individual_level_titer_examples.png',units='in',width=12,height=6)
+
+
+p_titer_summary=list()
+p_titer_density=list()
+for (k in 1:length(output)){
+  
+  tmp_titer_summary =output[[k]]$titer_df |>
+    group_by(age_years) |>
+    summarize(titer_gmt = exp(mean(log(titer))),
+           titer_median = median(titer),
+           titer_upper_iqr = quantile(titer,probs=0.75),
+           titer_lower_iqr = quantile(titer,probs=0.25),
+           titer_upper_95 = quantile(titer,probs=0.975),
+           titer_lower_95 = quantile(titer,probs=0.025))
+  
+  p_titer_summary[[k]] = ggplot(tmp_titer_summary) +
+    geom_ribbon(aes(x=age_years,ymin=titer_lower_95,ymax=titer_upper_95),alpha=0.2)+
+    geom_ribbon(aes(x=age_years,ymin=titer_lower_iqr,ymax=titer_upper_iqr),alpha=0.2)+
+    geom_line(aes(x=age_years,y=titer_median)) + 
+    geom_line(aes(x=age_years,y=titer_gmt),linetype='dashed') + 
+    scale_y_continuous(trans='log10',limits=c(1,10^3.5)) +
+    theme_bw() +
+    xlab('age') +
+    labs(title = paste(sub('_',' ',names(output)[k]),' incidence',sep=''),
+         subtitle=paste('dose = ',output[[k]]$config$exposure_dose,' bacilli\nmean years b/w exposures = ',
+                        1/(12*output[[k]]$config$exposure_rate),sep='')) +
+    theme(plot.title=element_text(size=10),plot.subtitle=element_text(size=8),
+          axis.title = element_text(size=10)) +
+    ylab('anti-Vi IgG EU/ml')
+  
+  sampled_titer_df = output[[k]]$titer_df |>
+    group_by(age_group,id) |>
+    slice_sample(n=5)
+  p_titer_density[[k]] = ggplot(sampled_titer_df) +
+    geom_density_ridges(aes(x=titer,y=age_group),scale=0.9,jittered_points = TRUE,bandwidth = 0.1) + 
+    scale_x_continuous(trans='log10',limits=c(7,10^3.5)) +
+    theme_bw() + 
+    xlab('titer, given above limit of detection') +
+    ylab('') +
+    labs(title = paste(sub('_',' ',names(output)[k]),' incidence',sep=''),
+         subtitle=paste('dose = ',output[[k]]$config$exposure_dose,' bacilli\nmean years b/w exposures = ',
+                        1/(12*output[[k]]$config$exposure_rate),sep='')) +
+    theme(plot.title=element_text(size=10),plot.subtitle=element_text(size=8),
+          axis.title = element_text(size=10)) 
+}
+wrap_plots(p_titer_summary) + plot_layout(guides = "collect",axes='collect')
+ggsave('scratch/figures/cohort_model_titer_vs_age_summary.png',units='in',width=7,height=4)
+
+wrap_plots(p_titer_density) + plot_layout(guides = "collect",axes='collect')
+ggsave('scratch/figures/cohort_model_titer_density.png',units='in',width=7,height=4)
+
+
