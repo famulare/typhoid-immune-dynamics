@@ -44,13 +44,13 @@ p1=ggplot(d_titer |> filter(Vi_IgG_U_per_ml>7),
   scale_x_continuous(trans='log10')
 p1
 
-p2=ggplot(d_titer |> filter(Vi_IgG_U_per_ml>7) |> filter(group=='control' & day ==0),
+p2=ggplot(d_titer |> filter(Vi_IgG_U_per_ml>7) |> filter(day ==0),
           aes(y=age_label,x=Vi_IgG_U_per_ml)) +
   geom_density_ridges(jittered_points = TRUE, scale = 0.85, bandwidth=0.1) +
   theme_bw() +
   scale_x_continuous(trans='log10',limits=c(7,10^3.5))
 p2
-ggsave('scratch/figures/quadri2021_titer_density_given_detection.png',units='in',width=4,height=3)
+ggsave('scratch/figures/quadri2021_titer_density_given_detection_day0.png',units='in',width=4,height=3)
 
 # best single guess at a once-infected-ish group is 0.75-2 and 2-4  controls + day 0 treatments
 d_titer = d_titer |> mutate(probably_infected_once_group = 
