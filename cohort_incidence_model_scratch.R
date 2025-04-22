@@ -7,7 +7,7 @@ library(ggridges)
 # age binning function
 age_width = function(age_group,age_max){
   round(as.numeric(as.character(fct_recode( age_group,
-    `2`='[0,2]',`3`='(2,5]',`5`='(5,10]',`5.1`='(10,15]',`45`=paste('(15,',age_max,']',sep='')))))
+    `2`='[0,2]',`3`='(2,5]',`5`='(5,10]',`5.1`='(10,15]',!!as.character(age_max-15):=paste('(15,',age_max,']',sep='')))))
 }
 
 ##### indvidual-level model functions
@@ -197,6 +197,10 @@ output[['very_high']] = cohort_model(exposure_dose = 5e4,
                                      exposure_rate=1/(12*10), # per month
                                      N=N_cohort/10)
 
+
+for (k in 1:3){
+  output[[k]]$events_df$age_width[  output[[k]]$events_df$age_width==45]=60
+}
 
 # plots 
 
