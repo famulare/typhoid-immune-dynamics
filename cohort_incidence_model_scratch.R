@@ -11,7 +11,7 @@ age_width = function(age_group,age_max){
 }
 
 ##### indvidual-level model functions
-# model functions
+# titer response function
 titer_vs_time = function(t,age_years, CoP_max=10^3.5, CoP_pre=1,
                          T_decay=11, alpha=1.16,
                          beta_T_decay_age=0.057, beta_alpha_age=-0.060,
@@ -33,7 +33,9 @@ titer_vs_time = function(t,age_years, CoP_max=10^3.5, CoP_pre=1,
 }
 
 # fold-rise model. defaults set to natural immunity defaults
-fold_rise_model = function(CoP_pre,mu_0=1.25,CoP_max=10^3.5, CoP_min=1){
+fold_rise_model = function(CoP_pre,
+                           mu_0=1.25*2,  # playing with hand-adjusting this, which was based on another model, to get better titer distributions
+                           CoP_max=10^3.5, CoP_min=1){
   fold_rise = 10^(mu_0*(1-(log10(CoP_pre)-log10(CoP_min))/(log10(CoP_max)-log10(CoP_min))))
   return(fold_rise)
 }
@@ -41,7 +43,9 @@ fold_rise_model = function(CoP_pre,mu_0=1.25,CoP_max=10^3.5, CoP_min=1){
 # dose response
 p_outcome_given_dose = function(dose=1e4,  CoP_pre=1, outcome = 'fever_given_dose', 
                                 n50_fever_given_dose=27800, alpha_fever_given_dose=0.84, gamma_fever_given_dose=0.4,
-                                n50_infection_given_dose=27800/10,alpha_infection_given_dose = 0.84*2, gamma_infection_given_dose=0.4/5){
+                                n50_infection_given_dose=27800/10,alpha_infection_given_dose = 0.84*2, 
+                                gamma_infection_given_dose=0.4/2. # tweaking from previous hand guess to better match comment from Kyra about their estimate of adult immunity
+                                ){
   
   if(outcome == 'fever_given_dose'){
     
@@ -60,6 +64,28 @@ p_outcome_given_dose = function(dose=1e4,  CoP_pre=1, outcome = 'fever_given_dos
   
   return(p)
 }
+
+# protective efficacy vs CoP_pre
+protective_efficacy = function(dose=1e4,  CoP_pre=1, outcome = 'fever_given_dose', CoP_control=1){
+  VE = 1 - p_outcome_given_dose(dose,CoP_pre=CoP_pre,outcome = outcome)/p_outcome_given_dose(dose,CoP_pre=CoP_control,outcome = outcome)
+  return(VE)
+}
+
+expand.grid(dose = 10^seq(0,8,by=0.1),
+            CoP_pre = round(10^seq(0,3.5,by=0.5)),
+            outcome=factor(c('infection_given_dose','fever_given_dose'),
+                           levels=c('infection_given_dose','fever_given_dose','fever_given_infection'))) |>
+  group_by(outcome,CoP_pre,dose) |>
+  mutate(protective_efficacy = protective_efficacy(dose=dose,CoP_pre=CoP_pre,outcome = outcome)) |>
+  mutate(CoP_pre = factor(CoP_pre)) |>
+  ggplot() +
+  geom_line(aes(x=dose,y=protective_efficacy,group=CoP_pre,color=CoP_pre)) +
+  facet_grid('~outcome') +
+  theme_bw() +
+  ylim(c(0,1)) +
+  scale_x_continuous(trans='log10', breaks=10^seq(0,10,by=2),minor_breaks = NULL,labels = scales::trans_format("log10", math_format(10^.x)) ) 
+ggsave('scratch/figures/cohort_model_vaccine_efficacy_vs_dose_CoP_pre.png',units='in',width=7, height=3)
+
 
 
 ##### wrap the cohort model in a function
@@ -189,18 +215,13 @@ output[['medium']] = cohort_model(exposure_dose = 5e2,
 
 # high
 output[['high']] = cohort_model(exposure_dose = 5e3,
-                                exposure_rate=1/(12*10), # per month
+                                exposure_rate=1/(12*20), # per month
                                 N=N_cohort/5)
 
 # very high
 output[['very_high']] = cohort_model(exposure_dose = 5e4,
-                                     exposure_rate=1/(12*10), # per month
+                                     exposure_rate=1/(12*20), # per month
                                      N=N_cohort/10)
-
-
-for (k in 1:3){
-  output[[k]]$events_df$age_width[  output[[k]]$events_df$age_width==45]=60
-}
 
 # plots 
 
@@ -316,23 +337,32 @@ ggsave('scratch/figures/cohort_model_individual_level_titer_examples.png',units=
 
 p_titer_summary=list()
 p_titer_density=list()
+p_protective_efficacy_summary=list()
 for (k in 1:length(output)){
   
+  exposure_dose = output[[k]]$config$exposure_dose
+  
   tmp_titer_summary =output[[k]]$titer_df |>
+    mutate(protective_efficacy = protective_efficacy(dose = exposure_dose,CoP_pre = titer, outcome='infection_given_dose')) |>
     group_by(age_years) |>
     summarize(titer_gmt = exp(mean(log(titer))),
            titer_median = median(titer),
            titer_upper_iqr = quantile(titer,probs=0.75),
            titer_lower_iqr = quantile(titer,probs=0.25),
            titer_upper_95 = quantile(titer,probs=0.975),
-           titer_lower_95 = quantile(titer,probs=0.025))
+           titer_lower_95 = quantile(titer,probs=0.025),
+           protective_efficacy_median = median(protective_efficacy),
+           protective_efficacy_upper_iqr = quantile(protective_efficacy,probs=0.75),
+           protective_efficacy_lower_iqr = quantile(protective_efficacy,probs=0.25),
+           protective_efficacy_upper_95 = quantile(protective_efficacy,probs=0.975),
+           protective_efficacy_lower_95 = quantile(protective_efficacy,probs=0.025))
   
   p_titer_summary[[k]] = ggplot(tmp_titer_summary) +
     geom_ribbon(aes(x=age_years,ymin=titer_lower_95,ymax=titer_upper_95),alpha=0.2)+
     geom_ribbon(aes(x=age_years,ymin=titer_lower_iqr,ymax=titer_upper_iqr),alpha=0.2)+
     geom_line(aes(x=age_years,y=titer_median)) + 
     geom_line(aes(x=age_years,y=titer_gmt),linetype='dashed') + 
-    scale_y_continuous(trans='log10',limits=c(1,10^3.5)) +
+    scale_y_continuous(limits=c(1,10^3.5)) +
     theme_bw() +
     xlab('age') +
     labs(title = paste(sub('_',' ',names(output)[k]),' incidence',sep=''),
@@ -342,9 +372,24 @@ for (k in 1:length(output)){
           axis.title = element_text(size=10)) +
     ylab('anti-Vi IgG EU/ml')
   
+  p_protective_efficacy_summary[[k]] = ggplot(tmp_titer_summary) +
+    geom_ribbon(aes(x=age_years,ymin=protective_efficacy_lower_95,ymax=protective_efficacy_upper_95),alpha=0.2)+
+    geom_ribbon(aes(x=age_years,ymin=protective_efficacy_lower_iqr,ymax=protective_efficacy_upper_iqr),alpha=0.2)+
+    geom_line(aes(x=age_years,y=protective_efficacy_median)) + 
+    scale_y_continuous(limits=c(0,1)) +
+    theme_bw() +
+    xlab('age') +
+    labs(title = paste(sub('_',' ',names(output)[k]),' incidence',sep=''),
+         subtitle=paste('dose = ',output[[k]]$config$exposure_dose,' bacilli\nmean years b/w exposures = ',
+                        1/(12*output[[k]]$config$exposure_rate),sep='')) +
+    theme(plot.title=element_text(size=10),plot.subtitle=element_text(size=8),
+          axis.title = element_text(size=10)) +
+    ylab('protective efficacy')
+  
+  
   sampled_titer_df = output[[k]]$titer_df |>
     group_by(age_group,id) |>
-    slice_sample(n=5)
+    slice_sample(n=1)
   p_titer_density[[k]] = ggplot(sampled_titer_df) +
     geom_density_ridges(aes(x=titer,y=age_group),scale=0.9,jittered_points = TRUE,bandwidth = 0.1) + 
     scale_x_continuous(trans='log10',limits=c(7,10^3.5)) +
@@ -360,7 +405,9 @@ for (k in 1:length(output)){
 wrap_plots(p_titer_summary) + plot_layout(guides = "collect",axes='collect')
 ggsave('scratch/figures/cohort_model_titer_vs_age_summary.png',units='in',width=7,height=4)
 
+wrap_plots(p_protective_efficacy_summary) + plot_layout(guides = "collect",axes='collect')
+ggsave('scratch/figures/cohort_model_protective_efficacy_infection_vs_age_summary.png',units='in',width=7,height=4)
+
 wrap_plots(p_titer_density) + plot_layout(guides = "collect",axes='collect')
 ggsave('scratch/figures/cohort_model_titer_density.png',units='in',width=7,height=4)
-
 
