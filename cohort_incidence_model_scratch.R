@@ -88,6 +88,53 @@ ggsave('scratch/figures/cohort_model_vaccine_efficacy_vs_dose_CoP_pre.png',units
 
 
 
+### define titer observation model following https://onlinelibrary.wiley.com/doi/full/10.1002/sim.8578 and https://www.thelancet.com/journals/lanmic/article/PIIS2666-5247(22)00114-8/fulltext
+observe_titer = function(titer,
+                         lod = 7, # limit of detection following Quadri2021 for VaccZyme IgG
+                         sd_assay=0.3,  # sd from coefficient of variation in log10 space near log10(titer)=O(1) from
+                                        # table s3 here https://www.thelancet.com/journals/lanmic/article/PIIS2666-5247(22)00114-8/fulltext
+                                        # and validated by st control group day 0 here https://journals.plos.org/plosntds/article?id=10.1371/journal.pntd.0008783
+                                        # from looking at many post-vax high titer, I think this is actually an sd w/r/t scaling mean up.
+                                        # yes, it should be additive in log space per cited eq 13 https://onlinelibrary.wiley.com/doi/full/10.1002/sim.8578
+                         sd_bio = 1/2, # supposedly additive in titer in absolute titer per eq 10 of https://onlinelibrary.wiley.com/doi/full/10.1002/sim.8578
+                                        # but I really doubt that it is additive as anitbodies go up
+                                        # divide by two because reported value ~1 for IgG is 95% upper limit
+                         bio_noise_model = 'additive', 
+                         CoP_max=10^3.5){ # needed for bounded_multiplicative model
+
+  if (bio_noise_model == 'additive'){
+    measurement = exp(rnorm(length(titer),mean=log(titer),sd=sd_assay))
+    measurement = pmax(lod, rnorm(length(titer),mean=measurement,sd=sd_bio))
+  } else if (bio_noise_model == 'multiplicative'){ # assume sd_bio should really be a cv and thus log-additive, around lod~1 for their assay
+    measurement = pmax(lod, exp(rnorm(length(titer),mean=log(titer),sd=sd_assay+sd_bio)))
+  } else if (bio_noise_model == 'bounded_multiplicative'){ # noise decays toward max titer
+    sd_bio = sd_bio * (1-log(titer)/log(CoP_max)) # assume proportion off-target antibodies declines as specific immunity goes up
+    measurement = pmax(lod, exp(rnorm(length(titer),mean=log(titer),sd=sd_assay+sd_bio)))
+  }
+  
+  is_positive = measurement > lod
+  return(data.frame(titer_observed=measurement,is_positive=is_positive))
+}
+
+expand.grid(titer=10^seq(0,3.5,by=0.5),
+            replicate=1:100) |>
+  mutate(observe_titer(titer=titer,bio_noise_model = 'additive')) |>
+  ggplot() +
+  geom_density_ridges(aes(x=log10(titer_observed),y=factor(log10(titer)),color=is_positive),jittered_points=TRUE)
+
+expand.grid(titer=10^seq(0,3.5,by=0.5),
+            replicate=1:100) |>
+  mutate(observe_titer(titer=titer,bio_noise_model = 'multiplicative')) |>
+  ggplot() +
+  geom_density_ridges(aes(x=log10(titer_observed),y=factor(log10(titer)),color=is_positive),jittered_points=TRUE)
+
+expand.grid(titer=10^seq(0,3.5,by=0.5),
+            replicate=1:100) |>
+  mutate(observe_titer(titer=titer,bio_noise_model = 'bounded_multiplicative')) |>
+  ggplot() +
+  geom_density_ridges(aes(x=log10(titer_observed),y=factor(log10(titer)),color=is_positive),jittered_points=TRUE)
+
+
 ##### wrap the cohort model in a function
 cohort_model = function(exposure_dose,exposure_rate,
                         N=1000,age_max=75,
@@ -195,7 +242,7 @@ cohort_model = function(exposure_dose,exposure_rate,
 
   return(list(titer_df=titer_df,
               events_df=events_df,
-              config=data.frame(exposure_dose,exposure_rate,N,age_max,titer_dt)))
+              config=data.frame(exposure_dose,exposure_rate,N,age_max,titer_dt,max_titer_id)))
   
 }
 
@@ -228,7 +275,7 @@ output[['very_high']] = cohort_model(exposure_dose = 5e4,
 # incidence targets
 incidence_fever_targets = c(medium = 53,high=214,very_high=1255)
 
-# calculate incidence
+# calculate fever and infection incidence
 for (k in 1:length(output)){
   
   N = output[[k]]$config$N
@@ -244,11 +291,71 @@ for (k in 1:length(output)){
            incidence_fever_target = incidence_fever_targets[names(output)[k]])
 }
 
+# calculate seroincidence
+for (k in 1:length(output)){
+  
+  N = output[[k]]$config$max_titer_id
+  
+  output[[k]]$titer_df = output[[k]]$titer_df[,1:8] |>
+    group_by(id) |>
+    mutate(fold_rise = c(0,diff(titer))) |>
+    mutate(seroconversion = fold_rise>0) |>
+    mutate(observe_titer(titer,bio_noise_model = 'additive')) |>
+    rename(titer_observed_additive = titer_observed, is_positive_additive=is_positive) |>
+    mutate(fold_rise_additive = c(0,diff(titer_observed_additive))) |>
+    mutate(seroconversion_observed_additive = fold_rise_additive>3*sqrt(2)) |>
+    mutate(observe_titer(titer,bio_noise_model = 'bounded_multiplicative')) |>
+    mutate(fold_rise_bounded_multiplicative = c(0,diff(titer_observed))) |>
+    mutate(seroconversion_observed_bounded_multiplicative = fold_rise_bounded_multiplicative>3*sqrt(2)) 
+# 
+#   ggplot(output[[k]]$titer_df |> filter(id<=20)) +
+#     geom_point(aes(x=age_years,y=fold_rise,color=seroconversion)) +
+#     facet_wrap('id')
+#   
+#   ggplot(output[[k]]$titer_df |> filter(id<=20)) +
+#     geom_point(aes(x=age_years,y=fold_rise_additive,color=seroconversion_observed_additive)) +
+#     facet_wrap('id')
+#   
+#   ggplot(output[[k]]$titer_df |> filter(id<=20)) +
+#     geom_point(aes(x=age_years,y=fold_rise_bounded_multiplicative,color=seroconversion_observed_bounded_multiplicative)) +
+#     facet_wrap('id')
+  
+  output[[k]]$incidence_vs_age= output[[k]]$incidence_vs_age |>
+    left_join(
+      output[[k]]$titer_df |>
+        group_by(age_group) |>
+        summarize(incidence_sero = sum(seroconversion==TRUE)/(N*unique(age_width))*1e5,
+                  incidence_sero_additive = sum(seroconversion_observed_additive==TRUE)/(N*unique(age_width))*1e5,
+                  incidence_sero_bounded_multiplicative = sum(seroconversion_observed_bounded_multiplicative==TRUE)/(N*unique(age_width))*1e5)) |>
+    mutate(ratio_additive_sero = incidence_sero_additive/incidence_sero,
+           ratio_bounded_multiplicative_sero = incidence_sero_bounded_multiplicative/incidence_sero,
+           ratio_additive_fever = incidence_sero_additive/incidence_fever,
+           ratio_bounded_multiplicative_fever = incidence_sero_bounded_multiplicative/incidence_fever) |>
+    mutate(symptomatic_fraction_additive_sero = symptomatic_fraction / ratio_additive_sero,
+           symptomatic_fraction_bounded_multiplicative_sero = symptomatic_fraction / ratio_bounded_multiplicative_sero) |>
+    mutate(incidence_sero_overall = sum(incidence_sero*age_width/sum(age_width)),
+           incidence_sero_additive_overall = sum(incidence_sero_additive*age_width/sum(age_width)),
+           incidence_sero_bounded_multiplicative_overall = sum(incidence_sero_bounded_multiplicative*age_width/sum(age_width)),
+           symptomatic_fraction_overall = sum(symptomatic_fraction*age_width/sum(age_width)),
+           symptomatic_fraction_overall_additive_sero = sum(symptomatic_fraction_additive_sero*age_width/sum(age_width)),
+           symptomatic_fraction_overall_bounded_multiplicative_sero = sum(symptomatic_fraction_bounded_multiplicative_sero*age_width/sum(age_width)))
+     
+}
+
+# I THINK the additive observation model is equivalent to the sero-epi incidence assumptions 
+# used by these people https://www.thelancet.com/journals/lanmic/article/PIIS2666-5247(22)00114-8/fulltext#fig3
+# if seroincidence is then based on the observed titers without accounting for the noise, 
+# it incidence will be over-estimated. https://onlinelibrary.wiley.com/doi/abs/10.1002/sim.8578 Factor of 10 not impossible.
+# But I can't believe this is really equivalent to what anyone is doing. The daily differencing assumed
+# above has to be not equivalent to how anyone does this, I hope...
+
 ##### make lots of plots
 
 p_incidence_fever=list()
 p_incidence_infection=list()
 p_symptomatic_fraction=list()
+p_incidence_sero_additive=list()
+p_symptomatic_fraction_additive_sero=list()
 for (k in 1:length(output)){
   p_incidence_fever[[k]]=ggplot(output[[k]]$incidence_vs_age) +
     geom_bar(aes(x=age_group,y=incidence_fever),stat='identity') +
@@ -277,9 +384,35 @@ for (k in 1:length(output)){
   
   p_symptomatic_fraction[[k]]=ggplot(output[[k]]$incidence_vs_age) +
     geom_bar(aes(x=age_group,y=symptomatic_fraction),stat='identity') +
+    geom_hline(aes(yintercept=symptomatic_fraction_overall[1]),linetype='solid') +
     theme_bw() +
     xlab('') +
     ylab('symptomatic fraction') +
+    ylim(c(0,1)) +
+    labs(title = paste(sub('_',' ',names(output)[k]),' incidence',sep=''),
+         subtitle=paste('dose = ',output[[k]]$config$exposure_dose,' bacilli\nmean years b/w exposures = ',
+                        1/(12*output[[k]]$config$exposure_rate),sep='')) +
+    theme(plot.title=element_text(size=10),plot.subtitle=element_text(size=8),
+          axis.title = element_text(size=10))
+  
+  p_incidence_sero_additive[[k]]=ggplot(output[[k]]$incidence_vs_age) +
+    geom_bar(aes(x=age_group,y=incidence_sero_additive),stat='identity') +
+    geom_hline(aes(yintercept=incidence_sero_additive_overall[1]),linetype='solid') +
+    theme_bw() +
+    xlab('') +
+    ylab('annual incidence of infection per 100k (additive sero model)') +
+    labs(title = paste(sub('_',' ',names(output)[k]),' incidence',sep=''),
+         subtitle=paste('dose = ',output[[k]]$config$exposure_dose,' bacilli\nmean years b/w exposures = ',
+                        1/(12*output[[k]]$config$exposure_rate),sep='')) +
+    theme(plot.title=element_text(size=10),plot.subtitle=element_text(size=8),
+          axis.title = element_text(size=10))
+  
+  p_symptomatic_fraction_additive_sero[[k]]=ggplot(output[[k]]$incidence_vs_age) +
+    geom_bar(aes(x=age_group,y=symptomatic_fraction_additive_sero),stat='identity') +
+    geom_hline(aes(yintercept=symptomatic_fraction_overall_additive_sero[1]),linetype='solid') +
+    theme_bw() +
+    xlab('') +
+    ylab('symptomatic fraction (additive seroepi model)') +
     ylim(c(0,1)) +
     labs(title = paste(sub('_',' ',names(output)[k]),' incidence',sep=''),
          subtitle=paste('dose = ',output[[k]]$config$exposure_dose,' bacilli\nmean years b/w exposures = ',
@@ -291,10 +424,16 @@ for (k in 1:length(output)){
 wrap_plots(p_incidence_fever) + plot_layout(guides = "collect",axes='collect')
 ggsave('scratch/figures/cohort_model_incidence_fever_by_age.png',units='in',width=7,height=4)
 
-wrap_plots(p_incidence_infection) + plot_layout(guides = "collect",axes='collect')
+wrap_plots(c(p_incidence_infection,p_incidence_sero_additive),ncol=3) + plot_layout(guides = "collect",axes='collect')
 ggsave('scratch/figures/cohort_model_incidence_infection_by_age.png',units='in',width=7,height=4)
 
-wrap_plots(p_symptomatic_fraction) + plot_layout(guides = "collect",axes='collect')
+wrap_plots(c(p_symptomatic_fraction,p_symptomatic_fraction_additive_sero),ncol=3) + plot_layout(guides = "collect",axes='collect')
+ggsave('scratch/figures/cohort_model_symptomatic_fraction.png',units='in',width=7,height=4)
+
+
+wrap_plots(c(p_symptomatic_fraction[3],p_symptomatic_fraction_additive_sero[3]),ncol=2)  + 
+  plot_layout(guides = "collect",axes='collect') & 
+  scale_y_continuous(minor_breaks = seq(0,1,by=0.05),limits=c(0,0.65)) 
 ggsave('scratch/figures/cohort_model_symptomatic_fraction.png',units='in',width=7,height=4)
 
 
@@ -338,6 +477,8 @@ ggsave('scratch/figures/cohort_model_individual_level_titer_examples.png',units=
 p_titer_summary=list()
 p_titer_density=list()
 p_protective_efficacy_summary=list()
+p_titer_observed_density_additive_noise=list()
+p_titer_observed_density_bounded_multiplicative_noise=list()
 for (k in 1:length(output)){
   
   exposure_dose = output[[k]]$config$exposure_dose
@@ -388,13 +529,47 @@ for (k in 1:length(output)){
   
   
   sampled_titer_df = output[[k]]$titer_df |>
+    filter((age_years>0.75 & age_years<=2 & id<=200) | # sample sizes like quadri2021-like sample sizes
+             (age_years >2 & age_years<=5 & id<600) | 
+             (age_years >5 & age_years<=10 & id<300) | 
+             (age_years >10 & age_years<=15 & id<300) | 
+             (age_years >15 & id<300)) |>
     group_by(age_group,id) |>
-    slice_sample(n=1)
-  p_titer_density[[k]] = ggplot(sampled_titer_df) +
+    slice_sample(n=1) |> 
+    ungroup() |>
+    mutate(observe_titer(titer,bio_noise_model = 'additive')) |>
+    rename(titer_observed_additive = titer_observed, is_positive_additive=is_positive) |>
+    mutate(observe_titer(titer,bio_noise_model = 'bounded_multiplicative')) 
+  
+  p_titer_density[[k]] = ggplot(sampled_titer_df |> filter(titer>7)) +
     geom_density_ridges(aes(x=titer,y=age_group),scale=0.9,jittered_points = TRUE,bandwidth = 0.1) + 
-    scale_x_continuous(trans='log10',limits=c(7,10^3.5)) +
+    scale_x_continuous(trans='log10',limits=c(7,10^4.5)) +
     theme_bw() + 
     xlab('titer, given above limit of detection') +
+    ylab('') +
+    labs(title = paste(sub('_',' ',names(output)[k]),' incidence',sep=''),
+         subtitle=paste('dose = ',output[[k]]$config$exposure_dose,' bacilli\nmean years b/w exposures = ',
+                        1/(12*output[[k]]$config$exposure_rate),sep='')) +
+    theme(plot.title=element_text(size=10),plot.subtitle=element_text(size=8),
+          axis.title = element_text(size=10)) 
+  
+  p_titer_observed_density_additive_noise[[k]] = ggplot(sampled_titer_df |> filter(is_positive_additive)) +
+    geom_density_ridges(aes(x=titer_observed_additive,y=age_group),scale=0.9,jittered_points = TRUE,bandwidth = 0.1) + 
+    scale_x_continuous(trans='log10',limits=c(7,10^4.5)) +
+    theme_bw() + 
+    xlab('observed titer (additive model)') +
+    ylab('') +
+    labs(title = paste(sub('_',' ',names(output)[k]),' incidence',sep=''),
+         subtitle=paste('dose = ',output[[k]]$config$exposure_dose,' bacilli\nmean years b/w exposures = ',
+                        1/(12*output[[k]]$config$exposure_rate),sep='')) +
+    theme(plot.title=element_text(size=10),plot.subtitle=element_text(size=8),
+          axis.title = element_text(size=10)) 
+  
+  p_titer_observed_density_bounded_multiplicative_noise[[k]] = ggplot(sampled_titer_df |> filter(is_positive)) +
+    geom_density_ridges(aes(x=titer_observed,y=age_group),scale=0.9,jittered_points = TRUE,bandwidth = 0.1) + 
+    scale_x_continuous(trans='log10',limits=c(7,10^4.5)) +
+    theme_bw() + 
+    xlab('observed titer (bounded multiplicative model)') +
     ylab('') +
     labs(title = paste(sub('_',' ',names(output)[k]),' incidence',sep=''),
          subtitle=paste('dose = ',output[[k]]$config$exposure_dose,' bacilli\nmean years b/w exposures = ',
@@ -408,6 +583,171 @@ ggsave('scratch/figures/cohort_model_titer_vs_age_summary.png',units='in',width=
 wrap_plots(p_protective_efficacy_summary) + plot_layout(guides = "collect",axes='collect')
 ggsave('scratch/figures/cohort_model_protective_efficacy_infection_vs_age_summary.png',units='in',width=7,height=4)
 
-wrap_plots(p_titer_density) + plot_layout(guides = "collect",axes='collect')
+wrap_plots(c(p_titer_density,
+             p_titer_observed_density_bounded_multiplicative_noise,
+             p_titer_observed_density_additive_noise),
+           ncol=3) + plot_layout(guides = "collect",axes='collect')
 ggsave('scratch/figures/cohort_model_titer_density.png',units='in',width=7,height=4)
+# I have strong prior that the bounded_multiplicative biology noise model is the right one, 
+# because the fraction of the titer that is truly pathogen specific should increase with higher true pathogen exposure
+
+
+
+
+################
+# for comparison to https://www.thelancet.com/journals/lanmic/article/PIIS2666-5247(22)00114-8/fulltext#fig3
+# last age bin only goes to age 25
+
+output_aiemjoy =output  
+
+# calculate fever and infection incidence
+for (k in 1:length(output_aiemjoy)){
+  
+  N = output_aiemjoy[[k]]$config$N
+  
+  output_aiemjoy[[k]]$events_df = output_aiemjoy[[k]]$events_df |>
+    filter(exposure_age<=25) |>
+    ungroup() |>
+    mutate(age_group=cut(exposure_age,breaks=c(0,2,5,10,15,25),include.lowest = TRUE)) |>
+    mutate(age_width = age_width(age_group,25))
+  
+  output_aiemjoy[[k]]$incidence_vs_age =
+    output_aiemjoy[[k]]$events_df |> group_by(age_group) |>
+    summarize(incidence_fever = sum(fever==1)/(N*unique(age_width))*1e5,
+              incidence_infection = sum(infected==1)/(N*unique(age_width))*1e5,
+              symptomatic_fraction = sum(fever==1,na.rm=TRUE)/sum(infected==1,na.rm=TRUE),
+              age_width = unique(age_width)) |>
+    mutate(incidence_fever_overall = sum(incidence_fever*age_width/sum(age_width)),
+           incidence_infection_overall = sum(incidence_infection*age_width/sum(age_width)),
+           incidence_fever_target = incidence_fever_targets[names(output_aiemjoy)[k]])
+}
+
+# calculate seroincidence
+for (k in 1:length(output_aiemjoy)){
+  
+  N = output_aiemjoy[[k]]$config$max_titer_id
+  
+  output_aiemjoy[[k]]$titer_df = output_aiemjoy[[k]]$titer_df[,1:8] |>
+    filter(age_years<=25) |>
+    ungroup() |>
+    mutate(age_group=cut(age_years,breaks=c(0,2,5,10,15,25),include.lowest = TRUE)) |>
+    mutate(age_width = age_width(age_group,25)) |>
+    group_by(id) |>
+    mutate(fold_rise = c(0,diff(titer))) |>
+    mutate(seroconversion = fold_rise>0) |>
+    mutate(observe_titer(titer,bio_noise_model = 'additive')) |>
+    rename(titer_observed_additive = titer_observed, is_positive_additive=is_positive) |>
+    mutate(fold_rise_additive = c(0,diff(titer_observed_additive))) |>
+    mutate(seroconversion_observed_additive = fold_rise_additive>3*sqrt(2)) |>
+    mutate(observe_titer(titer,bio_noise_model = 'bounded_multiplicative')) |>
+    mutate(fold_rise_bounded_multiplicative = c(0,diff(titer_observed))) |>
+    mutate(seroconversion_observed_bounded_multiplicative = fold_rise_bounded_multiplicative>3*sqrt(2)) 
+
+  output_aiemjoy[[k]]$incidence_vs_age= output_aiemjoy[[k]]$incidence_vs_age |>
+    left_join(
+      output_aiemjoy[[k]]$titer_df |>
+        group_by(age_group) |>
+        summarize(incidence_sero = sum(seroconversion==TRUE)/(N*unique(age_width))*1e5,
+                  incidence_sero_additive = sum(seroconversion_observed_additive==TRUE)/(N*unique(age_width))*1e5,
+                  incidence_sero_bounded_multiplicative = sum(seroconversion_observed_bounded_multiplicative==TRUE)/(N*unique(age_width))*1e5)) |>
+    mutate(ratio_additive_sero = incidence_sero_additive/incidence_sero,
+           ratio_bounded_multiplicative_sero = incidence_sero_bounded_multiplicative/incidence_sero,
+           ratio_additive_fever = incidence_sero_additive/incidence_fever,
+           ratio_bounded_multiplicative_fever = incidence_sero_bounded_multiplicative/incidence_fever) |>
+    mutate(symptomatic_fraction_additive_sero = symptomatic_fraction / ratio_additive_sero,
+           symptomatic_fraction_bounded_multiplicative_sero = symptomatic_fraction / ratio_bounded_multiplicative_sero) |>
+    mutate(incidence_sero_overall = sum(incidence_sero*age_width/sum(age_width)),
+           incidence_sero_additive_overall = sum(incidence_sero_additive*age_width/sum(age_width)),
+           incidence_sero_bounded_multiplicative_overall = sum(incidence_sero_bounded_multiplicative*age_width/sum(age_width)),
+           symptomatic_fraction_overall = sum(symptomatic_fraction*age_width/sum(age_width)),
+           symptomatic_fraction_overall_additive_sero = sum(symptomatic_fraction_additive_sero*age_width/sum(age_width)),
+           symptomatic_fraction_overall_bounded_multiplicative_sero = sum(symptomatic_fraction_bounded_multiplicative_sero*age_width/sum(age_width)))
+  
+}
+
+# yeah, this can't be right the seroincidence by age grows exponentially the way I'm doing it, 
+# but published estimates don't do that.
+# so it's presumably a coincinence I get very close to the same all-ages average seroincidence...
+##### make lots of plots
+
+p_incidence_fever=list()
+p_incidence_infection=list()
+p_symptomatic_fraction=list()
+p_incidence_sero_additive=list()
+p_symptomatic_fraction_additive_sero=list()
+for (k in 1:length(output_aiemjoy)){
+  p_incidence_fever[[k]]=ggplot(output_aiemjoy[[k]]$incidence_vs_age) +
+    geom_bar(aes(x=age_group,y=incidence_fever),stat='identity') +
+    geom_hline(aes(yintercept=incidence_fever_overall[1]),linetype='solid') +
+    geom_hline(aes(yintercept=incidence_fever_target[1]),linetype='dashed') +
+    theme_bw() +
+    xlab('') +
+    ylab('annual incidence of fever per 100k') +
+    labs(title = paste(sub('_',' ',names(output_aiemjoy)[k]),' incidence',sep=''),
+         subtitle=paste('dose = ',output_aiemjoy[[k]]$config$exposure_dose,' bacilli\nmean years b/w exposures = ',
+                        1/(12*output_aiemjoy[[k]]$config$exposure_rate),sep='')) +
+    theme(plot.title=element_text(size=10),plot.subtitle=element_text(size=8),
+          axis.title = element_text(size=10))
+  
+  p_incidence_infection[[k]]=ggplot(output_aiemjoy[[k]]$incidence_vs_age) +
+    geom_bar(aes(x=age_group,y=incidence_infection),stat='identity') +
+    geom_hline(aes(yintercept=incidence_infection_overall[1]),linetype='solid') +
+    theme_bw() +
+    xlab('') +
+    ylab('annual incidence of infection per 100k') +
+    labs(title = paste(sub('_',' ',names(output_aiemjoy)[k]),' incidence',sep=''),
+         subtitle=paste('dose = ',output_aiemjoy[[k]]$config$exposure_dose,' bacilli\nmean years b/w exposures = ',
+                        1/(12*output_aiemjoy[[k]]$config$exposure_rate),sep='')) +
+    theme(plot.title=element_text(size=10),plot.subtitle=element_text(size=8),
+          axis.title = element_text(size=10))
+  
+  p_symptomatic_fraction[[k]]=ggplot(output_aiemjoy[[k]]$incidence_vs_age) +
+    geom_bar(aes(x=age_group,y=symptomatic_fraction),stat='identity') +
+    geom_hline(aes(yintercept=symptomatic_fraction_overall[1]),linetype='solid') +
+    theme_bw() +
+    xlab('') +
+    ylab('symptomatic fraction') +
+    ylim(c(0,1)) +
+    labs(title = paste(sub('_',' ',names(output_aiemjoy)[k]),' incidence',sep=''),
+         subtitle=paste('dose = ',output_aiemjoy[[k]]$config$exposure_dose,' bacilli\nmean years b/w exposures = ',
+                        1/(12*output_aiemjoy[[k]]$config$exposure_rate),sep='')) +
+    theme(plot.title=element_text(size=10),plot.subtitle=element_text(size=8),
+          axis.title = element_text(size=10))
+  
+  p_incidence_sero_additive[[k]]=ggplot(output_aiemjoy[[k]]$incidence_vs_age) +
+    geom_bar(aes(x=age_group,y=incidence_sero_additive),stat='identity') +
+    geom_hline(aes(yintercept=incidence_sero_additive_overall[1]),linetype='solid') +
+    theme_bw() +
+    xlab('') +
+    ylab('annual incidence of infection per 100k (additive sero model)') +
+    labs(title = paste(sub('_',' ',names(output_aiemjoy)[k]),' incidence',sep=''),
+         subtitle=paste('dose = ',output_aiemjoy[[k]]$config$exposure_dose,' bacilli\nmean years b/w exposures = ',
+                        1/(12*output_aiemjoy[[k]]$config$exposure_rate),sep='')) +
+    theme(plot.title=element_text(size=10),plot.subtitle=element_text(size=8),
+          axis.title = element_text(size=10))
+  
+  p_symptomatic_fraction_additive_sero[[k]]=ggplot(output_aiemjoy[[k]]$incidence_vs_age) +
+    geom_bar(aes(x=age_group,y=symptomatic_fraction_additive_sero),stat='identity') +
+    geom_hline(aes(yintercept=symptomatic_fraction_overall_additive_sero[1]),linetype='solid') +
+    theme_bw() +
+    xlab('') +
+    ylab('symptomatic fraction (additive seroepi model)') +
+    ylim(c(0,1)) +
+    labs(title = paste(sub('_',' ',names(output_aiemjoy)[k]),' incidence',sep=''),
+         subtitle=paste('dose = ',output_aiemjoy[[k]]$config$exposure_dose,' bacilli\nmean years b/w exposures = ',
+                        1/(12*output_aiemjoy[[k]]$config$exposure_rate),sep='')) +
+    theme(plot.title=element_text(size=10),plot.subtitle=element_text(size=8),
+          axis.title = element_text(size=10))
+}
+
+wrap_plots(p_incidence_fever) + plot_layout(guides = "collect",axes='collect')
+ggsave('scratch/figures/aiemjoy/cohort_model_incidence_fever_by_age.png',units='in',width=7,height=4)
+
+wrap_plots(c(p_incidence_infection,p_incidence_sero_additive),ncol=3) + plot_layout(guides = "collect",axes='collect')
+ggsave('scratch/figures/aiemjoy/cohort_model_incidence_infection_by_age.png',units='in',width=7,height=4)
+
+wrap_plots(c(p_symptomatic_fraction,p_symptomatic_fraction_additive_sero),ncol=3) + plot_layout(guides = "collect",axes='collect') & 
+  scale_y_continuous(minor_breaks = seq(0,1,by=0.05),limits=c(0,0.65)) 
+ggsave('scratch/figures/aiemjoy/cohort_model_symptomatic_fraction.png',units='in',width=7,height=4)
+
 
