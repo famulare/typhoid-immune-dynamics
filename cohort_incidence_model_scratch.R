@@ -298,29 +298,34 @@ for (k in 1:length(output)){
   
   output[[k]]$titer_df = output[[k]]$titer_df[,1:8] |>
     group_by(id) |>
-    mutate(fold_rise = c(0,diff(titer))) |>
-    mutate(seroconversion = fold_rise>0) |>
+    mutate(fold_rise = c(1,exp(diff(log(titer))))) |>
+    mutate(seroconversion = fold_rise>1) |>
     mutate(observe_titer(titer,bio_noise_model = 'additive')) |>
     rename(titer_observed_additive = titer_observed, is_positive_additive=is_positive) |>
-    mutate(fold_rise_additive = c(0,diff(titer_observed_additive))) |>
+    mutate(fold_rise_additive = c(1,exp(diff(log(titer_observed_additive))))) |>
     mutate(seroconversion_observed_additive = fold_rise_additive>3*sqrt(2)) |>
     mutate(observe_titer(titer,bio_noise_model = 'bounded_multiplicative')) |>
-    mutate(fold_rise_bounded_multiplicative = c(0,diff(titer_observed))) |>
+    mutate(fold_rise_bounded_multiplicative = c(1,exp(diff(log(titer_observed))))) |>
     mutate(seroconversion_observed_bounded_multiplicative = fold_rise_bounded_multiplicative>3*sqrt(2)) 
-# 
-#   ggplot(output[[k]]$titer_df |> filter(id<=20)) +
-#     geom_point(aes(x=age_years,y=fold_rise,color=seroconversion)) +
-#     facet_wrap('id')
-#   
-#   ggplot(output[[k]]$titer_df |> filter(id<=20)) +
-#     geom_point(aes(x=age_years,y=fold_rise_additive,color=seroconversion_observed_additive)) +
-#     facet_wrap('id')
-#   
-#   ggplot(output[[k]]$titer_df |> filter(id<=20)) +
-#     geom_point(aes(x=age_years,y=fold_rise_bounded_multiplicative,color=seroconversion_observed_bounded_multiplicative)) +
-#     facet_wrap('id')
+
+  ggplot(output[[k]]$titer_df |> filter(id<=20)) +
+    geom_point(aes(x=age_years,y=fold_rise,color=seroconversion)) +
+    facet_wrap('id')
+
+  ggplot(output[[k]]$titer_df |> filter(id<=20)) +
+    geom_point(aes(x=age_years,y=fold_rise_additive,color=seroconversion_observed_additive)) +
+    facet_wrap('id')
+
+  ggplot(output[[k]]$titer_df |> filter(id<=20)) +
+    geom_point(aes(x=age_years,y=fold_rise_bounded_multiplicative,color=seroconversion_observed_bounded_multiplicative)) +
+    facet_wrap('id')
   
-  output[[k]]$incidence_vs_age= output[[k]]$incidence_vs_age |>
+  output[[k]]$titer_df |> filter(id<=20) |>
+    group_by(id) |> summarize(infections = sum(seroconversion),
+                              bounded_seroconversions = sum(seroconversion_observed_bounded_multiplicative)) |>
+    mutate(diff = bounded_seroconversions-infections)
+  
+  output[[k]]$incidence_vs_age= output[[k]]$incidence_vs_age[,1:8] |>
     left_join(
       output[[k]]$titer_df |>
         group_by(age_group) |>
@@ -342,20 +347,14 @@ for (k in 1:length(output)){
      
 }
 
-# I THINK the additive observation model is equivalent to the sero-epi incidence assumptions 
-# used by these people https://www.thelancet.com/journals/lanmic/article/PIIS2666-5247(22)00114-8/fulltext#fig3
-# if seroincidence is then based on the observed titers without accounting for the noise, 
-# it incidence will be over-estimated. https://onlinelibrary.wiley.com/doi/abs/10.1002/sim.8578 Factor of 10 not impossible.
-# But I can't believe this is really equivalent to what anyone is doing. The daily differencing assumed
-# above has to be not equivalent to how anyone does this, I hope...
 
 ##### make lots of plots
 
 p_incidence_fever=list()
 p_incidence_infection=list()
 p_symptomatic_fraction=list()
-p_incidence_sero_additive=list()
-p_symptomatic_fraction_additive_sero=list()
+p_incidence_sero_bounded_multiplicative=list()
+p_symptomatic_fraction_bounded_multiplicative_sero=list()
 for (k in 1:length(output)){
   p_incidence_fever[[k]]=ggplot(output[[k]]$incidence_vs_age) +
     geom_bar(aes(x=age_group,y=incidence_fever),stat='identity') +
@@ -395,24 +394,24 @@ for (k in 1:length(output)){
     theme(plot.title=element_text(size=10),plot.subtitle=element_text(size=8),
           axis.title = element_text(size=10))
   
-  p_incidence_sero_additive[[k]]=ggplot(output[[k]]$incidence_vs_age) +
-    geom_bar(aes(x=age_group,y=incidence_sero_additive),stat='identity') +
-    geom_hline(aes(yintercept=incidence_sero_additive_overall[1]),linetype='solid') +
+  p_incidence_sero_bounded_multiplicative[[k]]=ggplot(output[[k]]$incidence_vs_age) +
+    geom_bar(aes(x=age_group,y=incidence_sero_bounded_multiplicative),stat='identity') +
+    geom_hline(aes(yintercept=incidence_sero_bounded_multiplicative_overall[1]),linetype='solid') +
     theme_bw() +
     xlab('') +
-    ylab('annual incidence of infection per 100k (additive sero model)') +
+    ylab('annual incidence of infection per 100k\n(bounded multiplicativesero model)') +
     labs(title = paste(sub('_',' ',names(output)[k]),' incidence',sep=''),
          subtitle=paste('dose = ',output[[k]]$config$exposure_dose,' bacilli\nmean years b/w exposures = ',
                         1/(12*output[[k]]$config$exposure_rate),sep='')) +
     theme(plot.title=element_text(size=10),plot.subtitle=element_text(size=8),
           axis.title = element_text(size=10))
   
-  p_symptomatic_fraction_additive_sero[[k]]=ggplot(output[[k]]$incidence_vs_age) +
-    geom_bar(aes(x=age_group,y=symptomatic_fraction_additive_sero),stat='identity') +
-    geom_hline(aes(yintercept=symptomatic_fraction_overall_additive_sero[1]),linetype='solid') +
+  p_symptomatic_fraction_bounded_multiplicative_sero[[k]]=ggplot(output[[k]]$incidence_vs_age) +
+    geom_bar(aes(x=age_group,y=symptomatic_fraction_bounded_multiplicative_sero),stat='identity') +
+    geom_hline(aes(yintercept=symptomatic_fraction_overall_bounded_multiplicative_sero[1]),linetype='solid') +
     theme_bw() +
     xlab('') +
-    ylab('symptomatic fraction (additive seroepi model)') +
+    ylab('symptomatic fraction\n(bounded multiplicativeseroepi model)') +
     ylim(c(0,1)) +
     labs(title = paste(sub('_',' ',names(output)[k]),' incidence',sep=''),
          subtitle=paste('dose = ',output[[k]]$config$exposure_dose,' bacilli\nmean years b/w exposures = ',
@@ -424,14 +423,10 @@ for (k in 1:length(output)){
 wrap_plots(p_incidence_fever) + plot_layout(guides = "collect",axes='collect')
 ggsave('scratch/figures/cohort_model_incidence_fever_by_age.png',units='in',width=7,height=4)
 
-wrap_plots(c(p_incidence_infection,p_incidence_sero_additive),ncol=3) + plot_layout(guides = "collect",axes='collect')
+wrap_plots(c(p_incidence_infection,p_incidence_sero_bounded_multiplicative),ncol=3) + plot_layout(guides = "collect",axes='collect')
 ggsave('scratch/figures/cohort_model_incidence_infection_by_age.png',units='in',width=7,height=4)
 
-wrap_plots(c(p_symptomatic_fraction,p_symptomatic_fraction_additive_sero),ncol=3) + plot_layout(guides = "collect",axes='collect')
-ggsave('scratch/figures/cohort_model_symptomatic_fraction.png',units='in',width=7,height=4)
-
-
-wrap_plots(c(p_symptomatic_fraction[3],p_symptomatic_fraction_additive_sero[3]),ncol=2)  + 
+wrap_plots(c(p_symptomatic_fraction,p_symptomatic_fraction_bounded_multiplicative_sero),ncol=3) + 
   plot_layout(guides = "collect",axes='collect') & 
   scale_y_continuous(minor_breaks = seq(0,1,by=0.05),limits=c(0,0.65)) 
 ggsave('scratch/figures/cohort_model_symptomatic_fraction.png',units='in',width=7,height=4)
@@ -483,7 +478,7 @@ for (k in 1:length(output)){
   
   exposure_dose = output[[k]]$config$exposure_dose
   
-  tmp_titer_summary =output[[k]]$titer_df |>
+  tmp_titer_summary =output[[k]]$titer_df[,1:7] |>
     mutate(protective_efficacy = protective_efficacy(dose = exposure_dose,CoP_pre = titer, outcome='infection_given_dose')) |>
     group_by(age_years) |>
     summarize(titer_gmt = exp(mean(log(titer))),
@@ -528,7 +523,7 @@ for (k in 1:length(output)){
     ylab('protective efficacy')
   
   
-  sampled_titer_df = output[[k]]$titer_df |>
+  sampled_titer_df = output[[k]]$titer_df[,1:7] |>
     filter((age_years>0.75 & age_years<=2 & id<=200) | # sample sizes like quadri2021-like sample sizes
              (age_years >2 & age_years<=5 & id<600) | 
              (age_years >5 & age_years<=10 & id<300) | 
@@ -557,7 +552,7 @@ for (k in 1:length(output)){
     geom_density_ridges(aes(x=titer_observed_additive,y=age_group),scale=0.9,jittered_points = TRUE,bandwidth = 0.1) + 
     scale_x_continuous(trans='log10',limits=c(7,10^4.5)) +
     theme_bw() + 
-    xlab('observed titer (additive model)') +
+    xlab('observed titer (bounded multiplicativemodel)') +
     ylab('') +
     labs(title = paste(sub('_',' ',names(output)[k]),' incidence',sep=''),
          subtitle=paste('dose = ',output[[k]]$config$exposure_dose,' bacilli\nmean years b/w exposures = ',
@@ -633,14 +628,14 @@ for (k in 1:length(output_aiemjoy)){
     mutate(age_group=cut(age_years,breaks=c(0,2,5,10,15,25),include.lowest = TRUE)) |>
     mutate(age_width = age_width(age_group,25)) |>
     group_by(id) |>
-    mutate(fold_rise = c(0,diff(titer))) |>
-    mutate(seroconversion = fold_rise>0) |>
+    mutate(fold_rise = c(1,exp(diff(log(titer))))) |>
+    mutate(seroconversion = fold_rise>1) |>
     mutate(observe_titer(titer,bio_noise_model = 'additive')) |>
     rename(titer_observed_additive = titer_observed, is_positive_additive=is_positive) |>
-    mutate(fold_rise_additive = c(0,diff(titer_observed_additive))) |>
+    mutate(fold_rise_additive = c(1,exp(diff(log(titer_observed_additive))))) |>
     mutate(seroconversion_observed_additive = fold_rise_additive>3*sqrt(2)) |>
     mutate(observe_titer(titer,bio_noise_model = 'bounded_multiplicative')) |>
-    mutate(fold_rise_bounded_multiplicative = c(0,diff(titer_observed))) |>
+    mutate(fold_rise_bounded_multiplicative = c(1,exp(diff(log(titer_observed))))) |>
     mutate(seroconversion_observed_bounded_multiplicative = fold_rise_bounded_multiplicative>3*sqrt(2)) 
 
   output_aiemjoy[[k]]$incidence_vs_age= output_aiemjoy[[k]]$incidence_vs_age |>
@@ -665,16 +660,15 @@ for (k in 1:length(output_aiemjoy)){
   
 }
 
-# yeah, this can't be right the seroincidence by age grows exponentially the way I'm doing it, 
+# yeah, this can't be right the seroincidence by age grows linearly the way I'm doing it, 
 # but published estimates don't do that.
-# so it's presumably a coincinence I get very close to the same all-ages average seroincidence...
-##### make lots of plots
+# so it's presumably a coincidence I get very close to the same all-ages average seroincidence...
 
 p_incidence_fever=list()
 p_incidence_infection=list()
 p_symptomatic_fraction=list()
 p_incidence_sero_additive=list()
-p_symptomatic_fraction_additive_sero=list()
+p_symptomatic_fraction_bounded_multiplicative_sero=list()
 for (k in 1:length(output_aiemjoy)){
   p_incidence_fever[[k]]=ggplot(output_aiemjoy[[k]]$incidence_vs_age) +
     geom_bar(aes(x=age_group,y=incidence_fever),stat='identity') +
@@ -714,24 +708,24 @@ for (k in 1:length(output_aiemjoy)){
     theme(plot.title=element_text(size=10),plot.subtitle=element_text(size=8),
           axis.title = element_text(size=10))
   
-  p_incidence_sero_additive[[k]]=ggplot(output_aiemjoy[[k]]$incidence_vs_age) +
-    geom_bar(aes(x=age_group,y=incidence_sero_additive),stat='identity') +
-    geom_hline(aes(yintercept=incidence_sero_additive_overall[1]),linetype='solid') +
+  p_incidence_sero_bounded_multiplicative[[k]]=ggplot(output_aiemjoy[[k]]$incidence_vs_age) +
+    geom_bar(aes(x=age_group,y=incidence_sero_bounded_multiplicative),stat='identity') +
+    geom_hline(aes(yintercept=incidence_sero_bounded_multiplicative_overall[1]),linetype='solid') +
     theme_bw() +
     xlab('') +
-    ylab('annual incidence of infection per 100k (additive sero model)') +
+    ylab('annual incidence of infection per 100k\n(bounded multiplicativesero model)') +
     labs(title = paste(sub('_',' ',names(output_aiemjoy)[k]),' incidence',sep=''),
          subtitle=paste('dose = ',output_aiemjoy[[k]]$config$exposure_dose,' bacilli\nmean years b/w exposures = ',
                         1/(12*output_aiemjoy[[k]]$config$exposure_rate),sep='')) +
     theme(plot.title=element_text(size=10),plot.subtitle=element_text(size=8),
           axis.title = element_text(size=10))
   
-  p_symptomatic_fraction_additive_sero[[k]]=ggplot(output_aiemjoy[[k]]$incidence_vs_age) +
-    geom_bar(aes(x=age_group,y=symptomatic_fraction_additive_sero),stat='identity') +
-    geom_hline(aes(yintercept=symptomatic_fraction_overall_additive_sero[1]),linetype='solid') +
+  p_symptomatic_fraction_bounded_multiplicative_sero[[k]]=ggplot(output_aiemjoy[[k]]$incidence_vs_age) +
+    geom_bar(aes(x=age_group,y=symptomatic_fraction_bounded_multiplicative_sero),stat='identity') +
+    geom_hline(aes(yintercept=symptomatic_fraction_overall_bounded_multiplicative_sero[1]),linetype='solid') +
     theme_bw() +
     xlab('') +
-    ylab('symptomatic fraction (additive seroepi model)') +
+    ylab('symptomatic fraction\n(bounded multiplicativeseroepi model)') +
     ylim(c(0,1)) +
     labs(title = paste(sub('_',' ',names(output_aiemjoy)[k]),' incidence',sep=''),
          subtitle=paste('dose = ',output_aiemjoy[[k]]$config$exposure_dose,' bacilli\nmean years b/w exposures = ',
@@ -743,10 +737,10 @@ for (k in 1:length(output_aiemjoy)){
 wrap_plots(p_incidence_fever) + plot_layout(guides = "collect",axes='collect')
 ggsave('scratch/figures/aiemjoy/cohort_model_incidence_fever_by_age.png',units='in',width=7,height=4)
 
-wrap_plots(c(p_incidence_infection,p_incidence_sero_additive),ncol=3) + plot_layout(guides = "collect",axes='collect')
+wrap_plots(c(p_incidence_infection,p_incidence_sero_bounded_multiplicative),ncol=3) + plot_layout(guides = "collect",axes='collect')
 ggsave('scratch/figures/aiemjoy/cohort_model_incidence_infection_by_age.png',units='in',width=7,height=4)
 
-wrap_plots(c(p_symptomatic_fraction,p_symptomatic_fraction_additive_sero),ncol=3) + plot_layout(guides = "collect",axes='collect') & 
+wrap_plots(c(p_symptomatic_fraction,p_symptomatic_fraction_bounded_multiplicative_sero),ncol=3) + plot_layout(guides = "collect",axes='collect') & 
   scale_y_continuous(minor_breaks = seq(0,1,by=0.05),limits=c(0,0.65)) 
 ggsave('scratch/figures/aiemjoy/cohort_model_symptomatic_fraction.png',units='in',width=7,height=4)
 
