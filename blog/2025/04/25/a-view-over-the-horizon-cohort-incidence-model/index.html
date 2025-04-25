@@ -1,0 +1,1804 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../../09/intra-host-salmonella-typhi-model---scoping-notes/">
+      
+      
+      
+        <link rel="alternate" type="application/rss+xml" title="RSS feed" href="../../../../../feed_rss_created.xml">
+        <link rel="alternate" type="application/rss+xml" title="RSS feed of updated content" href="../../../../../feed_rss_updated.xml">
+      
+      <link rel="icon" href="../../../../../img/favicon.ico">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.7">
+    
+    
+      
+        <title>A view over the horizon: cohort incidence model - Typhoid immune dynamics</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../../assets/stylesheets/main.8608ea7d.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../../../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("../../../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="idm" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#a-view-over-the-horizon-cohort-incidence-model" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../../../.." title="Typhoid immune dynamics" class="md-header__button md-logo" aria-label="Typhoid immune dynamics" data-md-component="logo">
+      
+  <img src="../../../../../img/IDM_white.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Typhoid immune dynamics
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              A view over the horizon: cohort incidence model
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="Share" aria-label="Share" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg>
+          </a>
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/famulare/typhoid-immune-dynamics" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    famulare/typhoid-immune-dynamics
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../.." class="md-tabs__link">
+        
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../../../docs/overview/" class="md-tabs__link">
+          
+  
+  Docs
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../../../../" class="md-tabs__link">
+          
+  
+  Blog
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../../about/" class="md-tabs__link">
+        
+  
+    
+  
+  About
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+                
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" hidden>
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../../../.." title="Typhoid immune dynamics" class="md-nav__button md-logo" aria-label="Typhoid immune dynamics" data-md-component="logo">
+      
+  <img src="../../../../../img/IDM_white.png" alt="logo">
+
+    </a>
+    Typhoid immune dynamics
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/famulare/typhoid-immune-dynamics" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    famulare/typhoid-immune-dynamics
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../.." class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Home
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Docs
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            Docs
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../docs/overview/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_2" id="__nav_2_2_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Literature Review
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_2">
+            <span class="md-nav__icon md-icon"></span>
+            Literature Review
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../docs/Literature%20Review/typhoid-vaccine-efficacy/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Typhoid Conjugate Vaccine Efficacy (DRAFT)
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_3" id="__nav_2_3_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Model Architecture
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_3">
+            <span class="md-nav__icon md-icon"></span>
+            Model Architecture
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../docs/Model%20Architecture/Immune-model-mathematical-description/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Immunity Model: Mathematical Description
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  <span class="md-ellipsis">
+    Blog
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            Blog
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+    
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      <a href="../../../../" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Typhoid immune dynamics working notes
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="">
+            
+  
+  <span class="md-ellipsis">
+    Archive
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2">
+            <span class="md-nav__icon md-icon"></span>
+            Archive
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../archive/2025/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    2025
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="">
+            
+  
+  <span class="md-ellipsis">
+    Categories
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_3">
+            <span class="md-nav__icon md-icon"></span>
+            Categories
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../category/calibration/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Calibration
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../category/immunity-model/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Immunity model
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../category/intrahost-model/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Intrahost model
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../category/project-management/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Project Management
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../category/self-study/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Self-study
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../category/software-architecture/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Software architecture
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../about/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    About
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+  <div class="md-content md-content--post" data-md-component="content">
+    <div class="md-sidebar md-sidebar--post" data-md-component="sidebar" data-md-type="navigation">
+      <div class="md-sidebar__scrollwrap">
+        <div class="md-sidebar__inner md-post">
+          <nav class="md-nav md-nav--primary">
+            <div class="md-post__back">
+              <div class="md-nav__title md-nav__container">
+                <a href="../../../../" class="md-nav__link">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+                  <span class="md-ellipsis">
+                    Back to index
+                  </span>
+                </a>
+              </div>
+            </div>
+            
+              <div class="md-post__authors md-typeset">
+                
+                  <div class="md-profile md-post__profile">
+                    <span class="md-author md-author--long">
+                      <img src="https://github.com/famulare.png" alt="Mike Famulare">
+                    </span>
+                    <span class="md-profile__description">
+                      <strong>
+                        
+                          Mike Famulare
+                        
+                      </strong>
+                      <br>
+                      Creator
+                    </span>
+                  </div>
+                
+              </div>
+            
+            <ul class="md-post__meta md-nav__list">
+              <li class="md-nav__item md-nav__item--section">
+                <div class="md-post__title">
+                  <span class="md-ellipsis">
+                    Metadata
+                  </span>
+                </div>
+                <nav class="md-nav">
+                  <ul class="md-nav__list">
+                    <li class="md-nav__item">
+                      <div class="md-nav__link">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 19H5V8h14m-3-7v2H8V1H6v2H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-1V1m-1 11h-5v5h5z"/></svg>
+                        <time datetime="2025-04-25 00:00:00+00:00" class="md-ellipsis">April 25, 2025</time>
+                      </div>
+                    </li>
+                    
+                    
+                      <li class="md-nav__item">
+                        <div class="md-nav__link">
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9 3v15h3V3zm3 2 4 13 3-1-4-13zM5 5v13h3V5zM3 19v2h18v-2z"/></svg>
+                          <span class="md-ellipsis">
+                            in
+                            
+                              <a href="../../../../category/immunity-model/">Immunity model</a></span>
+                        </div>
+                      </li>
+                    
+                    
+                      
+                      <li class="md-nav__item">
+                        <div class="md-nav__link">
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 20a8 8 0 0 0 8-8 8 8 0 0 0-8-8 8 8 0 0 0-8 8 8 8 0 0 0 8 8m0-18a10 10 0 0 1 10 10 10 10 0 0 1-10 10C6.47 22 2 17.5 2 12A10 10 0 0 1 12 2m.5 5v5.25l4.5 2.67-.75 1.23L11 13V7z"/></svg>
+                          <span class="md-ellipsis">
+                            
+                              15 min read
+                            
+                          </span>
+                        </div>
+                      </li>
+                    
+                  </ul>
+                </nav>
+              </li>
+            </ul>
+            
+          </nav>
+          
+            
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#outline" class="md-nav__link">
+    <span class="md-ellipsis">
+      Outline
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      The code
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#intrahost-immunity-model-functions" class="md-nav__link">
+    <span class="md-ellipsis">
+      Intrahost immunity model functions
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cohort-incidence-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      Cohort incidence model
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+          
+        </div>
+      </div>
+    </div>
+    <article class="md-content__inner md-typeset">
+      
+        
+  
+
+
+
+  
+  
+
+
+<h1 id="a-view-over-the-horizon-cohort-incidence-model">A view over the horizon: cohort incidence model</h1>
+<p>After spending a lot of time with the primary literature on typhoid
+vaccine efficacy, correlates of protection, natural immunity, dose
+response from human challenge studies, seroepidemiology studies, and a
+lot of thinking, my manager Edward Wenger <em>encouraged</em> me to just do the
+thing. This script is the central artifact of that push.</p>
+<p><strong>What?</strong> Implement the new intrahost immunity model in the context of a
+constant force-of-infection cohort model. Show that I can reproduce
+medium, high, and very high incidence archetypes being considered by a
+WHO-organized modeling consortium exercise. Other than the waning model,
+which was calibrated to organized and specific data with a simple
+log-least-squares approach all default parameters are currently
+hand-tuned by me, triangulating across various observations I’ll try to
+summarize below.</p>
+<p><strong>What did I learn?</strong> It works! The model can accomodate a bunch of
+non-trivial observations across a diversity of sources and settings.
+And, having the model prototype with a bunch of outputs has enabled a
+lot of rich back and forth with Kyra Grantz that’s already making this
+model better and asking important questions of this new model, their
+current model, and other sources of data and inferences about how
+typhoid works.</p>
+<p><strong>What’s next?</strong> Put the model into Typhoidsim. Get serious about
+calibration and applying it to vaccine policy questions. Iterate on many
+science questions and additional model features around shedding.</p>
+<!-- more -->
+
+<h2 id="outline">Outline</h2>
+<p>In this script, I’ll set up the immunity model and then embed it in a
+cohort model. I’ll quickly document decisions and questions along the
+way, leaving breadcrumbs for better documentation and future iterations
+later on. After the setup, we’ll take it for a spin and see a bunch of
+things it can do! Along the way, I’ll leave notes about the contrasts
+with established models and problems or open questions with this one.
+Enjoy!</p>
+<h2 id="the-code">The code</h2>
+<p>First, let’s get some boilerplate out of the way and set up our
+environment.</p>
+<pre><code># imports
+library(tidyverse)
+library(patchwork)
+library(ggridges)
+
+# age width function
+# I use this later to re-extract age_group widths from a cut() call
+age_width = function(age_group,age_max){
+  round(as.numeric(as.character(fct_recode( age_group,
+                                            `2`='[0,2]',`3`='(2,5]',`5`='(5,10]',`5.1`='(10,15]',!!as.character(age_max-15):=paste('(15,',age_max,']',sep='')))))
+}
+</code></pre>
+<h2 id="intrahost-immunity-model-functions">Intrahost immunity model functions</h2>
+<p>The immunity model uses anti-Vi IgG ELISA titers as a correlate of
+protection from infection and from fever, through the effect of immunity
+on susceptibility as a function of bacterial dose. It is based on the
+data described
+<a href="/docs/Literature%20Review/typhoid-vaccine-efficacy">here</a> and other
+references not yet documented (especially human challenge studies with
+data on shedding and disease).</p>
+<p>The <strong>titer response function</strong> describes the time dynamics of the
+correlate of protection (CoP). In this prototype, we assume no
+individual-level variation—everyone has identical responses to identical
+exposures and initial conditions. The titer response rises over 30.4
+days (conveniently a month for simulation purposes, but ~28 days to peak
+is probably ever so slightly more realistic.)</p>
+<p>By assumption, the initial unexposed baseline value of the correlate of
+protection is set to 1. The most common assay (VaccZyme Anti-Vi IgG) has
+a limit of detection (LOD) of 7 EU/ml, so I don’t know the baseline for
+sure. But modeling the censoring seems to say 1 works pretty well and
+also I don’t think it matters because of how the fold-rise model (to
+come) works. (Any lower number will get multiplied by a higher number
+above LOD and end up back in the observable range.) The peak CoP default
+is set to 1000 until otherwise specified by the fold-rise model. The
+long-time power-law exponent <em>α</em>, the reference short-time decay
+constant <em>T</em><sub><em>d</em><em>e</em><em>c</em><em>a</em><em>y</em></sub>, and the age-dependency
+coefficients on them are fit to titer data, to be explained another day.
+The initial rise parameters are all just picked to be about right/pretty
+because they have no effect on the rest of the model.</p>
+<pre><code># titer response function
+titer_vs_time = function(t,age_years, CoP_peak=1000, CoP_pre=1,
+                         T_decay=11, alpha=1.16,
+                         beta_T_decay_age=0.057, beta_alpha_age=-0.060,
+                         CoP_min=1,T_rise=1.5,t_start=3,t_peak=30.4){
+
+  Tda = T_decay * exp(beta_T_decay_age * age_years)
+  ka = alpha * exp(beta_alpha_age * age_years)
+
+  # power law decay
+  titer = CoP_min + (CoP_peak-CoP_min)*(1+(t-t_peak)/(ka*Tda))^(-ka)
+
+  # simple logistic interpolator rise (this is just for continuity/realism. plays no role in the model)
+  titer[t&lt;t_peak ] =
+    CoP_pre + (CoP_peak-CoP_pre)*
+    (1/(1+exp(-(t[t&lt;t_peak] - t_start*5)/T_rise)) - 1/(1+exp(-(0-t_start*5)/T_rise)))/
+    (1/(1+exp(-(t_peak - t_start*5)/T_rise)) - 1/(1+exp(-(0-t_start*5)/T_rise)))
+
+  return(titer)
+}
+
+expand.grid(t=seq(0,10,by=1/24), age_years = factor(c(1,5,15,45))) |&gt; 
+  mutate(titer = titer_vs_time(t=t*365,age=as.numeric(age_years))) |&gt;
+  ggplot() +
+  geom_line(aes(x=t,y=titer,color=age_years)) + 
+  theme_bw() + scale_y_continuous(trans='log10') + xlab('years post response') + ylab('')
+</code></pre>
+<p><img alt="" src="../../../../cohort_incidence_model_proof_of_concept_files/figure-markdown_strict/unnamed-chunk-2-1.png" /></p>
+<p>The <strong>fold-rise model</strong> describes the CoP response after an immunizing
+event, given the pre-challenge CoP. The default for
+<em>C</em><em>o</em><em>P</em><sub><em>m</em></sub><em>a</em><em>x</em>, the maximum possible titer (discussed
+<a href="https://famulare.github.io/2024/03/07/Conjecture-the-maximum-NAb-titer.html">here</a>)
+comes from an analysis of pre-post vaccine responses, and the default
+<em>m</em><em>u</em><sub>0</sub> parameter is set by a loosely informed guess from <a href="https://www.thelancet.com/journals/lanmic/article/PIIS2666-5247(22)00114-8/fulltext#fig3">a
+model of pre-post infection
+dynamics</a>
+and triangulating some vaccine study control groups, all to be explained
+another day.</p>
+<pre><code># fold-rise model. defaults set to natural immunity defaults
+fold_rise_model = function(CoP_pre,
+                           mu_0=2.5,
+                           CoP_max=10^3.5, CoP_min=1){
+  fold_rise = 10^(mu_0*(1-(log10(CoP_pre)-log10(CoP_min))/(log10(CoP_max)-log10(CoP_min))))
+  return(fold_rise)
+}
+
+pl_df=expand.grid(CoP_pre=10^seq(0,3.5,by=0.1)) |&gt; 
+  mutate(fold_rise = fold_rise_model(CoP_pre=CoP_pre)) |&gt;
+  mutate(CoP_post = fold_rise * CoP_pre) 
+(ggplot(pl_df) +
+  geom_line(aes(x=CoP_pre,y=fold_rise)) +
+  theme_bw() + scale_y_continuous(trans='log10') + scale_x_continuous(trans='log10') +
+  xlab('pre-challenge titer') + ylab('fold-rise')) +
+  (ggplot(pl_df) +
+     geom_line(aes(x=CoP_pre,y=CoP_post)) +
+     theme_bw() + scale_y_continuous(trans='log10') + scale_x_continuous(trans='log10') +
+     xlab('pre-challenge titer') + ylab('post-challenge titer'))
+</code></pre>
+<p><img alt="" src="../../../../cohort_incidence_model_proof_of_concept_files/figure-markdown_strict/unnamed-chunk-3-1.png" /></p>
+<p>The fold-rise model combines with the titer vs. time model to give the
+immune response over a lifetime of infection (in this case, or
+vaccination too but not shown here). As an example, here’s an unlucky
+person infected on their 2nd birthday and again on their 7th.</p>
+<pre><code>data.frame(t=seq(0,15,by=1/12), titer=1) |&gt; 
+  mutate(titer = if_else(t&lt;=2, titer, 
+                         titer_vs_time(t=(t-2)*365,age=2,
+                                       CoP_pre=titer[t==2],
+                                       CoP_peak = titer[t==2]*fold_rise_model(CoP_pre = titer[t==2])))) |&gt;
+  mutate(titer = if_else(t&lt;=7, titer, 
+                         titer_vs_time(t=(t-7)*365,age=7,
+                                       CoP_pre=titer[t==7],
+                                       CoP_peak = titer[t==7]*fold_rise_model(CoP_pre = titer[t==7])))) |&gt;
+  ggplot() +
+  geom_line(aes(x=t,y=titer)) + 
+  theme_bw() + scale_y_continuous(trans='log10') + xlab('age [years]') + ylab('Anti-Vi IgG [EU/ml]')
+</code></pre>
+<p><img alt="" src="../../../../cohort_incidence_model_proof_of_concept_files/figure-markdown_strict/unnamed-chunk-4-1.png" /></p>
+<p>We care about titers because we use them as a correlate of protection.
+The evidence on typhoid supports that anti-Vi titers are a useful
+predictor, and we can encode the affect of prior immunity through that
+the the effect of dose, where it’s known from challenge studies that
+higher doses are more likely to lead to stool-culture confirmed
+infection and fever.</p>
+<p>The <strong>dose-response model</strong> as a function of immunity and bacilli eaten
+is given below. It’s informed by old challenge studies that measured it
+directly in cohorts without well-measured prior immunity, and more
+recent studies with naive adults. Parameters are hand-fiddled based on
+that an a bunch of other things included vaccines, all to be described
+another day.</p>
+<pre><code># dose response
+p_outcome_given_dose = function(dose=1e4,  CoP_pre=1, outcome = 'fever_given_dose', 
+                                n50_fever_given_dose=27800, alpha_fever_given_dose=0.84, gamma_fever_given_dose=0.4,
+                                n50_infection_given_dose=27800/10,alpha_infection_given_dose = 0.84*2, 
+                                gamma_infection_given_dose=0.4/2. # tweaking from previous hand guess to better match comment from Kyra about their estimate of adult immunity
+                                ){
+
+  if(outcome == 'fever_given_dose'){
+
+    p = 1 - (1+dose*(2^(1/alpha_fever_given_dose)-1)/n50_fever_given_dose)^(-alpha_fever_given_dose/(CoP_pre^gamma_fever_given_dose))
+
+  } else if (outcome == 'infection_given_dose'){
+
+    p = 1 - (1+dose*(2^(1/alpha_infection_given_dose)-1)/n50_infection_given_dose)^(-alpha_infection_given_dose/(CoP_pre^gamma_infection_given_dose))
+
+  } else if (outcome == 'fever_given_infection'){
+
+    p = (1 - (1+dose*(2^(1/alpha_fever_given_dose)-1)/n50_fever_given_dose)^(-alpha_fever_given_dose/(CoP_pre^gamma_fever_given_dose))) /
+      (1 - (1+dose*(2^(1/alpha_infection_given_dose)-1)/n50_infection_given_dose)^(-alpha_infection_given_dose/(CoP_pre^gamma_infection_given_dose)))
+
+  }
+
+  return(p)
+}
+
+expand.grid(dose = 10^seq(0,9,by=0.1),
+            CoP_pre = round(10^seq(0,3.5,by=0.5)),
+            outcome=factor(c('infection_given_dose','fever_given_dose'),
+                           levels=c('infection_given_dose','fever_given_dose','fever_given_infection'))) |&gt;
+  group_by(outcome,CoP_pre,dose) |&gt;
+  mutate(probability = p_outcome_given_dose(dose=dose,CoP_pre=CoP_pre,outcome = outcome)) |&gt;
+  mutate(CoP_pre = factor(CoP_pre)) |&gt;
+  ggplot() +
+  geom_line(aes(x=dose,y=probability,group=CoP_pre,color=CoP_pre)) +
+  facet_grid('~outcome') +
+  theme_bw() +
+  ylim(c(0,1)) +
+  scale_x_continuous(trans='log10', breaks=10^seq(0,10,by=2),minor_breaks = NULL,labels = scales::trans_format("log10", math_format(10^.x)) )
+</code></pre>
+<p><img alt="" src="../../../../cohort_incidence_model_proof_of_concept_files/figure-markdown_strict/unnamed-chunk-5-1.png" /></p>
+<p>The <strong>protective efficacy of prior infection</strong> (in this case, also
+vaccine efficacy more generally) is defined as the relative risk
+reduction in the outcome (either stool-culture confirmed infection or
+fever, but could be other things like seroresponse, bacteremia, and
+conversion to carrier status) for a person with a given level of
+immunity vs a person who has never been exposed.</p>
+<p>#+ echo=TRUE, message=FALSE, results = ‘hide’</p>
+<pre><code># protective efficacy vs CoP_pre
+protective_efficacy = function(dose=1e4,  CoP_pre=1, outcome = 'fever_given_dose', CoP_control=1){
+  VE = 1 - p_outcome_given_dose(dose,CoP_pre=CoP_pre,outcome = outcome)/p_outcome_given_dose(dose,CoP_pre=CoP_control,outcome = outcome)
+  return(VE)
+}
+
+expand.grid(dose = 10^seq(0,8,by=0.1),
+            CoP_pre = round(10^seq(0,3.5,by=0.5)),
+            outcome=factor(c('infection_given_dose','fever_given_dose'),
+                           levels=c('infection_given_dose','fever_given_dose','fever_given_infection'))) |&gt;
+  group_by(outcome,CoP_pre,dose) |&gt;
+  mutate(protective_efficacy = protective_efficacy(dose=dose,CoP_pre=CoP_pre,outcome = outcome)) |&gt;
+  mutate(CoP_pre = factor(CoP_pre)) |&gt;
+  ggplot() +
+  geom_line(aes(x=dose,y=protective_efficacy,group=CoP_pre,color=CoP_pre)) +
+  facet_grid('~outcome') +
+  theme_bw() +
+  ylim(c(0,1)) +
+  scale_x_continuous(trans='log10', breaks=10^seq(0,10,by=2),minor_breaks = NULL,labels = scales::trans_format("log10", math_format(10^.x)) )
+</code></pre>
+<p><img alt="" src="../../../../cohort_incidence_model_proof_of_concept_files/figure-markdown_strict/unnamed-chunk-6-1.png" /></p>
+<p>The really interesting thing about this kind of model is that it
+captures how high doses can overwhelm prior immunity and reduce
+efficacy. This effect is critical for typhoid epidemiology, where
+exposures can vary by a factor of 1000 or more across settings in time
+and place, but is missing from the standard logistic regression
+approaches to modeling efficacy vs CoP that are standard in vaccinology
+(and which this model reduces to in the low dose limit.)</p>
+<h2 id="cohort-incidence-model">Cohort incidence model</h2>
+<pre><code>##### wrap the cohort model in a function
+cohort_model = function(exposure_dose,exposure_rate,
+                        N=1000,age_max=75,
+                        titer_dt=365/12, # monthly timesteps so I don't have to worry about blocking reinfection during current infection
+                        max_titer_id = 1000 # saving every titer above ~1000 gets really slow
+                        ){
+
+  simulation_months = seq(0,age_max*12-1,by=1)
+
+  # titer tracker
+  titer_df = expand.grid(id=1:max_titer_id, 
+                         month=simulation_months,
+                         titer=1) |&gt;
+    mutate(age_years=month/12,
+           age_group=cut(age_years,breaks=c(0,2,5,10,15,age_max),include.lowest = TRUE)) |&gt;
+    mutate(age_width = age_width(age_group,age_max))
+
+  # disease events tracker
+  events_list =  replicate(N, list(exposure_month = NULL, exposure_count=NULL,
+                                   infected = NULL, 
+                                   fever = NULL), 
+                           simplify = FALSE)
+
+  # age-dependent exposure rate, to account for kids under 2y having less exposure to food and sewage
+  exposure_rate_multiplier = c(rep(0.1,13),rep(0.5,12),rep(1,length(simulation_months)-25))
+
+  # expose
+  for (id in (1:N)){
+    tmp_exposed = rpois(length(exposure_rate_multiplier),exposure_rate*exposure_rate_multiplier)
+    events_list[[id]]$exposure_month = which(tmp_exposed&gt;0)
+    events_list[[id]]$exposure_count = tmp_exposed[events_list[[id]]$exposure_month]
+
+    # declare needed fields
+    events_list[[id]]$infected = rep(0, length(events_list[[id]]$exposure_month))
+    events_list[[id]]$fever = rep(0, length(events_list[[id]]$exposure_month))
+  }
+
+  # infect and titer
+  for (id in (1:N)){
+
+    tmp_titer =rep(1,length(simulation_months))
+
+    if (length(events_list[[id]]$exposure_month) &gt;0){
+      for (k in 1:length(events_list[[id]]$exposure_month)){
+
+        exposure_month = events_list[[id]]$exposure_month[k]
+
+        p_once = p_outcome_given_dose(dose=exposure_dose,CoP_pre=tmp_titer[exposure_month],outcome='infection_given_dose')
+        p_inf = 1-(1-p_once)^events_list[[id]]$exposure_count[k]
+
+        if(runif(1)&gt;p_inf){
+          events_list[[id]]$infected[k] = 0
+          events_list[[id]]$fever[k]    = 0
+        } else {
+
+          # update infection list
+          events_list[[id]]$infected[k]=1
+
+          # update fever list 
+          p_fever = p_outcome_given_dose(dose=exposure_dose,CoP_pre=tmp_titer[exposure_month],outcome='fever_given_infection')
+          if (runif(n=1)&lt;=p_fever){
+            events_list[[id]]$fever[k]=1
+          } else {
+            events_list[[id]]$fever[k]=0
+          }
+
+          tmp_titer[exposure_month:length(tmp_titer)]= titer_vs_time(t=(titer_dt*(simulation_months-exposure_month+1))[(exposure_month):length(simulation_months)],
+                                                               age_years = exposure_month/12,
+                                                               CoP_pre = tmp_titer[exposure_month],
+                                                               CoP_peak=tmp_titer[exposure_month]*fold_rise_model(CoP_pre = tmp_titer[exposure_month]))
+          tmp_titer[exposure_month:length(tmp_titer)] = round(tmp_titer[exposure_month:length(tmp_titer)],2)
+        }
+
+      }
+
+      if(id &lt;= max_titer_id){
+        idx = titer_df$id == id
+        titer_df$titer[idx] = tmp_titer
+      }
+    }
+  }
+
+  # make the events_list into a nice data frame
+  not_empty_idx = which(!sapply(events_list, function(x){ is_empty(x$exposure_month)}))
+  events_df = tibble(id = not_empty_idx, data = events_list[not_empty_idx]) |&gt;
+    unnest_wider(data) |&gt;
+    unnest_longer(c(exposure_month,exposure_count,infected,fever), keep_empty = TRUE) |&gt;
+    mutate(exposure_age=exposure_month/12,
+           age_group=cut(exposure_age,breaks=c(0,2,5,10,15,age_max),include.lowest = TRUE)) |&gt;
+    mutate(age_width=age_width(age_group,age_max)) |&gt;
+    group_by(id) |&gt;
+    mutate(infection_age = if_else(infected==1,exposure_age,NA)) |&gt;
+    mutate(fever_age = if_else(fever==1,exposure_age,NA)) |&gt;
+    mutate(infected = factor(infected),
+           fever = factor(fever)) |&gt;
+    mutate(outcome = interaction(infected,fever)) |&gt;
+    mutate(outcome = fct_recode(outcome,exposed='0.0',infected='1.0',fever='1.1')) |&gt;
+    mutate(outcome = factor(outcome,levels=c('exposed', 'infected', 'fever')))
+
+  # combine some events with titer for plotting
+  titer_df = titer_df |&gt;
+    left_join(events_df |&gt; select(id,infection_age,infected,fever) |&gt; 
+                # mutate(fever = if_else(is.na(fever),0,fever)) |&gt;
+                drop_na(infected),by=join_by(id ==id, age_years == infection_age))
+
+  return(list(titer_df=titer_df,
+              events_df=events_df,
+              config=data.frame(exposure_dose,exposure_rate,N,age_max,titer_dt)))
+
+}
+
+###### run the model for the three different reference incidence levels
+
+# define setting ecology: exposure rate and dose
+
+if (!file.exists('scratch/output_cache.RData')){
+  output=list()
+
+  # N_cohort=2e4 # a lot faster for playing
+  N_cohort=1e6 # made huge to get good stats at lower incidence
+
+  # medium
+  output[['medium']] = cohort_model(exposure_dose = 5e2,
+                                    exposure_rate=1/(12*40), # per month
+                                    N=N_cohort)
+
+  # high
+  output[['high']] = cohort_model(exposure_dose = 5e3,
+                                  exposure_rate=1/(12*20), # per month
+                                  N=N_cohort/5)
+
+  # very high
+  output[['very_high']] = cohort_model(exposure_dose = 5e4,
+                                       exposure_rate=1/(12*20), # per month
+                                       N=N_cohort/10)
+
+  save(output,N,file='scratch/output_cache.RData')
+} else {
+  load(file='scratch/output_cache.RData')  
+}
+
+# plots
+
+# incidence targets
+incidence_fever_targets = c(medium = 53,high=214,very_high=1255)
+
+# calculate incidence
+for (k in 1:length(output)){
+
+  N = output[[k]]$config$N
+
+  output[[k]]$incidence_vs_age =
+    output[[k]]$events_df |&gt; group_by(age_group) |&gt;
+    summarize(incidence_fever = sum(fever==1)/(N*unique(age_width))*1e5,
+              incidence_infection = sum(infected==1)/(N*unique(age_width))*1e5,
+              symptomatic_fraction = sum(fever==1,na.rm=TRUE)/sum(infected==1,na.rm=TRUE),
+              age_width = unique(age_width)) |&gt;
+    mutate(incidence_fever_overall = sum(incidence_fever*age_width/sum(age_width)),
+           incidence_infection_overall = sum(incidence_infection*age_width/sum(age_width)),
+           incidence_fever_target = incidence_fever_targets[names(output)[k]])
+}
+
+##### make lots of plots
+
+p_incidence_fever=list()
+p_incidence_infection=list()
+p_symptomatic_fraction=list()
+for (k in 1:length(output)){
+  p_incidence_fever[[k]]=ggplot(output[[k]]$incidence_vs_age) +
+    geom_bar(aes(x=age_group,y=incidence_fever),stat='identity') +
+    geom_hline(aes(yintercept=incidence_fever_overall[1]),linetype='solid') +
+    geom_hline(aes(yintercept=incidence_fever_target[1]),linetype='dashed') +
+    theme_bw() +
+    xlab('') +
+    ylab('annual incidence of fever per 100k') +
+    labs(title = paste(sub('_',' ',names(output)[k]),' incidence',sep=''),
+         subtitle=paste('dose = ',output[[k]]$config$exposure_dose,' bacilli\nmean years b/w exposures = ',
+                        1/(12*output[[k]]$config$exposure_rate),sep='')) +
+    theme(plot.title=element_text(size=10),plot.subtitle=element_text(size=8),
+          axis.title = element_text(size=10))
+
+  p_incidence_infection[[k]]=ggplot(output[[k]]$incidence_vs_age) +
+    geom_bar(aes(x=age_group,y=incidence_infection),stat='identity') +
+    geom_hline(aes(yintercept=incidence_infection_overall[1]),linetype='solid') +
+    theme_bw() +
+    xlab('') +
+    ylab('annual incidence of infection per 100k') +
+    labs(title = paste(sub('_',' ',names(output)[k]),' incidence',sep=''),
+         subtitle=paste('dose = ',output[[k]]$config$exposure_dose,' bacilli\nmean years b/w exposures = ',
+                        1/(12*output[[k]]$config$exposure_rate),sep='')) +
+    theme(plot.title=element_text(size=10),plot.subtitle=element_text(size=8),
+          axis.title = element_text(size=10))
+
+  p_symptomatic_fraction[[k]]=ggplot(output[[k]]$incidence_vs_age) +
+    geom_bar(aes(x=age_group,y=symptomatic_fraction),stat='identity') +
+    theme_bw() +
+    xlab('') +
+    ylab('symptomatic fraction') +
+    ylim(c(0,1)) +
+    labs(title = paste(sub('_',' ',names(output)[k]),' incidence',sep=''),
+         subtitle=paste('dose = ',output[[k]]$config$exposure_dose,' bacilli\nmean years b/w exposures = ',
+                        1/(12*output[[k]]$config$exposure_rate),sep='')) +
+    theme(plot.title=element_text(size=10),plot.subtitle=element_text(size=8),
+          axis.title = element_text(size=10))
+}
+
+wrap_plots(p_incidence_fever) + plot_layout(guides = "collect",axes='collect')
+</code></pre>
+<p><img alt="" src="../../../../cohort_incidence_model_proof_of_concept_files/figure-markdown_strict/unnamed-chunk-8-1.png" /></p>
+<pre><code>ggsave('scratch/figures/cohort_model_incidence_fever_by_age.png',units='in',width=7,height=4)
+
+wrap_plots(p_incidence_infection) + plot_layout(guides = "collect",axes='collect')
+</code></pre>
+<p><img alt="" src="../../../../cohort_incidence_model_proof_of_concept_files/figure-markdown_strict/unnamed-chunk-8-2.png" /></p>
+<pre><code>ggsave('scratch/figures/cohort_model_incidence_infection_by_age.png',units='in',width=7,height=4)
+
+wrap_plots(p_symptomatic_fraction) + plot_layout(guides = "collect",axes='collect')
+</code></pre>
+<p><img alt="" src="../../../../cohort_incidence_model_proof_of_concept_files/figure-markdown_strict/unnamed-chunk-8-3.png" /></p>
+<pre><code>ggsave('scratch/figures/cohort_model_symptomatic_fraction.png',units='in',width=7,height=4)
+
+
+p_exposure=list()
+for (k in 1:length(output)){
+  p_exposure[[k]] = ggplot(output[[k]]$events_df |&gt; filter(id&lt;=40)) +
+                      geom_point(aes(x=exposure_age,color=outcome,y=id)) +
+                      theme_bw() +
+                      xlab('age') +
+      labs(title = paste(sub('_',' ',names(output)[k]),' incidence',sep=''),
+              subtitle=paste('dose = ',output[[k]]$config$exposure_dose,' bacilli\nmean years b/w exposures = ',
+                    1/(12*output[[k]]$config$exposure_rate),sep='')) +
+    theme(plot.title=element_text(size=10),plot.subtitle=element_text(size=8),
+          axis.title = element_text(size=10)) +
+    scale_color_discrete(drop = FALSE)
+}
+wrap_plots(p_exposure) + plot_layout(guides = "collect",axes='collect')
+</code></pre>
+<p><img alt="" src="../../../../cohort_incidence_model_proof_of_concept_files/figure-markdown_strict/unnamed-chunk-8-4.png" /></p>
+<pre><code>ggsave('scratch/figures/cohort_model_individual_level_exposure_examples.png',units='in',width=7,height=6)
+
+p_titer_examples=list()
+for (k in 1:length(output)){
+  p_titer_examples[[k]] = ggplot() +
+    geom_line(data=output[[k]]$titer_df |&gt; filter(id&lt;=20),aes(x=age_years,y=titer)) + 
+    geom_point(data=output[[k]]$titer_df |&gt; filter(id&lt;=20) |&gt; filter(!is.na(infected)),
+               aes(x=age_years,y=titer,color=fever)) +
+    scale_y_continuous(trans='log10',limits=c(1,10^3.5)) +
+    facet_wrap('id') +
+    theme_bw() +
+    xlab('age') +
+    labs(title = paste(sub('_',' ',names(output)[k]),' incidence',sep=''),
+         subtitle=paste('dose = ',output[[k]]$config$exposure_dose,' bacilli\nmean years b/w exposures = ',
+                        1/(12*output[[k]]$config$exposure_rate),sep='')) +
+    theme(plot.title=element_text(size=10),plot.subtitle=element_text(size=8),
+          axis.title = element_text(size=10))  +
+    scale_color_discrete(drop = FALSE)
+}
+wrap_plots(p_titer_examples) + plot_layout(guides = "collect",axes='collect')
+</code></pre>
+<p><img alt="" src="../../../../cohort_incidence_model_proof_of_concept_files/figure-markdown_strict/unnamed-chunk-8-5.png" /></p>
+<pre><code>ggsave('scratch/figures/cohort_model_individual_level_titer_examples.png',units='in',width=12,height=6)
+
+
+p_titer_summary=list()
+p_titer_density=list()
+p_protective_efficacy_summary=list()
+for (k in 1:length(output)){
+
+  exposure_dose = output[[k]]$config$exposure_dose
+
+  tmp_titer_summary =output[[k]]$titer_df |&gt;
+    mutate(protective_efficacy = protective_efficacy(dose = exposure_dose,CoP_pre = titer, outcome='infection_given_dose')) |&gt;
+    group_by(age_years) |&gt;
+    summarize(titer_gmt = exp(mean(log(titer))),
+           titer_median = median(titer),
+           titer_upper_iqr = quantile(titer,probs=0.75),
+           titer_lower_iqr = quantile(titer,probs=0.25),
+           titer_upper_95 = quantile(titer,probs=0.975),
+           titer_lower_95 = quantile(titer,probs=0.025),
+           protective_efficacy_median = median(protective_efficacy),
+           protective_efficacy_upper_iqr = quantile(protective_efficacy,probs=0.75),
+           protective_efficacy_lower_iqr = quantile(protective_efficacy,probs=0.25),
+           protective_efficacy_upper_95 = quantile(protective_efficacy,probs=0.975),
+           protective_efficacy_lower_95 = quantile(protective_efficacy,probs=0.025))
+
+  p_titer_summary[[k]] = ggplot(tmp_titer_summary) +
+    geom_ribbon(aes(x=age_years,ymin=titer_lower_95,ymax=titer_upper_95),alpha=0.2)+
+    geom_ribbon(aes(x=age_years,ymin=titer_lower_iqr,ymax=titer_upper_iqr),alpha=0.2)+
+    geom_line(aes(x=age_years,y=titer_median)) + 
+    geom_line(aes(x=age_years,y=titer_gmt),linetype='dashed') + 
+    scale_y_continuous(limits=c(1,10^3.5)) +
+    theme_bw() +
+    xlab('age') +
+    labs(title = paste(sub('_',' ',names(output)[k]),' incidence',sep=''),
+         subtitle=paste('dose = ',output[[k]]$config$exposure_dose,' bacilli\nmean years b/w exposures = ',
+                        1/(12*output[[k]]$config$exposure_rate),sep='')) +
+    theme(plot.title=element_text(size=10),plot.subtitle=element_text(size=8),
+          axis.title = element_text(size=10)) +
+    ylab('anti-Vi IgG EU/ml')
+
+  p_protective_efficacy_summary[[k]] = ggplot(tmp_titer_summary) +
+    geom_ribbon(aes(x=age_years,ymin=protective_efficacy_lower_95,ymax=protective_efficacy_upper_95),alpha=0.2)+
+    geom_ribbon(aes(x=age_years,ymin=protective_efficacy_lower_iqr,ymax=protective_efficacy_upper_iqr),alpha=0.2)+
+    geom_line(aes(x=age_years,y=protective_efficacy_median)) + 
+    scale_y_continuous(limits=c(0,1)) +
+    theme_bw() +
+    xlab('age') +
+    labs(title = paste(sub('_',' ',names(output)[k]),' incidence',sep=''),
+         subtitle=paste('dose = ',output[[k]]$config$exposure_dose,' bacilli\nmean years b/w exposures = ',
+                        1/(12*output[[k]]$config$exposure_rate),sep='')) +
+    theme(plot.title=element_text(size=10),plot.subtitle=element_text(size=8),
+          axis.title = element_text(size=10)) +
+    ylab('protective efficacy')
+
+
+  sampled_titer_df = output[[k]]$titer_df |&gt;
+    group_by(age_group,id) |&gt;
+    slice_sample(n=1)
+  p_titer_density[[k]] = ggplot(sampled_titer_df) +
+    geom_density_ridges(aes(x=titer,y=age_group),scale=0.9,jittered_points = TRUE,bandwidth = 0.1) + 
+    scale_x_continuous(trans='log10',limits=c(7,10^3.5)) +
+    theme_bw() + 
+    xlab('titer, given above limit of detection') +
+    ylab('') +
+    labs(title = paste(sub('_',' ',names(output)[k]),' incidence',sep=''),
+         subtitle=paste('dose = ',output[[k]]$config$exposure_dose,' bacilli\nmean years b/w exposures = ',
+                        1/(12*output[[k]]$config$exposure_rate),sep='')) +
+    theme(plot.title=element_text(size=10),plot.subtitle=element_text(size=8),
+          axis.title = element_text(size=10)) 
+}
+wrap_plots(p_titer_summary) + plot_layout(guides = "collect",axes='collect')
+</code></pre>
+<p><img alt="" src="../../../../cohort_incidence_model_proof_of_concept_files/figure-markdown_strict/unnamed-chunk-8-6.png" /></p>
+<pre><code>ggsave('scratch/figures/cohort_model_titer_vs_age_summary.png',units='in',width=7,height=4)
+
+wrap_plots(p_protective_efficacy_summary) + plot_layout(guides = "collect",axes='collect')
+</code></pre>
+<p><img alt="" src="../../../../cohort_incidence_model_proof_of_concept_files/figure-markdown_strict/unnamed-chunk-8-7.png" /></p>
+<pre><code>ggsave('scratch/figures/cohort_model_protective_efficacy_infection_vs_age_summary.png',units='in',width=7,height=4)
+
+wrap_plots(p_titer_density) + plot_layout(guides = "collect",axes='collect')
+
+## Warning: Removed 4856 rows containing non-finite outside the scale range (`stat_density_ridges()`).
+
+## Warning: Removed 4080 rows containing non-finite outside the scale range (`stat_density_ridges()`).
+
+## Warning: Removed 3785 rows containing non-finite outside the scale range (`stat_density_ridges()`).
+</code></pre>
+<p><img alt="" src="../../../../cohort_incidence_model_proof_of_concept_files/figure-markdown_strict/unnamed-chunk-8-8.png" /></p>
+<pre><code>ggsave('scratch/figures/cohort_model_titer_density.png',units='in',width=7,height=4)
+
+## Warning: Removed 4856 rows containing non-finite outside the scale range (`stat_density_ridges()`).
+
+## Warning: Removed 4080 rows containing non-finite outside the scale range (`stat_density_ridges()`).
+
+## Warning: Removed 3785 rows containing non-finite outside the scale range (`stat_density_ridges()`).
+</code></pre>
+
+
+
+
+
+
+
+  
+    
+  
+  
+    
+  
+
+
+  <aside class="md-source-file">
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Last update">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="April 25, 2025 23:51:09">April 25, 2025</span>
+  </span>
+
+    
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Created">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14.47 15.08 11 13V7h1.5v5.25l3.08 1.83c-.41.28-.79.62-1.11 1m-1.39 4.84c-.36.05-.71.08-1.08.08-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8c0 .37-.03.72-.08 1.08.69.1 1.33.32 1.92.64.1-.56.16-1.13.16-1.72 0-5.5-4.5-10-10-10S2 6.5 2 12s4.47 10 10 10c.59 0 1.16-.06 1.72-.16-.32-.59-.54-1.23-.64-1.92M18 15v3h-3v2h3v3h2v-3h3v-2h-3v-3z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="April 25, 2025 23:51:09">April 25, 2025</span>
+  </span>
+
+    
+    
+    
+      
+  <span class="md-source-file__fact">
+    
+      
+  <span class="md-icon" title="Contributors">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 2A10 10 0 0 0 2 12c0 4.42 2.87 8.17 6.84 9.5.5.08.66-.23.66-.5v-1.69c-2.77.6-3.36-1.34-3.36-1.34-.46-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.87 1.52 2.34 1.07 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.92 0-1.11.38-2 1.03-2.71-.1-.25-.45-1.29.1-2.64 0 0 .84-.27 2.75 1.02.79-.22 1.65-.33 2.5-.33s1.71.11 2.5.33c1.91-1.29 2.75-1.02 2.75-1.02.55 1.35.2 2.39.1 2.64.65.71 1.03 1.6 1.03 2.71 0 3.82-2.34 4.66-4.57 4.91.36.31.69.92.69 1.85V21c0 .27.16.59.67.5C19.14 20.16 22 16.42 22 12A10 10 0 0 0 12 2"/></svg>
+  </span>
+  <span>GitHub</span>
+
+    
+    <nav>
+      
+        <a href="https://github.com/famulare" class="md-author" title="@famulare">
+          
+          <img src="https://avatars.githubusercontent.com/u/10134931?v=4&size=72" alt="famulare">
+        </a>
+      
+      
+      
+    </nav>
+  </span>
+
+    
+  </aside>
+
+
+
+  
+
+
+
+  <h2 id="__comments">Comments</h2>
+  <script src="https://utteranc.es/client.js"
+        repo="famulare/typhoid-immune-dynamics"
+        issue-term="pathname"
+        label="comment"
+        theme="preferred-color-scheme"
+        crossorigin="anonymous"
+        async>
+  </script>
+
+      
+    </article>
+  </div>
+
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Institute for Disease Modeling &copy
+    </div>
+  
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    <script id="__config" type="application/json">{"base": "../../../../..", "features": ["navigation.instant", "navigation.sections", "navigation.path", "navigation.tabs", "navigation.tabs.sticky", "toc.integrate", "navigation.top", "search.suggest", "search.highlight", "search.share"], "search": "../../../../../assets/javascripts/workers/search.f8cc74c7.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    
+    
+      <script src="../../../../../assets/javascripts/bundle.c8b220af.min.js"></script>
+      
+        <script src="../../../../../js/open_in_new_tab.js"></script>
+      
+    
+  </body>
+</html>
