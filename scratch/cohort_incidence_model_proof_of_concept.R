@@ -1,18 +1,60 @@
-# incidence model scratch
+#' ---
+#' title: "A view over the horizon: cohort incidence model"
+#' output:
+#'   md_document
+#' knit: (function(input, ...) {
+#'   out <- rmarkdown::render(input, output_dir = "./docs/blog/posts", ...)
+#'   return(out)})
+#' ---
+#'
+#' # A view over the horizon: cohort incidence model
+#' 
+#' After spending a lot of time with the primary literature on typhoid vaccine efficacy, correlates of protection, natural immunity, dose response from human challenge studies, seroepidemiology studies, and a lot of thinking, my manager Edward Wenger *encouraged* me to just do the thing. 
+#' This script is the central artifact of that push. 
+#' 
+#' **What?** Implement the new intrahost immunity model in the context of a constant force-of-infection cohort model. Show that I can reproduce medium, high, and very high incidence archetypes being considered by a WHO-organized modeling consortium exercise. Other than the waning model, which was calibrated to organized and specific data with a simple log-least-squares approach all default parameters are currently hand-tuned by me, triangulating across various observations I'll try to summarize below. 
+#' 
+#' **What did I learn?** It works! The model can accomodate a bunch of non-trivial observations across a diversity of sources and settings. And, having the model prototype with a bunch of outputs has enabled a lot of rich back and forth with Kyra Grantz that's already making this model better and asking important questions of this new model, their current model, and other sources of data and inferences about how typhoid works.
+#' 
+#' **What's next?** Put the model into Typhoidsim. Get serious about calibration and applying it to vaccine policy questions. Iterate on many science questions and additional model features around shedding.
+#'  
+#' <!-- more -->
+#' 
+#' ## Outline
+#' 
+#' In this script, I'll set up the immunity model and then embed it in a cohort model. I'll quickly document decisions and questions along the way, leaving breadcrumbs for better documentation and future iterations later on. 
+#' After the setup, we'll take it for a spin and see a bunch of things it can do! Along the way, I'll leave notes about the contrasts with established models and problems or open questions with this one. Enjoy!
+#' 
+#' ## The code
+#' 
+#'  First, let's get some boilerplate out of the way and set up our environment.
+#+ echo=TRUE, message=FALSE, results = 'hide'
 
+# imports
 library(tidyverse)
 library(patchwork)
 library(ggridges)
 
-# age binning function
+# age width function
+# I use this later to re-extract age_group widths from a cut() call
 age_width = function(age_group,age_max){
   round(as.numeric(as.character(fct_recode( age_group,
-    `2`='[0,2]',`3`='(2,5]',`5`='(5,10]',`5.1`='(10,15]',!!as.character(age_max-15):=paste('(15,',age_max,']',sep='')))))
+                                            `2`='[0,2]',`3`='(2,5]',`5`='(5,10]',`5.1`='(10,15]',!!as.character(age_max-15):=paste('(15,',age_max,']',sep='')))))
 }
 
-##### indvidual-level model functions
+#' ## Intrahost immunity model functions
+#' 
+#' The immunity model uses anti-Vi IgG ELISA titers as a correlate of protection from infection and from fever, through the effect of immunity on susceptibility as a function of bacterial dose. It is based on the data described [here](/docs/Literature Review/typhoid-vaccine-efficacy) and other references not yet documented (especially human challenge studies with data on shedding and disease).
+#' 
+#' The **titer response function** describes the time dynamics of the correlate of protection (CoP).
+#' In this prototype, we assume no individual-level variation&mdash;everyone has identical responses to identical exposures and initial conditions. 
+#' The titer response rises over 30.4 days (conveniently a month for simulation purposes, but ~28 days to peak is probably ever so slightly more realistic.)
+#' 
+#' By assumption, the initial unexposed baseline value of the correlate of protection is set to 1. The most common assay (VaccZyme Anti-Vi IgG) has a limit of detection (LOD) of 7 EU/ml, so I don't know the baseline for sure. But modeling the censoring seems to say 1 works pretty well and also I don't think it matters because of how the fold-rise model (to come) works. (Any lower number will get multiplied by a higher number above LOD and end up back in the observable range.) The peak CoP default is set to $1000$ until otherwise specified by the fold-rise model. The long-time power-law exponent $\alpha$, the reference short-time decay constant $T_{decay}$, and the age-dependency coefficients on them are fit to titer data, to be explained another day. The initial rise parameters are all just picked to be about right/pretty because they have no effect on the rest of the model. 
+#' 
+#+ echo=TRUE, message=FALSE, results = 'hide'
 # titer response function
-titer_vs_time = function(t,age_years, CoP_max=10^3.5, CoP_pre=1,
+titer_vs_time = function(t,age_years, CoP_peak=1000, CoP_pre=1,
                          T_decay=11, alpha=1.16,
                          beta_T_decay_age=0.057, beta_alpha_age=-0.060,
                          CoP_min=1,T_rise=1.5,t_start=3,t_peak=30.4){
@@ -21,25 +63,72 @@ titer_vs_time = function(t,age_years, CoP_max=10^3.5, CoP_pre=1,
   ka = alpha * exp(beta_alpha_age * age_years)
   
   # power law decay
-  titer = CoP_min + (CoP_max-CoP_min)*(1+(t-t_peak)/(ka*Tda))^(-ka)
+  titer = CoP_min + (CoP_peak-CoP_min)*(1+(t-t_peak)/(ka*Tda))^(-ka)
   
   # simple logistic interpolator rise (this is just for continuity/realism. plays no role in the model)
   titer[t<t_peak ] =
-    CoP_pre + (CoP_max-CoP_pre)*
+    CoP_pre + (CoP_peak-CoP_pre)*
     (1/(1+exp(-(t[t<t_peak] - t_start*5)/T_rise)) - 1/(1+exp(-(0-t_start*5)/T_rise)))/
     (1/(1+exp(-(t_peak - t_start*5)/T_rise)) - 1/(1+exp(-(0-t_start*5)/T_rise)))
   
   return(titer)
 }
 
+expand.grid(t=seq(0,10,by=1/24), age_years = factor(c(1,5,15,45))) |> 
+  mutate(titer = titer_vs_time(t=t*365,age=as.numeric(age_years))) |>
+  ggplot() +
+  geom_line(aes(x=t,y=titer,color=age_years)) + 
+  theme_bw() + scale_y_continuous(trans='log10') + xlab('years post response') + ylab('')
+
+#' The **fold-rise model** describes the CoP response after an immunizing event, given the pre-challenge CoP.
+#' The default for $CoP_max$, the maximum possible titer (discussed [here](https://famulare.github.io/2024/03/07/Conjecture-the-maximum-NAb-titer.html)) comes from an analysis of pre-post vaccine responses, and the default $mu_0$ parameter is set by a loosely informed guess from [a model of pre-post infection dynamics](https://www.thelancet.com/journals/lanmic/article/PIIS2666-5247(22)00114-8/fulltext#fig3) and triangulating some vaccine study control groups, all to be explained another day.  
+#' 
+#' 
+#+ echo=TRUE, message=FALSE, results = 'hide'
 # fold-rise model. defaults set to natural immunity defaults
 fold_rise_model = function(CoP_pre,
-                           mu_0=1.25*2,  # playing with hand-adjusting this, which was based on another model, to get better titer distributions
+                           mu_0=2.5,
                            CoP_max=10^3.5, CoP_min=1){
   fold_rise = 10^(mu_0*(1-(log10(CoP_pre)-log10(CoP_min))/(log10(CoP_max)-log10(CoP_min))))
   return(fold_rise)
 }
 
+pl_df=expand.grid(CoP_pre=10^seq(0,3.5,by=0.1)) |> 
+  mutate(fold_rise = fold_rise_model(CoP_pre=CoP_pre)) |>
+  mutate(CoP_post = fold_rise * CoP_pre) 
+(ggplot(pl_df) +
+  geom_line(aes(x=CoP_pre,y=fold_rise)) +
+  theme_bw() + scale_y_continuous(trans='log10') + scale_x_continuous(trans='log10') +
+  xlab('pre-challenge titer') + ylab('fold-rise')) +
+  (ggplot(pl_df) +
+     geom_line(aes(x=CoP_pre,y=CoP_post)) +
+     theme_bw() + scale_y_continuous(trans='log10') + scale_x_continuous(trans='log10') +
+     xlab('pre-challenge titer') + ylab('post-challenge titer'))
+
+#' The fold-rise model combines with the titer vs. time model to give the immune response over a lifetime of infection (in this case, or vaccination too but not shown here). 
+#' As an example, here's an unlucky person infected on their 2nd birthday and again on their 7th.
+#' 
+#+ echo=TRUE, message=FALSE, results = 'hide'
+data.frame(t=seq(0,15,by=1/12), titer=1) |> 
+  mutate(titer = if_else(t<=2, titer, 
+                         titer_vs_time(t=(t-2)*365,age=2,
+                                       CoP_pre=titer[t==2],
+                                       CoP_peak = titer[t==2]*fold_rise_model(CoP_pre = titer[t==2])))) |>
+  mutate(titer = if_else(t<=7, titer, 
+                         titer_vs_time(t=(t-7)*365,age=7,
+                                       CoP_pre=titer[t==7],
+                                       CoP_peak = titer[t==7]*fold_rise_model(CoP_pre = titer[t==7])))) |>
+  ggplot() +
+  geom_line(aes(x=t,y=titer)) + 
+  theme_bw() + scale_y_continuous(trans='log10') + xlab('age [years]') + ylab('Anti-Vi IgG [EU/ml]')
+
+
+#' We care about titers because we use them as a correlate of protection. 
+#' The evidence on typhoid supports that anti-Vi titers are a useful predictor, and we can encode the affect of prior immunity through that the the effect of dose, where it's known from challenge studies that higher doses are more likely to lead to stool-culture confirmed infection and fever.
+#' 
+#' The **dose-response model** as a function of immunity and bacilli eaten is given below. It's informed by old challenge studies that measured it directly in cohorts without well-measured prior immunity, and more recent studies with naive adults. Parameters are hand-fiddled based on that an a bunch of other things included vaccines, all to be described another day. 
+#' 
+#+ echo=TRUE, message=FALSE, results = 'hide'
 # dose response
 p_outcome_given_dose = function(dose=1e4,  CoP_pre=1, outcome = 'fever_given_dose', 
                                 n50_fever_given_dose=27800, alpha_fever_given_dose=0.84, gamma_fever_given_dose=0.4,
@@ -65,6 +154,23 @@ p_outcome_given_dose = function(dose=1e4,  CoP_pre=1, outcome = 'fever_given_dos
   return(p)
 }
 
+expand.grid(dose = 10^seq(0,9,by=0.1),
+            CoP_pre = round(10^seq(0,3.5,by=0.5)),
+            outcome=factor(c('infection_given_dose','fever_given_dose'),
+                           levels=c('infection_given_dose','fever_given_dose','fever_given_infection'))) |>
+  group_by(outcome,CoP_pre,dose) |>
+  mutate(probability = p_outcome_given_dose(dose=dose,CoP_pre=CoP_pre,outcome = outcome)) |>
+  mutate(CoP_pre = factor(CoP_pre)) |>
+  ggplot() +
+  geom_line(aes(x=dose,y=probability,group=CoP_pre,color=CoP_pre)) +
+  facet_grid('~outcome') +
+  theme_bw() +
+  ylim(c(0,1)) +
+  scale_x_continuous(trans='log10', breaks=10^seq(0,10,by=2),minor_breaks = NULL,labels = scales::trans_format("log10", math_format(10^.x)) ) 
+
+#' The **protective efficacy of prior infection** (in this case, also vaccine efficacy more generally) is defined as the relative risk reduction in the outcome (either stool-culture confirmed infection or fever, but could be other things like seroresponse, bacteremia, and conversion to carrier status) for a person with a given level of immunity vs a person who has never been exposed. 
+#' 
+#' #+ echo=TRUE, message=FALSE, results = 'hide'
 # protective efficacy vs CoP_pre
 protective_efficacy = function(dose=1e4,  CoP_pre=1, outcome = 'fever_given_dose', CoP_control=1){
   VE = 1 - p_outcome_given_dose(dose,CoP_pre=CoP_pre,outcome = outcome)/p_outcome_given_dose(dose,CoP_pre=CoP_control,outcome = outcome)
@@ -84,9 +190,14 @@ expand.grid(dose = 10^seq(0,8,by=0.1),
   theme_bw() +
   ylim(c(0,1)) +
   scale_x_continuous(trans='log10', breaks=10^seq(0,10,by=2),minor_breaks = NULL,labels = scales::trans_format("log10", math_format(10^.x)) ) 
+#+ echo=FALSE, message=FALSE, results = 'hide'
 ggsave('scratch/figures/cohort_model_vaccine_efficacy_vs_dose_CoP_pre.png',units='in',width=7, height=3)
 
-
+#' The really interesting thing about this kind of model is that it captures how high doses can overwhelm prior immunity and reduce efficacy. This effect is critical for typhoid epidemiology, where exposures can vary by a factor of 1000 or more across settings in time and place, but is missing from the standard logistic regression approaches to modeling efficacy vs CoP that are standard in vaccinology (and which this model reduces to in the low dose limit.)
+#'
+#' ## Cohort incidence model
+#' 
+#+ echo=TRUE, message=FALSE, results = 'hide'
 
 ##### wrap the cohort model in a function
 cohort_model = function(exposure_dose,exposure_rate,
@@ -157,7 +268,7 @@ cohort_model = function(exposure_dose,exposure_rate,
           tmp_titer[exposure_month:length(tmp_titer)]= titer_vs_time(t=(titer_dt*(simulation_months-exposure_month+1))[(exposure_month):length(simulation_months)],
                                                                age_years = exposure_month/12,
                                                                CoP_pre = tmp_titer[exposure_month],
-                                                               CoP_max=tmp_titer[exposure_month]*fold_rise_model(CoP_pre = tmp_titer[exposure_month]))
+                                                               CoP_peak=tmp_titer[exposure_month]*fold_rise_model(CoP_pre = tmp_titer[exposure_month]))
           tmp_titer[exposure_month:length(tmp_titer)] = round(tmp_titer[exposure_month:length(tmp_titer)],2)
         }
         
@@ -203,25 +314,31 @@ cohort_model = function(exposure_dose,exposure_rate,
 
 # define setting ecology: exposure rate and dose
 
-output=list()
-
-# N_cohort=2e4 # a lot faster for playing
-N_cohort=1e6 # made huge to get good stats at lower incidence
-
-# medium
-output[['medium']] = cohort_model(exposure_dose = 5e2,
-                                  exposure_rate=1/(12*40), # per month
-                                  N=N_cohort)
-
-# high
-output[['high']] = cohort_model(exposure_dose = 5e3,
-                                exposure_rate=1/(12*20), # per month
-                                N=N_cohort/5)
-
-# very high
-output[['very_high']] = cohort_model(exposure_dose = 5e4,
-                                     exposure_rate=1/(12*20), # per month
-                                     N=N_cohort/10)
+if (!file.exists('scratch/output_cache.RData')){
+  output=list()
+  
+  # N_cohort=2e4 # a lot faster for playing
+  N_cohort=1e6 # made huge to get good stats at lower incidence
+  
+  # medium
+  output[['medium']] = cohort_model(exposure_dose = 5e2,
+                                    exposure_rate=1/(12*40), # per month
+                                    N=N_cohort)
+  
+  # high
+  output[['high']] = cohort_model(exposure_dose = 5e3,
+                                  exposure_rate=1/(12*20), # per month
+                                  N=N_cohort/5)
+  
+  # very high
+  output[['very_high']] = cohort_model(exposure_dose = 5e4,
+                                       exposure_rate=1/(12*20), # per month
+                                       N=N_cohort/10)
+  
+  save(output,N,file='scratch/output_cache.RData')
+} else {
+  load(file='scratch/output_cache.RData')  
+}
 
 # plots 
 
@@ -411,3 +528,13 @@ ggsave('scratch/figures/cohort_model_protective_efficacy_infection_vs_age_summar
 wrap_plots(p_titer_density) + plot_layout(guides = "collect",axes='collect')
 ggsave('scratch/figures/cohort_model_titer_density.png',units='in',width=7,height=4)
 
+
+
+# /* back matter for exporting as a blog post
+
+source('./docs/docs_helper_functions.R')
+render_blog_post(input_file = './scratch/cohort_incidence_model_proof_of_concept.R',
+                 categories_list = c('Immunity model'),
+                 date_created = '2025-04-25')
+
+# */

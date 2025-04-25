@@ -5,8 +5,8 @@ date:
 authors:
   - famulare
 categories:
-  - Immunity models
-  - Intrahost models
+  - Immunity model
+  - Intrahost model
   - Software architecture
   - Project Management
 ---
