@@ -65,6 +65,9 @@ render_blog_post = function(input_file,
     
     # read blog post
     blog_post = readLines(output_file)
+    
+    # clear out roxygen comments from inside code blocks to render as plain text literate programming
+    blog_post = sub("^[[:space:]]*#'[ ]?", "",blog_post)
 
     # fixing the fact the render uses absolute paths when the output directory isn't the input directory
     # https://stackoverflow.com/questions/70098862/force-relative-paths-in-knitrinclude-graphics

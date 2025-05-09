@@ -6,7 +6,7 @@
 #'   out <- rmarkdown::render(input, output_dir = "./docs/blog/posts", ...)
 #'   return(out)})
 #' ---
-#'
+#' 
 #' # A view over the horizon: cohort incidence model
 #' 
 #' After spending a lot of time with the primary literature on typhoid vaccine efficacy, correlates of protection, natural immunity, dose response from human challenge studies, seroepidemiology studies, and a lot of thinking, my manager Edward Wenger *encouraged* me to just do the thing. 
@@ -26,14 +26,15 @@
 #' After the setup, we'll take it for a spin and see a bunch of things it can do! Along the way, I'll leave notes about the contrasts with established models and problems or open questions with this one. Enjoy!
 #' 
 #' ## The code
-#' 
+#'
 #'  First, let's get some boilerplate out of the way and set up our environment.
+#'
 #+ echo=TRUE, message=FALSE, results = 'hide'
-
 # imports
 library(tidyverse)
 library(patchwork)
 library(ggridges)
+library(scales)
 
 # age width function
 # I use this later to re-extract age_group widths from a cut() call
@@ -81,7 +82,7 @@ expand.grid(t=seq(0,10,by=1/24), age_years = factor(c(1,5,15,45))) |>
   theme_bw() + scale_y_continuous(trans='log10') + xlab('years post response') + ylab('')
 
 #' The **fold-rise model** describes the CoP response after an immunizing event, given the pre-challenge CoP.
-#' The default for $CoP_max$, the maximum possible titer (discussed [here](https://famulare.github.io/2024/03/07/Conjecture-the-maximum-NAb-titer.html)) comes from an analysis of pre-post vaccine responses, and the default $mu_0$ parameter is set by a loosely informed guess from [a model of pre-post infection dynamics](https://www.thelancet.com/journals/lanmic/article/PIIS2666-5247(22)00114-8/fulltext#fig3) and triangulating some vaccine study control groups, all to be explained another day.  
+#' The default for $CoP_{max}$, the maximum possible titer (discussed [here](https://famulare.github.io/2024/03/07/Conjecture-the-maximum-NAb-titer.html)) comes from an analysis of pre-post vaccine responses, and the default $mu_0$ parameter is set by a loosely informed guess from [a model of pre-post infection dynamics](https://www.thelancet.com/journals/lanmic/article/PIIS2666-5247(22)00114-8/fulltext#fig3) and triangulating some vaccine study control groups, all to be explained another day.  
 #' 
 #' 
 #+ echo=TRUE, message=FALSE, results = 'hide'
@@ -166,11 +167,12 @@ expand.grid(dose = 10^seq(0,9,by=0.1),
   facet_grid('~outcome') +
   theme_bw() +
   ylim(c(0,1)) +
-  scale_x_continuous(trans='log10', breaks=10^seq(0,10,by=2),minor_breaks = NULL,labels = scales::trans_format("log10", math_format(10^.x)) ) 
+  scale_x_continuous(trans='log10', breaks=10^seq(0,10,by=2),minor_breaks = NULL,labels = trans_format("log10", math_format(10^.x)) ) 
 
 #' The **protective efficacy of prior infection** (in this case, also vaccine efficacy more generally) is defined as the relative risk reduction in the outcome (either stool-culture confirmed infection or fever, but could be other things like seroresponse, bacteremia, and conversion to carrier status) for a person with a given level of immunity vs a person who has never been exposed. 
 #' 
-#' #+ echo=TRUE, message=FALSE, results = 'hide'
+#' 
+#+ echo=TRUE, message=FALSE, results = 'hide'
 # protective efficacy vs CoP_pre
 protective_efficacy = function(dose=1e4,  CoP_pre=1, outcome = 'fever_given_dose', CoP_control=1){
   VE = 1 - p_outcome_given_dose(dose,CoP_pre=CoP_pre,outcome = outcome)/p_outcome_given_dose(dose,CoP_pre=CoP_control,outcome = outcome)
@@ -197,15 +199,23 @@ ggsave('scratch/figures/cohort_model_vaccine_efficacy_vs_dose_CoP_pre.png',units
 #'
 #' ## Cohort incidence model
 #' 
+#' To show what the model can do, I built a constant force of infection cohort model. This model is designed to demonstrate what individal susceptibility and immune response looks like over a lifetime, in fictional settings where the force of infection never changes for a lifetime. It isn't a full transmission model because this version of the model lacks bacterial shedding, transmission routes, and contacts between people. But, any transmission model that establishes these endemic equilibrium exposure rates would show the same cohort behavior for these variables. 
+#' 
+#' To make everything play nice for running the model and plotting later, I wrapped the whole thing in a function. So let's have some fun stepping through that function, in the literate programming style enabled by `knitr::spin` and a [custom post-processing one-liner](docs/docs_helper_functions.R#L70).
+#' 
+#' First, we define the function and it's inputs. 
 #+ echo=TRUE, message=FALSE, results = 'hide'
-
-##### wrap the cohort model in a function
 cohort_model = function(exposure_dose,exposure_rate,
                         N=1000,age_max=75,
-                        titer_dt=365/12, # monthly timesteps so I don't have to worry about blocking reinfection during current infection
+                        titer_dt=365/12, # monthly timesteps so I cana ssume infections last one timestep
                         max_titer_id = 1000 # saving every titer above ~1000 gets really slow
                         ){
-  
+  #' The two variables that define the transmission ecology are the exposure dose and exposure rate. The exposure dose is the number of bacilli typically ingested when exposed in the setting. This could be drawn from a distribution, but we'll just assume it's a fixed value for now. The exposure rate is the Poisson rate for how often a person is exposed to an infectious dose. Together, through the dose response model, the exposure rate and dose determine how often people get infected. 
+  #' 
+  #' The other parameters are just basic simulation config stuff. How many people (default `N=1000`), what is the maximimum age in years (default `age_max = 75`), the timestep (default `titer_dt=365/12`= 1 month), and how many people will we track the full time history of the titer for (default 'max_titer_id=1000'; I suggest you keep this at this size regardless of the N, as this is the slowest part of the code), 
+  #' 
+  #' With the function header and parameters defined, we step into the code. First, we initialize the time bins and the containers for the simulation outputs. 
+
   simulation_months = seq(0,age_max*12-1,by=1)
   
   # titer tracker
