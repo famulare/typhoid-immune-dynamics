@@ -132,9 +132,10 @@ data.frame(t=seq(0,15,by=1/12), titer=1) |>
 #+ echo=TRUE, message=FALSE, results = 'hide'
 # dose response
 p_outcome_given_dose = function(dose=1e4,  CoP_pre=1, outcome = 'fever_given_dose', 
-                                n50_fever_given_dose=27800, alpha_fever_given_dose=0.84, gamma_fever_given_dose=0.4,
+                                n50_fever_given_dose=27800, alpha_fever_given_dose=0.84, 
+                                gamma_fever_given_dose=0.4,
                                 n50_infection_given_dose=27800/10,alpha_infection_given_dose = 0.84*2, 
-                                gamma_infection_given_dose=0.4/2. # tweaking from previous hand guess to better match comment from Kyra about their estimate of adult immunity
+                                gamma_infection_given_dose=0.4/2 
                                 ){
   
   if(outcome == 'fever_given_dose'){
@@ -143,12 +144,15 @@ p_outcome_given_dose = function(dose=1e4,  CoP_pre=1, outcome = 'fever_given_dos
     
   } else if (outcome == 'infection_given_dose'){
     
-    p = 1 - (1+dose*(2^(1/alpha_infection_given_dose)-1)/n50_infection_given_dose)^(-alpha_infection_given_dose/(CoP_pre^gamma_infection_given_dose))
+    p = 1 - (1+dose*(2^(1/alpha_infection_given_dose)-1)/n50_infection_given_dose)^
+      (-alpha_infection_given_dose/(CoP_pre^gamma_infection_given_dose))
     
   } else if (outcome == 'fever_given_infection'){
     
-    p = (1 - (1+dose*(2^(1/alpha_fever_given_dose)-1)/n50_fever_given_dose)^(-alpha_fever_given_dose/(CoP_pre^gamma_fever_given_dose))) /
-      (1 - (1+dose*(2^(1/alpha_infection_given_dose)-1)/n50_infection_given_dose)^(-alpha_infection_given_dose/(CoP_pre^gamma_infection_given_dose)))
+    p = (1 - (1+dose*(2^(1/alpha_fever_given_dose)-1)/n50_fever_given_dose)^
+           (-alpha_fever_given_dose/(CoP_pre^gamma_fever_given_dose))) /
+      (1 - (1+dose*(2^(1/alpha_infection_given_dose)-1)/n50_infection_given_dose)^
+         (-alpha_infection_given_dose/(CoP_pre^gamma_infection_given_dose)))
     
   }
   
@@ -167,7 +171,8 @@ expand.grid(dose = 10^seq(0,9,by=0.1),
   facet_grid('~outcome') +
   theme_bw() +
   ylim(c(0,1)) +
-  scale_x_continuous(trans='log10', breaks=10^seq(0,10,by=2),minor_breaks = NULL,labels = trans_format("log10", math_format(10^.x)) ) 
+  scale_x_continuous(trans='log10', breaks=10^seq(0,10,by=2),minor_breaks = NULL,
+                     labels = trans_format("log10", math_format(10^.x)) ) 
 
 #' The **protective efficacy of prior infection** (in this case, also vaccine efficacy more generally) is defined as the relative risk reduction in the outcome (either stool-culture confirmed infection or fever, but could be other things like seroresponse, bacteremia, and conversion to carrier status) for a person with a given level of immunity vs a person who has never been exposed. 
 #' 
@@ -175,7 +180,8 @@ expand.grid(dose = 10^seq(0,9,by=0.1),
 #+ echo=TRUE, message=FALSE, results = 'hide'
 # protective efficacy vs CoP_pre
 protective_efficacy = function(dose=1e4,  CoP_pre=1, outcome = 'fever_given_dose', CoP_control=1){
-  VE = 1 - p_outcome_given_dose(dose,CoP_pre=CoP_pre,outcome = outcome)/p_outcome_given_dose(dose,CoP_pre=CoP_control,outcome = outcome)
+  VE = 1 - p_outcome_given_dose(dose,CoP_pre=CoP_pre,outcome = outcome)/
+    p_outcome_given_dose(dose,CoP_pre=CoP_control,outcome = outcome)
   return(VE)
 }
 
@@ -191,7 +197,8 @@ expand.grid(dose = 10^seq(0,8,by=0.1),
   facet_grid('~outcome') +
   theme_bw() +
   ylim(c(0,1)) +
-  scale_x_continuous(trans='log10', breaks=10^seq(0,10,by=2),minor_breaks = NULL,labels = scales::trans_format("log10", math_format(10^.x)) ) 
+  scale_x_continuous(trans='log10', breaks=10^seq(0,10,by=2),minor_breaks = NULL,
+                     labels = scales::trans_format("log10", math_format(10^.x)) ) 
 #+ echo=FALSE, message=FALSE, results = 'hide'
 ggsave('scratch/figures/cohort_model_vaccine_efficacy_vs_dose_CoP_pre.png',units='in',width=7, height=3)
 
@@ -201,13 +208,13 @@ ggsave('scratch/figures/cohort_model_vaccine_efficacy_vs_dose_CoP_pre.png',units
 #' 
 #' To show what the model can do, I built a constant force of infection cohort model. This model is designed to demonstrate what individal susceptibility and immune response looks like over a lifetime, in fictional settings where the force of infection never changes for a lifetime. It isn't a full transmission model because this version of the model lacks bacterial shedding, transmission routes, and contacts between people. But, any transmission model that establishes these endemic equilibrium exposure rates would show the same cohort behavior for these variables. 
 #' 
-#' To make everything play nice for running the model and plotting later, I wrapped the whole thing in a function. So let's have some fun stepping through that function, in the literate programming style enabled by `knitr::spin` and a [custom post-processing one-liner](docs/docs_helper_functions.R#L70).
+#' To make everything play nice for running the model and plotting later, I wrapped the whole thing in a function. So let's have some fun stepping through that function, in the literate programming style enabled by `knitr::spin` and a [custom post-processing one-liner](https://github.com/famulare/typhoid-immune-dynamics/blob/277c1ce3606a88c2374be892c7d1f7c5788d0ec7/docs/docs_helper_functions.R#L70).
 #' 
 #' First, we define the function and it's inputs. 
 #+ echo=TRUE, message=FALSE, results = 'hide'
 cohort_model = function(exposure_dose,exposure_rate,
                         N=1000,age_max=75,
-                        titer_dt=365/12, # monthly timesteps so I cana ssume infections last one timestep
+                        titer_dt=365/12, # monthly timesteps so I can assume infections last one timestep
                         max_titer_id = 1000 # saving every titer above ~1000 gets really slow
                         ){
   #' The two variables that define the transmission ecology are the exposure dose and exposure rate. The exposure dose is the number of bacilli typically ingested when exposed in the setting. This could be drawn from a distribution, but we'll just assume it's a fixed value for now. The exposure rate is the Poisson rate for how often a person is exposed to an infectious dose. Together, through the dose response model, the exposure rate and dose determine how often people get infected. 
@@ -231,10 +238,14 @@ cohort_model = function(exposure_dose,exposure_rate,
                                    infected = NULL, 
                                    fever = NULL), 
                            simplify = FALSE)
-  
+
+  #' We also make one extra accounting for reality, which is that young children have less exposure to typhoid. Infants because they do not eat adult food, and toddlers because they tyically eat small and limited diets. This should probably be configurable as parameters, but I'm not gonna play with it in this script so I just hard coded that children up through 12 months of age have 10% the exposure of adults and children 1-2 years have 50%, by pure assumption.
+
   # age-dependent exposure rate, to account for kids under 2y having less exposure to food and sewage
   exposure_rate_multiplier = c(rep(0.1,13),rep(0.5,12),rep(1,length(simulation_months)-25))
-  
+
+  #' With that set up, we can expose everyone for their lifetimes and save the exposure event times.
+
   # expose
   for (id in (1:N)){
     tmp_exposed = rpois(length(exposure_rate_multiplier),exposure_rate*exposure_rate_multiplier)
@@ -245,45 +256,63 @@ cohort_model = function(exposure_dose,exposure_rate,
     events_list[[id]]$infected = rep(0, length(events_list[[id]]$exposure_month))
     events_list[[id]]$fever = rep(0, length(events_list[[id]]$exposure_month))
   }
-  
+
+  #' Now that we know when everone is exposed, we can step through to find when they are infected, and after each infection, what their antibody titers are until the next infection. At each exposure, the probability of infection is determined by the dose and the current titer. At each infection, the current titer is boosted by the fold-rise model and between infections, it wanes with the waning model. 
+
   # infect and titer
   for (id in (1:N)){
     
+    # titer holder, initialized at CoP_min=1 from birth
     tmp_titer =rep(1,length(simulation_months))
     
+    # for each exposed person
     if (length(events_list[[id]]$exposure_month) >0){
       for (k in 1:length(events_list[[id]]$exposure_month)){
         
         exposure_month = events_list[[id]]$exposure_month[k]
         
-        p_once = p_outcome_given_dose(dose=exposure_dose,CoP_pre=tmp_titer[exposure_month],outcome='infection_given_dose')
+        # calculate their infection probability in that timestep (which may have more than 1 exposure)
+        p_once = p_outcome_given_dose(dose=exposure_dose,CoP_pre=tmp_titer[exposure_month],
+                                      outcome='infection_given_dose')
         p_inf = 1-(1-p_once)^events_list[[id]]$exposure_count[k]
         
         if(runif(1)>p_inf){
+          # if not infected, record not infected upon exposure
           events_list[[id]]$infected[k] = 0
           events_list[[id]]$fever[k]    = 0
         } else {
+          # if infected 
           
           # update infection list
           events_list[[id]]$infected[k]=1
           
-          # update fever list 
-          p_fever = p_outcome_given_dose(dose=exposure_dose,CoP_pre=tmp_titer[exposure_month],outcome='fever_given_infection')
+          # colculate probability they get a fever given infection
+          p_fever = p_outcome_given_dose(dose=exposure_dose,CoP_pre=tmp_titer[exposure_month],
+                                         outcome='fever_given_infection')
+          
+          # update fever list
           if (runif(n=1)<=p_fever){
+            # if fever
             events_list[[id]]$fever[k]=1
           } else {
+            # if no fever
             events_list[[id]]$fever[k]=0
           }
           
-          tmp_titer[exposure_month:length(tmp_titer)]= titer_vs_time(t=(titer_dt*(simulation_months-exposure_month+1))[(exposure_month):length(simulation_months)],
-                                                               age_years = exposure_month/12,
-                                                               CoP_pre = tmp_titer[exposure_month],
-                                                               CoP_peak=tmp_titer[exposure_month]*fold_rise_model(CoP_pre = tmp_titer[exposure_month]))
+          # calculate titer from this infection foreward
+          tmp_titer[exposure_month:length(tmp_titer)]= titer_vs_time(
+            t=(titer_dt*(simulation_months-exposure_month+1))[(exposure_month):length(simulation_months)],
+            age_years = exposure_month/12,
+            CoP_pre = tmp_titer[exposure_month],
+            CoP_peak=tmp_titer[exposure_month]*fold_rise_model(CoP_pre = tmp_titer[exposure_month]))
+          
+          # round just because I don't need a bazillion digits
           tmp_titer[exposure_month:length(tmp_titer)] = round(tmp_titer[exposure_month:length(tmp_titer)],2)
         }
         
       }
       
+      # only save titer traces if the subject id is <= max_titer_id for saving.
       if(id <= max_titer_id){
         idx = titer_df$id == id
         titer_df$titer[idx] = tmp_titer
@@ -291,6 +320,8 @@ cohort_model = function(exposure_dose,exposure_rate,
     }
   }
   
+  #' Now the model's all run! But that events_list was kind of an ugly way to do things, when we couldn't *a priori* know how many exposure events would happen for each person. So let's tidy that up now into a nice dataframe, and add a couple events to the titer traces for platting later. And return the outputs!
+
   # make the events_list into a nice data frame
   not_empty_idx = which(!sapply(events_list, function(x){ is_empty(x$exposure_month)}))
   events_df = tibble(id = not_empty_idx, data = events_list[not_empty_idx]) |>
@@ -320,6 +351,8 @@ cohort_model = function(exposure_dose,exposure_rate,
   
 }
 
+#' ## Running the model
+#' 
 ###### run the model for the three different reference incidence levels
 
 # define setting ecology: exposure rate and dose
@@ -349,6 +382,8 @@ if (!file.exists('scratch/output_cache.RData')){
 } else {
   load(file='scratch/output_cache.RData')  
 }
+
+#' ## Results!
 
 # plots 
 
