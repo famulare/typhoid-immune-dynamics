@@ -206,7 +206,7 @@ ggsave('scratch/figures/cohort_model_vaccine_efficacy_vs_dose_CoP_pre.png',units
 #'
 #' ## Cohort incidence model
 #' 
-#' To show what the model can do, I built a constant force of infection cohort model. This model is designed to demonstrate what individal susceptibility and immune response looks like over a lifetime, in fictional settings where the force of infection never changes for a lifetime. It isn't a full transmission model because this version of the model lacks bacterial shedding, transmission routes, and contacts between people. But, any transmission model that establishes these endemic equilibrium exposure rates would show the same cohort behavior for these variables. 
+#' To show what the model can do, I built a constant force of infection cohort model. This model is designed to demonstrate what individual susceptibility and immune response looks like over a lifetime, in fictional settings where the force of infection never changes. It isn't a full transmission model because this version of the model lacks bacterial shedding, transmission routes, and contacts between people. But, any transmission model that establishes these endemic equilibrium exposure rates would show the same cohort behavior for these variables. 
 #' 
 #' To make everything play nice for running the model and plotting later, I wrapped the whole thing in a function. So let's have some fun stepping through that function, in the literate programming style enabled by `knitr::spin` and a [custom post-processing one-liner](https://github.com/famulare/typhoid-immune-dynamics/blob/277c1ce3606a88c2374be892c7d1f7c5788d0ec7/docs/docs_helper_functions.R#L70).
 #' 
@@ -286,7 +286,7 @@ cohort_model = function(exposure_dose,exposure_rate,
           # update infection list
           events_list[[id]]$infected[k]=1
           
-          # colculate probability they get a fever given infection
+          # calculate probability they get a fever given infection
           p_fever = p_outcome_given_dose(dose=exposure_dose,CoP_pre=tmp_titer[exposure_month],
                                          outcome='fever_given_infection')
           
@@ -299,20 +299,26 @@ cohort_model = function(exposure_dose,exposure_rate,
             events_list[[id]]$fever[k]=0
           }
           
-          # calculate titer from this infection foreward
-          tmp_titer[exposure_month:length(tmp_titer)]= titer_vs_time(
-            t=(titer_dt*(simulation_months-exposure_month+1))[(exposure_month):length(simulation_months)],
-            age_years = exposure_month/12,
-            CoP_pre = tmp_titer[exposure_month],
-            CoP_peak=tmp_titer[exposure_month]*fold_rise_model(CoP_pre = tmp_titer[exposure_month]))
-          
+          # construct piecewise titer curve from current infection forward
+            titer_pre = tmp_titer[exposure_month]
+            titer_post = titer_pre * fold_rise_model(CoP_pre = titer_pre)
+            
+            future_times = exposure_month:length(simulation_months)
+            future_times_from_new_infection = titer_dt*(simulation_months-exposure_month+1)[future_times]
+            
+            # call titer function
+            tmp_titer[future_times] = titer_vs_time(t=future_times_from_new_infection,
+                                                    age_years = exposure_month/12,
+                                                    CoP_pre = titer_pre,
+                                                    CoP_peak= titer_post)
+            
           # round just because I don't need a bazillion digits
           tmp_titer[exposure_month:length(tmp_titer)] = round(tmp_titer[exposure_month:length(tmp_titer)],2)
         }
         
       }
       
-      # only save titer traces if the subject id is <= max_titer_id for saving.
+      # only save titer traces if the subject id is <= max_titer_id, because this is expensive.
       if(id <= max_titer_id){
         idx = titer_df$id == id
         titer_df$titer[idx] = tmp_titer
@@ -320,31 +326,35 @@ cohort_model = function(exposure_dose,exposure_rate,
     }
   }
   
-  #' Now the model's all run! But that events_list was kind of an ugly way to do things, when we couldn't *a priori* know how many exposure events would happen for each person. So let's tidy that up now into a nice dataframe, and add a couple events to the titer traces for platting later. And return the outputs!
+  #' That takes us through the whole model! But events_list was kind of an ugly way to do things, when we couldn't *a priori* know how many exposure events would happen for each person. So let's tidy that up now into a nice dataframe and add infection events to the titer traces for plotting later. And return the outputs.
 
   # make the events_list into a nice data frame
-  not_empty_idx = which(!sapply(events_list, function(x){ is_empty(x$exposure_month)}))
-  events_df = tibble(id = not_empty_idx, data = events_list[not_empty_idx]) |>
-    unnest_wider(data) |>
-    unnest_longer(c(exposure_month,exposure_count,infected,fever), keep_empty = TRUE) |>
-    mutate(exposure_age=exposure_month/12,
-           age_group=cut(exposure_age,breaks=c(0,2,5,10,15,age_max),include.lowest = TRUE)) |>
-    mutate(age_width=age_width(age_group,age_max)) |>
-    group_by(id) |>
-    mutate(infection_age = if_else(infected==1,exposure_age,NA)) |>
-    mutate(fever_age = if_else(fever==1,exposure_age,NA)) |>
-    mutate(infected = factor(infected),
-           fever = factor(fever)) |>
-    mutate(outcome = interaction(infected,fever)) |>
-    mutate(outcome = fct_recode(outcome,exposed='0.0',infected='1.0',fever='1.1')) |>
-    mutate(outcome = factor(outcome,levels=c('exposed', 'infected', 'fever')))
+  
+    # select all list elements (people) with at least one infection event
+    not_empty_idx = which(!sapply(events_list, function(x){ is_empty(x$exposure_month)}))
+    
+    # challenge to the reader (and author): how does this work???
+    events_df = tibble(id = not_empty_idx, data = events_list[not_empty_idx]) |>
+      unnest_wider(data) |>
+      unnest_longer(c(exposure_month,exposure_count,infected,fever), keep_empty = TRUE) |>
+      mutate(exposure_age=exposure_month/12,
+             age_group=cut(exposure_age,breaks=c(0,2,5,10,15,age_max),include.lowest = TRUE)) |>
+      mutate(age_width=age_width(age_group,age_max)) |>
+      group_by(id) |>
+      mutate(infection_age = if_else(infected==1,exposure_age,NA)) |>
+      mutate(fever_age = if_else(fever==1,exposure_age,NA)) |>
+      mutate(infected = factor(infected),
+             fever = factor(fever)) |>
+      mutate(outcome = interaction(infected,fever)) |>
+      mutate(outcome = fct_recode(outcome,exposed='0.0',infected='1.0',fever='1.1')) |>
+      mutate(outcome = factor(outcome,levels=c('exposed', 'infected', 'fever')))
 
-  # combine some events with titer for plotting
+  # combine time of infection events with titers for plotting
   titer_df = titer_df |>
     left_join(events_df |> select(id,infection_age,infected,fever) |> 
-                # mutate(fever = if_else(is.na(fever),0,fever)) |>
                 drop_na(infected),by=join_by(id ==id, age_years == infection_age))
 
+  # return
   return(list(titer_df=titer_df,
               events_df=events_df,
               config=data.frame(exposure_dose,exposure_rate,N,age_max,titer_dt)))
@@ -353,43 +363,40 @@ cohort_model = function(exposure_dose,exposure_rate,
 
 #' ## Running the model
 #' 
-###### run the model for the three different reference incidence levels
-
-# define setting ecology: exposure rate and dose
-
+#' Now that we have a model, let's take it for a spin. With an eye towards supporting [WHO SAGE in typhoid vaccine policy](https://www.who.int/groups/strategic-advisory-group-of-experts-on-immunization/working-groups/typhoid) decisions ([archival link](https://web.archive.org/web/20250616214834/https://www.who.int/groups/strategic-advisory-group-of-experts-on-immunization/working-groups/typhoid)), we hand-picked exposure rate and dose parameters to roughly mimic three composite archetypes for typhoid incidence. The "medium" incidence setting is characterized by an all-ages annual incidence of typhoid fever less than 100 per 100k persons per year and a flat age distribution among after infancy. The "high" and "very high" incidence settings have similar age distributions that peak at young ages, but differ in overall incidence (100/100k < "high" < 1000/100k vs. $1000/100k < "very high"). 
+#' 
+#+ echo=TRUE, message=FALSE, results = 'hide'
+# if the simulation output is saved, just use the cache. Otherwise, run the models.
 if (!file.exists('scratch/output_cache.RData')){
   output=list()
   
-  # N_cohort=2e4 # a lot faster for playing
-  N_cohort=1e6 # made huge to get good stats at lower incidence
+  # define setting ecology: exposure rate and dose
+
+    # N_cohort=2e4 # a lot faster for playing
+    N_cohort=1e6 # made huge to get good stats at lower incidence
   
-  # medium
-  output[['medium']] = cohort_model(exposure_dose = 5e2,
-                                    exposure_rate=1/(12*40), # per month
-                                    N=N_cohort)
-  
-  # high
-  output[['high']] = cohort_model(exposure_dose = 5e3,
-                                  exposure_rate=1/(12*20), # per month
-                                  N=N_cohort/5)
-  
-  # very high
-  output[['very_high']] = cohort_model(exposure_dose = 5e4,
-                                       exposure_rate=1/(12*20), # per month
-                                       N=N_cohort/10)
-  
-  save(output,N,file='scratch/output_cache.RData')
+    # medium
+    output[['medium']] = cohort_model(exposure_dose = 5e2,
+                                      exposure_rate=1/(12*40), # per month
+                                      N=N_cohort)
+    
+    # high
+    output[['high']] = cohort_model(exposure_dose = 5e3,
+                                    exposure_rate=1/(12*20), # per month
+                                    N=N_cohort/5)
+    
+    # very high
+    output[['very_high']] = cohort_model(exposure_dose = 5e4,
+                                         exposure_rate=1/(12*20), # per month
+                                         N=N_cohort/10)
+    
+    save(output,N,file='scratch/output_cache.RData')
 } else {
   load(file='scratch/output_cache.RData')  
 }
 
-#' ## Results!
-
-# plots 
-
-# incidence targets
-incidence_fever_targets = c(medium = 53,high=214,very_high=1255)
-
+#' And, for summarizing the results, let's calculate incidence per 100k people by age and overall from the events data, and include the total incidence archetype targets for reference.
+#+ echo=TRUE, message=FALSE, results = 'hide'
 # calculate incidence
 for (k in 1:length(output)){
   
@@ -406,8 +413,16 @@ for (k in 1:length(output)){
            incidence_fever_target = incidence_fever_targets[names(output)[k]])
 }
 
-##### make lots of plots
+# incidence targets
+incidence_fever_targets = c(medium = 53,high=214,very_high=1255)
 
+#' ## Results!
+#' 
+#' ### Incidence by age and across setting archetypes
+#' 
+#' Now we make lots of plots. This first loop makes panels for each transmission setting and type of incidence we're currently interested in -- fever, any infection (as determined by stool shedding), and the fraction of infections with fever. There's a bunch of ggplot stuff and I'm sure I could make it less verbose but that's not the point--this is model diagnostics in action.
+
+#+ echo=TRUE, message=FALSE, results = 'hide'
 p_incidence_fever=list()
 p_incidence_infection=list()
 p_symptomatic_fraction=list()
@@ -450,16 +465,31 @@ for (k in 1:length(output)){
           axis.title = element_text(size=10))
 }
 
+#' First up, typhoid fever incidence.
+#' 
+#+ echo=TRUE, message=FALSE, results = 'hide'
 wrap_plots(p_incidence_fever) + plot_layout(guides = "collect",axes='collect')
+# /*
 ggsave('scratch/figures/cohort_model_incidence_fever_by_age.png',units='in',width=7,height=4)
-
+# */
+#' To roughly match the setting targets, we find that the medium incidence setting corresponds to a characteristic typhoid dose of roughly 500 bacilli received once every 40 years on average. High and very high incidence correspond roughly to an exposure every 20 years, but with a characteristic dose of 5000 bacilli (high) or 50,000 bacilli (very high).  Proper calibration to specific targets can refine these numbers, but they illustrate the general principle that typhoid fever incidence depends on exposure rates and doses, and vary by age as a consequence of the interaction of exposure and dose -- the *transmission ecology* -- with immunity acquired over time. 
+#' 
+#' For the next plot, we look at incidence of infection--defined here as any stool shedding. We see that infection incidence varies by an order of magnitude from medium to high fever incidence settings, but that the difference between high and very high fever incidence doesn't require that much higher infection incidence. This makes sense as our hand-picked paramters to describe the high settings have the same average expoosure rate of once every twenty years.
 wrap_plots(p_incidence_infection) + plot_layout(guides = "collect",axes='collect')
+# /*
 ggsave('scratch/figures/cohort_model_incidence_infection_by_age.png',units='in',width=7,height=4)
-
+# */
+#' Rather, we see that the bacilliary dose makes a big difference to the probability of fever given infection. Following from the dose response data that the model is based on, fever is more common with higher doses. Higher doses but not significatly higher exposure rates is our hypothesis for the difference in fever incidence without difference in age distribution.
 wrap_plots(p_symptomatic_fraction) + plot_layout(guides = "collect",axes='collect')
+# /*
 ggsave('scratch/figures/cohort_model_symptomatic_fraction.png',units='in',width=7,height=4)
-
-
+# */
+#' 
+#' ### Individual-level model diagnostics
+#' 
+#' Let's take a look at some model internals that show us what individual life histories look like. The next figure shows some example exposure, infection, and fever event traces, where each row is a person an the x-axis is age.
+#' 
+#+ echo=TRUE, message=FALSE, results = 'hide'
 p_exposure=list()
 for (k in 1:length(output)){
   p_exposure[[k]] = ggplot(output[[k]]$events_df |> filter(id<=40)) +
@@ -474,7 +504,10 @@ for (k in 1:length(output)){
     scale_color_discrete(drop = FALSE)
 }
 wrap_plots(p_exposure) + plot_layout(guides = "collect",axes='collect')
+# /*
 ggsave('scratch/figures/cohort_model_individual_level_exposure_examples.png',units='in',width=7,height=6)
+# */
+#' 
 
 p_titer_examples=list()
 for (k in 1:length(output)){
