@@ -994,7 +994,7 @@
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 20a8 8 0 0 0 8-8 8 8 0 0 0-8-8 8 8 0 0 0-8 8 8 8 0 0 0 8 8m0-18a10 10 0 0 1 10 10 10 10 0 0 1-10 10C6.47 22 2 17.5 2 12A10 10 0 0 1 12 2m.5 5v5.25l4.5 2.67-.75 1.23L11 13V7z"/></svg>
                           <span class="md-ellipsis">
                             
-                              15 min read
+                              21 min read
                             
                           </span>
                         </div>
@@ -1058,6 +1058,66 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#running-the-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      Running the model
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#results" class="md-nav__link">
+    <span class="md-ellipsis">
+      Results!
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Results!">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#incidence-by-age-and-across-setting-archetypes" class="md-nav__link">
+    <span class="md-ellipsis">
+      Incidence by age and across setting archetypes
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#individual-level-model-diagnostics" class="md-nav__link">
+    <span class="md-ellipsis">
+      Individual-level model diagnostics
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#population-immunity" class="md-nav__link">
+    <span class="md-ellipsis">
+      Population immunity
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#open-questions-for-model-development" class="md-nav__link">
+    <span class="md-ellipsis">
+      Open questions for model development
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1117,6 +1177,7 @@ environment.</p>
 library(tidyverse)
 library(patchwork)
 library(ggridges)
+library(scales)
 
 # age width function
 # I use this later to re-extract age_group widths from a cut() call
@@ -1182,7 +1243,7 @@ expand.grid(t=seq(0,10,by=1/24), age_years = factor(c(1,5,15,45))) |&gt;
 <p><img alt="" src="../../../../cohort_incidence_model_proof_of_concept_files/figure-markdown_strict/unnamed-chunk-2-1.png" /></p>
 <p>The <strong>fold-rise model</strong> describes the CoP response after an immunizing
 event, given the pre-challenge CoP. The default for
-<em>C</em><em>o</em><em>P</em><sub><em>m</em></sub><em>a</em><em>x</em>, the maximum possible titer (discussed
+<em>C</em><em>o</em><em>P</em><sub><em>m</em><em>a</em><em>x</em></sub>, the maximum possible titer (discussed
 <a href="https://famulare.github.io/2024/03/07/Conjecture-the-maximum-NAb-titer.html">here</a>)
 comes from an analysis of pre-post vaccine responses, and the default
 <em>m</em><em>u</em><sub>0</sub> parameter is set by a loosely informed guess from <a href="https://www.thelancet.com/journals/lanmic/article/PIIS2666-5247(22)00114-8/fulltext#fig3">a
@@ -1243,9 +1304,10 @@ that an a bunch of other things included vaccines, all to be described
 another day.</p>
 <pre><code># dose response
 p_outcome_given_dose = function(dose=1e4,  CoP_pre=1, outcome = 'fever_given_dose', 
-                                n50_fever_given_dose=27800, alpha_fever_given_dose=0.84, gamma_fever_given_dose=0.4,
+                                n50_fever_given_dose=27800, alpha_fever_given_dose=0.84, 
+                                gamma_fever_given_dose=0.4,
                                 n50_infection_given_dose=27800/10,alpha_infection_given_dose = 0.84*2, 
-                                gamma_infection_given_dose=0.4/2. # tweaking from previous hand guess to better match comment from Kyra about their estimate of adult immunity
+                                gamma_infection_given_dose=0.4/2 
                                 ){
 
   if(outcome == 'fever_given_dose'){
@@ -1254,12 +1316,15 @@ p_outcome_given_dose = function(dose=1e4,  CoP_pre=1, outcome = 'fever_given_dos
 
   } else if (outcome == 'infection_given_dose'){
 
-    p = 1 - (1+dose*(2^(1/alpha_infection_given_dose)-1)/n50_infection_given_dose)^(-alpha_infection_given_dose/(CoP_pre^gamma_infection_given_dose))
+    p = 1 - (1+dose*(2^(1/alpha_infection_given_dose)-1)/n50_infection_given_dose)^
+      (-alpha_infection_given_dose/(CoP_pre^gamma_infection_given_dose))
 
   } else if (outcome == 'fever_given_infection'){
 
-    p = (1 - (1+dose*(2^(1/alpha_fever_given_dose)-1)/n50_fever_given_dose)^(-alpha_fever_given_dose/(CoP_pre^gamma_fever_given_dose))) /
-      (1 - (1+dose*(2^(1/alpha_infection_given_dose)-1)/n50_infection_given_dose)^(-alpha_infection_given_dose/(CoP_pre^gamma_infection_given_dose)))
+    p = (1 - (1+dose*(2^(1/alpha_fever_given_dose)-1)/n50_fever_given_dose)^
+           (-alpha_fever_given_dose/(CoP_pre^gamma_fever_given_dose))) /
+      (1 - (1+dose*(2^(1/alpha_infection_given_dose)-1)/n50_infection_given_dose)^
+         (-alpha_infection_given_dose/(CoP_pre^gamma_infection_given_dose)))
 
   }
 
@@ -1278,7 +1343,8 @@ expand.grid(dose = 10^seq(0,9,by=0.1),
   facet_grid('~outcome') +
   theme_bw() +
   ylim(c(0,1)) +
-  scale_x_continuous(trans='log10', breaks=10^seq(0,10,by=2),minor_breaks = NULL,labels = scales::trans_format("log10", math_format(10^.x)) )
+  scale_x_continuous(trans='log10', breaks=10^seq(0,10,by=2),minor_breaks = NULL,
+                     labels = trans_format("log10", math_format(10^.x)) )
 </code></pre>
 <p><img alt="" src="../../../../cohort_incidence_model_proof_of_concept_files/figure-markdown_strict/unnamed-chunk-5-1.png" /></p>
 <p>The <strong>protective efficacy of prior infection</strong> (in this case, also
@@ -1287,10 +1353,10 @@ reduction in the outcome (either stool-culture confirmed infection or
 fever, but could be other things like seroresponse, bacteremia, and
 conversion to carrier status) for a person with a given level of
 immunity vs a person who has never been exposed.</p>
-<p>#+ echo=TRUE, message=FALSE, results = ‘hide’</p>
 <pre><code># protective efficacy vs CoP_pre
 protective_efficacy = function(dose=1e4,  CoP_pre=1, outcome = 'fever_given_dose', CoP_control=1){
-  VE = 1 - p_outcome_given_dose(dose,CoP_pre=CoP_pre,outcome = outcome)/p_outcome_given_dose(dose,CoP_pre=CoP_control,outcome = outcome)
+  VE = 1 - p_outcome_given_dose(dose,CoP_pre=CoP_pre,outcome = outcome)/
+    p_outcome_given_dose(dose,CoP_pre=CoP_control,outcome = outcome)
   return(VE)
 }
 
@@ -1306,7 +1372,8 @@ expand.grid(dose = 10^seq(0,8,by=0.1),
   facet_grid('~outcome') +
   theme_bw() +
   ylim(c(0,1)) +
-  scale_x_continuous(trans='log10', breaks=10^seq(0,10,by=2),minor_breaks = NULL,labels = scales::trans_format("log10", math_format(10^.x)) )
+  scale_x_continuous(trans='log10', breaks=10^seq(0,10,by=2),minor_breaks = NULL,
+                     labels = scales::trans_format("log10", math_format(10^.x)) )
 </code></pre>
 <p><img alt="" src="../../../../cohort_incidence_model_proof_of_concept_files/figure-markdown_strict/unnamed-chunk-6-1.png" /></p>
 <p>The really interesting thing about this kind of model is that it
@@ -1317,14 +1384,30 @@ and place, but is missing from the standard logistic regression
 approaches to modeling efficacy vs CoP that are standard in vaccinology
 (and which this model reduces to in the low dose limit.)</p>
 <h2 id="cohort-incidence-model">Cohort incidence model</h2>
-<pre><code>##### wrap the cohort model in a function
-cohort_model = function(exposure_dose,exposure_rate,
+<p>To show what the model can do, I built a constant force of infection
+cohort model. This model is designed to demonstrate what individual
+susceptibility and immune response looks like over a lifetime, in
+fictional settings where the force of infection never changes. It isn’t
+a full transmission model because this version of the model lacks
+bacterial shedding, transmission routes, and contacts between people.
+But, any transmission model that establishes these endemic equilibrium
+exposure rates would show the same cohort behavior for these variables.</p>
+<p>To make everything play nice for running the model and plotting later, I
+wrapped the whole thing in a function. So let’s have some fun stepping
+through that function, in the literate programming style enabled by
+<code>knitr::spin</code> and a <a href="https://github.com/famulare/typhoid-immune-dynamics/blob/277c1ce3606a88c2374be892c7d1f7c5788d0ec7/docs/docs_helper_functions.R#L70">custom post-processing
+one-liner</a>.</p>
+<p>First, we define the function and it’s inputs.</p>
+<pre><code>cohort_model = function(exposure_dose,exposure_rate,
                         N=1000,age_max=75,
-                        titer_dt=365/12, # monthly timesteps so I don't have to worry about blocking reinfection during current infection
+                        titer_dt=365/12, # monthly timesteps so I can assume infections last one timestep
                         max_titer_id = 1000 # saving every titer above ~1000 gets really slow
                         ){
-
-  simulation_months = seq(0,age_max*12-1,by=1)
+</code></pre>
+<p>The two variables that define the transmission ecology are the exposure dose and exposure rate. The exposure dose is the number of bacilli typically ingested when exposed in the setting. This could be drawn from a distribution, but we'll just assume it's a fixed value for now. The exposure rate is the Poisson rate for how often a person is exposed to an infectious dose. Together, through the dose response model, the exposure rate and dose determine how often people get infected. </p>
+<p>The other parameters are just basic simulation config stuff. How many people (default <code>N=1000</code>), what is the maximimum age in years (default <code>age_max = 75</code>), the timestep (default <code>titer_dt=365/12</code>= 1 month), and how many people will we track the full time history of the titer for (default 'max_titer_id=1000'; I suggest you keep this at this size regardless of the N, as this is the slowest part of the code), </p>
+<p>With the function header and parameters defined, we step into the code. First, we initialize the time bins and the containers for the simulation outputs. </p>
+<pre><code>  simulation_months = seq(0,age_max*12-1,by=1)
 
   # titer tracker
   titer_df = expand.grid(id=1:max_titer_id, 
@@ -1339,11 +1422,13 @@ cohort_model = function(exposure_dose,exposure_rate,
                                    infected = NULL, 
                                    fever = NULL), 
                            simplify = FALSE)
-
-  # age-dependent exposure rate, to account for kids under 2y having less exposure to food and sewage
+</code></pre>
+<p>We also make one extra accounting for reality, which is that young children have less exposure to typhoid. Infants because they do not eat adult food, and toddlers because they tyically eat small and limited diets. This should probably be configurable as parameters, but I'm not gonna play with it in this script so I just hard coded that children up through 12 months of age have 10% the exposure of adults and children 1-2 years have 50%, by pure assumption.</p>
+<pre><code>  # age-dependent exposure rate, to account for kids under 2y having less exposure to food and sewage
   exposure_rate_multiplier = c(rep(0.1,13),rep(0.5,12),rep(1,length(simulation_months)-25))
-
-  # expose
+</code></pre>
+<p>With that set up, we can expose everyone for their lifetimes and save the exposure event times.</p>
+<pre><code>  # expose
   for (id in (1:N)){
     tmp_exposed = rpois(length(exposure_rate_multiplier),exposure_rate*exposure_rate_multiplier)
     events_list[[id]]$exposure_month = which(tmp_exposed&gt;0)
@@ -1353,117 +1438,156 @@ cohort_model = function(exposure_dose,exposure_rate,
     events_list[[id]]$infected = rep(0, length(events_list[[id]]$exposure_month))
     events_list[[id]]$fever = rep(0, length(events_list[[id]]$exposure_month))
   }
-
-  # infect and titer
+</code></pre>
+<p>Now that we know when everone is exposed, we can step through to find when they are infected, and after each infection, what their antibody titers are until the next infection. At each exposure, the probability of infection is determined by the dose and the current titer. At each infection, the current titer is boosted by the fold-rise model and between infections, it wanes with the waning model. </p>
+<pre><code>  # infect and titer
   for (id in (1:N)){
 
+    # titer holder, initialized at CoP_min=1 from birth
     tmp_titer =rep(1,length(simulation_months))
 
+    # for each exposed person
     if (length(events_list[[id]]$exposure_month) &gt;0){
       for (k in 1:length(events_list[[id]]$exposure_month)){
 
         exposure_month = events_list[[id]]$exposure_month[k]
 
-        p_once = p_outcome_given_dose(dose=exposure_dose,CoP_pre=tmp_titer[exposure_month],outcome='infection_given_dose')
+        # calculate their infection probability in that timestep (which may have more than 1 exposure)
+        p_once = p_outcome_given_dose(dose=exposure_dose,CoP_pre=tmp_titer[exposure_month],
+                                      outcome='infection_given_dose')
         p_inf = 1-(1-p_once)^events_list[[id]]$exposure_count[k]
 
         if(runif(1)&gt;p_inf){
+          # if not infected, record not infected upon exposure
           events_list[[id]]$infected[k] = 0
           events_list[[id]]$fever[k]    = 0
         } else {
+          # if infected
 
           # update infection list
           events_list[[id]]$infected[k]=1
 
-          # update fever list 
-          p_fever = p_outcome_given_dose(dose=exposure_dose,CoP_pre=tmp_titer[exposure_month],outcome='fever_given_infection')
+          # calculate probability they get a fever given infection
+          p_fever = p_outcome_given_dose(dose=exposure_dose,CoP_pre=tmp_titer[exposure_month],
+                                         outcome='fever_given_infection')
+
+          # update fever list
           if (runif(n=1)&lt;=p_fever){
+            # if fever
             events_list[[id]]$fever[k]=1
           } else {
+            # if no fever
             events_list[[id]]$fever[k]=0
           }
 
-          tmp_titer[exposure_month:length(tmp_titer)]= titer_vs_time(t=(titer_dt*(simulation_months-exposure_month+1))[(exposure_month):length(simulation_months)],
-                                                               age_years = exposure_month/12,
-                                                               CoP_pre = tmp_titer[exposure_month],
-                                                               CoP_peak=tmp_titer[exposure_month]*fold_rise_model(CoP_pre = tmp_titer[exposure_month]))
+          # construct piecewise titer curve from current infection forward
+            titer_pre = tmp_titer[exposure_month]
+            titer_post = titer_pre * fold_rise_model(CoP_pre = titer_pre)
+
+            future_times = exposure_month:length(simulation_months)
+            future_times_from_new_infection = titer_dt*(simulation_months-exposure_month+1)[future_times]
+
+            # call titer function
+            tmp_titer[future_times] = titer_vs_time(t=future_times_from_new_infection,
+                                                    age_years = exposure_month/12,
+                                                    CoP_pre = titer_pre,
+                                                    CoP_peak= titer_post)
+
+          # round just because I don't need a bazillion digits
           tmp_titer[exposure_month:length(tmp_titer)] = round(tmp_titer[exposure_month:length(tmp_titer)],2)
         }
 
       }
 
+      # only save titer traces if the subject id is &lt;= max_titer_id, because this is expensive.
       if(id &lt;= max_titer_id){
         idx = titer_df$id == id
         titer_df$titer[idx] = tmp_titer
       }
     }
   }
+</code></pre>
+<p>That takes us through the whole model! But events_list was kind of an ugly way to do things, when we couldn't <em>a priori</em> know how many exposure events would happen for each person. So let's tidy that up now into a nice dataframe and add infection events to the titer traces for plotting later. And return the outputs.</p>
+<pre><code>  # make the events_list into a nice data frame
 
-  # make the events_list into a nice data frame
-  not_empty_idx = which(!sapply(events_list, function(x){ is_empty(x$exposure_month)}))
-  events_df = tibble(id = not_empty_idx, data = events_list[not_empty_idx]) |&gt;
-    unnest_wider(data) |&gt;
-    unnest_longer(c(exposure_month,exposure_count,infected,fever), keep_empty = TRUE) |&gt;
-    mutate(exposure_age=exposure_month/12,
-           age_group=cut(exposure_age,breaks=c(0,2,5,10,15,age_max),include.lowest = TRUE)) |&gt;
-    mutate(age_width=age_width(age_group,age_max)) |&gt;
-    group_by(id) |&gt;
-    mutate(infection_age = if_else(infected==1,exposure_age,NA)) |&gt;
-    mutate(fever_age = if_else(fever==1,exposure_age,NA)) |&gt;
-    mutate(infected = factor(infected),
-           fever = factor(fever)) |&gt;
-    mutate(outcome = interaction(infected,fever)) |&gt;
-    mutate(outcome = fct_recode(outcome,exposed='0.0',infected='1.0',fever='1.1')) |&gt;
-    mutate(outcome = factor(outcome,levels=c('exposed', 'infected', 'fever')))
+    # select all list elements (people) with at least one infection event
+    not_empty_idx = which(!sapply(events_list, function(x){ is_empty(x$exposure_month)}))
 
-  # combine some events with titer for plotting
+    # challenge to the reader (and author): how does this work???
+    events_df = tibble(id = not_empty_idx, data = events_list[not_empty_idx]) |&gt;
+      unnest_wider(data) |&gt;
+      unnest_longer(c(exposure_month,exposure_count,infected,fever), keep_empty = TRUE) |&gt;
+      mutate(exposure_age=exposure_month/12,
+             age_group=cut(exposure_age,breaks=c(0,2,5,10,15,age_max),include.lowest = TRUE)) |&gt;
+      mutate(age_width=age_width(age_group,age_max)) |&gt;
+      group_by(id) |&gt;
+      mutate(infection_age = if_else(infected==1,exposure_age,NA)) |&gt;
+      mutate(fever_age = if_else(fever==1,exposure_age,NA)) |&gt;
+      mutate(infected = factor(infected),
+             fever = factor(fever)) |&gt;
+      mutate(outcome = interaction(infected,fever)) |&gt;
+      mutate(outcome = fct_recode(outcome,exposed='0.0',infected='1.0',fever='1.1')) |&gt;
+      mutate(outcome = factor(outcome,levels=c('exposed', 'infected', 'fever')))
+
+  # combine time of infection events with titers for plotting
   titer_df = titer_df |&gt;
     left_join(events_df |&gt; select(id,infection_age,infected,fever) |&gt; 
-                # mutate(fever = if_else(is.na(fever),0,fever)) |&gt;
                 drop_na(infected),by=join_by(id ==id, age_years == infection_age))
 
+  # return
   return(list(titer_df=titer_df,
               events_df=events_df,
               config=data.frame(exposure_dose,exposure_rate,N,age_max,titer_dt)))
 
 }
-
-###### run the model for the three different reference incidence levels
-
-# define setting ecology: exposure rate and dose
-
+</code></pre>
+<h2 id="running-the-model">Running the model</h2>
+<p>Now that we have a model, let’s take it for a spin. With an eye towards
+supporting <a href="https://www.who.int/groups/strategic-advisory-group-of-experts-on-immunization/working-groups/typhoid">WHO SAGE in typhoid vaccine
+policy</a>
+decisions (<a href="https://web.archive.org/web/20250616214834/https://www.who.int/groups/strategic-advisory-group-of-experts-on-immunization/working-groups/typhoid">archival
+link</a>),
+we hand-picked exposure rate and dose parameters to roughly mimic three
+composite archetypes for typhoid incidence. The “medium” incidence
+setting is characterized by an all-ages annual incidence of typhoid
+fever less than 100 per 100k persons per year and a flat age
+distribution among after infancy. The “high” and “very high” incidence
+settings have similar age distributions that peak at young ages, but
+differ in overall incidence (100/100k &lt; “high” &lt; 1000/100k
+vs. $1000/100k &lt; “very high”).</p>
+<pre><code># if the simulation output is saved, just use the cache. Otherwise, run the models.
 if (!file.exists('scratch/output_cache.RData')){
   output=list()
 
-  # N_cohort=2e4 # a lot faster for playing
-  N_cohort=1e6 # made huge to get good stats at lower incidence
+  # define setting ecology: exposure rate and dose
 
-  # medium
-  output[['medium']] = cohort_model(exposure_dose = 5e2,
-                                    exposure_rate=1/(12*40), # per month
-                                    N=N_cohort)
+    # N_cohort=2e4 # a lot faster for playing
+    N_cohort=1e6 # made huge to get good stats at lower incidence
 
-  # high
-  output[['high']] = cohort_model(exposure_dose = 5e3,
-                                  exposure_rate=1/(12*20), # per month
-                                  N=N_cohort/5)
+    # medium
+    output[['medium']] = cohort_model(exposure_dose = 5e2,
+                                      exposure_rate=1/(12*40), # per month
+                                      N=N_cohort)
 
-  # very high
-  output[['very_high']] = cohort_model(exposure_dose = 5e4,
-                                       exposure_rate=1/(12*20), # per month
-                                       N=N_cohort/10)
+    # high
+    output[['high']] = cohort_model(exposure_dose = 5e3,
+                                    exposure_rate=1/(12*20), # per month
+                                    N=N_cohort/5)
 
-  save(output,N,file='scratch/output_cache.RData')
+    # very high
+    output[['very_high']] = cohort_model(exposure_dose = 5e4,
+                                         exposure_rate=1/(12*20), # per month
+                                         N=N_cohort/10)
+
+    save(output,N,file='scratch/output_cache.RData')
 } else {
   load(file='scratch/output_cache.RData')  
 }
-
-# plots
-
-# incidence targets
-incidence_fever_targets = c(medium = 53,high=214,very_high=1255)
-
-# calculate incidence
+</code></pre>
+<p>And, for summarizing the results, let’s calculate incidence per 100k
+people by age and overall from the events data, and include the total
+incidence archetype targets for reference.</p>
+<pre><code># calculate incidence
 for (k in 1:length(output)){
 
   N = output[[k]]$config$N
@@ -1479,9 +1603,18 @@ for (k in 1:length(output)){
            incidence_fever_target = incidence_fever_targets[names(output)[k]])
 }
 
-##### make lots of plots
-
-p_incidence_fever=list()
+# incidence targets
+incidence_fever_targets = c(medium = 53,high=214,very_high=1255)
+</code></pre>
+<h2 id="results">Results!</h2>
+<h3 id="incidence-by-age-and-across-setting-archetypes">Incidence by age and across setting archetypes</h3>
+<p>Now we make lots of plots. This first loop makes panels for each
+transmission setting and type of incidence we’re currently interested in
+– fever, any infection (as determined by stool shedding), and the
+fraction of infections with fever. There’s a bunch of ggplot stuff and
+I’m sure I could make it less verbose but that’s not the point–this is
+model diagnostics in action.</p>
+<pre><code>p_incidence_fever=list()
 p_incidence_infection=list()
 p_symptomatic_fraction=list()
 for (k in 1:length(output)){
@@ -1522,24 +1655,46 @@ for (k in 1:length(output)){
     theme(plot.title=element_text(size=10),plot.subtitle=element_text(size=8),
           axis.title = element_text(size=10))
 }
-
-wrap_plots(p_incidence_fever) + plot_layout(guides = "collect",axes='collect')
 </code></pre>
-<p><img alt="" src="../../../../cohort_incidence_model_proof_of_concept_files/figure-markdown_strict/unnamed-chunk-8-1.png" /></p>
-<pre><code>ggsave('scratch/figures/cohort_model_incidence_fever_by_age.png',units='in',width=7,height=4)
-
-wrap_plots(p_incidence_infection) + plot_layout(guides = "collect",axes='collect')
+<p>First up, typhoid fever incidence.</p>
+<pre><code>wrap_plots(p_incidence_fever) + plot_layout(guides = "collect",axes='collect')
 </code></pre>
-<p><img alt="" src="../../../../cohort_incidence_model_proof_of_concept_files/figure-markdown_strict/unnamed-chunk-8-2.png" /></p>
-<pre><code>ggsave('scratch/figures/cohort_model_incidence_infection_by_age.png',units='in',width=7,height=4)
-
-wrap_plots(p_symptomatic_fraction) + plot_layout(guides = "collect",axes='collect')
+<p><img alt="" src="../../../../cohort_incidence_model_proof_of_concept_files/figure-markdown_strict/unnamed-chunk-12-1.png" /></p>
+<p>To roughly match the setting targets, we find that the medium incidence
+setting corresponds to a characteristic typhoid dose of roughly 500
+bacilli received once every 40 years on average. High and very high
+incidence correspond roughly to an exposure every 20 years, but with a
+characteristic dose of 5000 bacilli (high) or 50,000 bacilli (very
+high). Proper calibration to specific targets can refine these numbers,
+but they illustrate the general principle that typhoid fever incidence
+depends on exposure rates and doses, and vary by age as a consequence of
+the interaction of exposure and dose – the <em>transmission ecology</em> – with
+immunity acquired over time.</p>
+<p>For the next plot, we look at incidence of infection–defined here as any
+stool shedding. We see that infection incidence varies by an order of
+magnitude from medium to high fever incidence settings, but that the
+difference between high and very high fever incidence doesn’t require
+that much higher infection incidence. This makes sense as our
+hand-picked paramters to describe the high settings have the same
+average expoosure rate of once every twenty years.</p>
+<pre><code>wrap_plots(p_incidence_infection) + plot_layout(guides = "collect",axes='collect')
 </code></pre>
-<p><img alt="" src="../../../../cohort_incidence_model_proof_of_concept_files/figure-markdown_strict/unnamed-chunk-8-3.png" /></p>
-<pre><code>ggsave('scratch/figures/cohort_model_symptomatic_fraction.png',units='in',width=7,height=4)
-
-
-p_exposure=list()
+<p><img alt="" src="../../../../cohort_incidence_model_proof_of_concept_files/figure-markdown_strict/unnamed-chunk-13-1.png" /></p>
+<p>Rather, we see that the bacilliary dose makes a big difference to the
+probability of fever given infection. Following from the dose response
+data that the model is based on, fever is more common with higher doses.
+Higher doses but not significatly higher exposure rates is our
+hypothesis for the difference in fever incidence without difference in
+age distribution.</p>
+<pre><code>wrap_plots(p_symptomatic_fraction) + plot_layout(guides = "collect",axes='collect')
+</code></pre>
+<p><img alt="" src="../../../../cohort_incidence_model_proof_of_concept_files/figure-markdown_strict/unnamed-chunk-14-1.png" /></p>
+<h3 id="individual-level-model-diagnostics">Individual-level model diagnostics</h3>
+<p>Let’s take a look at some model internals that show us what individual
+life histories look like. The next figure shows some example exposure,
+infection, and fever event traces, where each row is a person an the
+x-axis is age.</p>
+<pre><code>p_exposure=list()
 for (k in 1:length(output)){
   p_exposure[[k]] = ggplot(output[[k]]$events_df |&gt; filter(id&lt;=40)) +
                       geom_point(aes(x=exposure_age,color=outcome,y=id)) +
@@ -1554,10 +1709,19 @@ for (k in 1:length(output)){
 }
 wrap_plots(p_exposure) + plot_layout(guides = "collect",axes='collect')
 </code></pre>
-<p><img alt="" src="../../../../cohort_incidence_model_proof_of_concept_files/figure-markdown_strict/unnamed-chunk-8-4.png" /></p>
-<pre><code>ggsave('scratch/figures/cohort_model_individual_level_exposure_examples.png',units='in',width=7,height=6)
-
-p_titer_examples=list()
+<p><img alt="" src="../../../../cohort_incidence_model_proof_of_concept_files/figure-markdown_strict/unnamed-chunk-15-1.png" /></p>
+<p>The exposure events are shown as points, with the color indicating the
+outcome of the exposure. The outcome is either “exposed” (no infection
+or fever), “infected” (stool shedding but no fever), or “fever” (stool
+shedding and fever). The x-axis is age in years, and the y-axis is
+person id. We see that most people are exposed at least once, and that
+some people have multiple exposures, infections, and fevers.</p>
+<p>The next figure shows the same thing, but with the titer traces for each
+person. In the medium incidence setting, most people are never infected,
+whereas mulitple infection is common in the high and very high incidence
+settings. If you look closely, you can also see how the waning rate
+slows down with age, consistent with data from TCV trials.</p>
+<pre><code>p_titer_examples=list()
 for (k in 1:length(output)){
   p_titer_examples[[k]] = ggplot() +
     geom_line(data=output[[k]]$titer_df |&gt; filter(id&lt;=20),aes(x=age_years,y=titer)) + 
@@ -1576,19 +1740,27 @@ for (k in 1:length(output)){
 }
 wrap_plots(p_titer_examples) + plot_layout(guides = "collect",axes='collect')
 </code></pre>
-<p><img alt="" src="../../../../cohort_incidence_model_proof_of_concept_files/figure-markdown_strict/unnamed-chunk-8-5.png" /></p>
-<pre><code>ggsave('scratch/figures/cohort_model_individual_level_titer_examples.png',units='in',width=12,height=6)
-
-
-p_titer_summary=list()
+<p><img alt="" src="../../../../cohort_incidence_model_proof_of_concept_files/figure-markdown_strict/unnamed-chunk-16-1.png" /></p>
+<h3 id="population-immunity">Population immunity</h3>
+<p>This last figure block calculates the population-level anti-Vi IgG
+titers and protective efficacy by age, given the model outputs. It shows
+how the titer and protective efficacy change with age, and how they
+differ across the three incidence settings. The titer is calculated as
+the geometric mean titer (GMT) and median titer, with 95% and IQR
+confidence intervals. The protective efficacy is calculated as the
+median and IQR of the protective efficacy given dose, which is a
+function of the exposure dose and the titer.</p>
+<pre><code>p_titer_summary=list()
 p_titer_density=list()
-p_protective_efficacy_summary=list()
+p_protective_efficacy_infection_summary=list()
+p_protective_efficacy_fever_summary=list()
 for (k in 1:length(output)){
 
   exposure_dose = output[[k]]$config$exposure_dose
 
   tmp_titer_summary =output[[k]]$titer_df |&gt;
-    mutate(protective_efficacy = protective_efficacy(dose = exposure_dose,CoP_pre = titer, outcome='infection_given_dose')) |&gt;
+    mutate(protective_efficacy_infection = protective_efficacy(dose = exposure_dose,CoP_pre = titer, outcome='infection_given_dose')) |&gt;
+    mutate(protective_efficacy_fever = protective_efficacy(dose = exposure_dose,CoP_pre = titer, outcome='fever_given_dose')) |&gt;
     group_by(age_years) |&gt;
     summarize(titer_gmt = exp(mean(log(titer))),
            titer_median = median(titer),
@@ -1596,11 +1768,16 @@ for (k in 1:length(output)){
            titer_lower_iqr = quantile(titer,probs=0.25),
            titer_upper_95 = quantile(titer,probs=0.975),
            titer_lower_95 = quantile(titer,probs=0.025),
-           protective_efficacy_median = median(protective_efficacy),
-           protective_efficacy_upper_iqr = quantile(protective_efficacy,probs=0.75),
-           protective_efficacy_lower_iqr = quantile(protective_efficacy,probs=0.25),
-           protective_efficacy_upper_95 = quantile(protective_efficacy,probs=0.975),
-           protective_efficacy_lower_95 = quantile(protective_efficacy,probs=0.025))
+           protective_efficacy_infection_median = median(protective_efficacy_infection),
+           protective_efficacy_infection_upper_iqr = quantile(protective_efficacy_infection,probs=0.75),
+           protective_efficacy_infection_lower_iqr = quantile(protective_efficacy_infection,probs=0.25),
+           protective_efficacy_infection_upper_95 = quantile(protective_efficacy_infection,probs=0.975),
+           protective_efficacy_infection_lower_95 = quantile(protective_efficacy_infection,probs=0.025),
+           protective_efficacy_fever_median = median(protective_efficacy_fever),
+           protective_efficacy_fever_upper_iqr = quantile(protective_efficacy_fever,probs=0.75),
+           protective_efficacy_fever_lower_iqr = quantile(protective_efficacy_fever,probs=0.25),
+           protective_efficacy_fever_upper_95 = quantile(protective_efficacy_fever,probs=0.975),
+           protective_efficacy_fever_lower_95 = quantile(protective_efficacy_fever,probs=0.025))
 
   p_titer_summary[[k]] = ggplot(tmp_titer_summary) +
     geom_ribbon(aes(x=age_years,ymin=titer_lower_95,ymax=titer_upper_95),alpha=0.2)+
@@ -1617,10 +1794,10 @@ for (k in 1:length(output)){
           axis.title = element_text(size=10)) +
     ylab('anti-Vi IgG EU/ml')
 
-  p_protective_efficacy_summary[[k]] = ggplot(tmp_titer_summary) +
-    geom_ribbon(aes(x=age_years,ymin=protective_efficacy_lower_95,ymax=protective_efficacy_upper_95),alpha=0.2)+
-    geom_ribbon(aes(x=age_years,ymin=protective_efficacy_lower_iqr,ymax=protective_efficacy_upper_iqr),alpha=0.2)+
-    geom_line(aes(x=age_years,y=protective_efficacy_median)) + 
+p_protective_efficacy_infection_summary[[k]] = ggplot(tmp_titer_summary) +
+    geom_ribbon(aes(x=age_years,ymin=protective_efficacy_infection_lower_95,ymax=protective_efficacy_infection_upper_95),alpha=0.2)+
+    geom_ribbon(aes(x=age_years,ymin=protective_efficacy_infection_lower_iqr,ymax=protective_efficacy_infection_upper_iqr),alpha=0.2)+
+    geom_line(aes(x=age_years,y=protective_efficacy_infection_median)) + 
     scale_y_continuous(limits=c(0,1)) +
     theme_bw() +
     xlab('age') +
@@ -1629,7 +1806,21 @@ for (k in 1:length(output)){
                         1/(12*output[[k]]$config$exposure_rate),sep='')) +
     theme(plot.title=element_text(size=10),plot.subtitle=element_text(size=8),
           axis.title = element_text(size=10)) +
-    ylab('protective efficacy')
+    ylab('protective efficacy against infection')
+
+p_protective_efficacy_fever_summary[[k]] = ggplot(tmp_titer_summary) +
+    geom_ribbon(aes(x=age_years,ymin=protective_efficacy_fever_lower_95,ymax=protective_efficacy_fever_upper_95),alpha=0.2)+
+    geom_ribbon(aes(x=age_years,ymin=protective_efficacy_fever_lower_iqr,ymax=protective_efficacy_fever_upper_iqr),alpha=0.2)+
+    geom_line(aes(x=age_years,y=protective_efficacy_fever_median)) + 
+    scale_y_continuous(limits=c(0,1)) +
+    theme_bw() +
+    xlab('age') +
+    labs(title = paste(sub('_',' ',names(output)[k]),' incidence',sep=''),
+         subtitle=paste('dose = ',output[[k]]$config$exposure_dose,' bacilli\nmean years b/w exposures = ',
+                        1/(12*output[[k]]$config$exposure_rate),sep='')) +
+    theme(plot.title=element_text(size=10),plot.subtitle=element_text(size=8),
+          axis.title = element_text(size=10)) +
+    ylab('protective efficacy against fever')
 
 
   sampled_titer_df = output[[k]]$titer_df |&gt;
@@ -1647,33 +1838,52 @@ for (k in 1:length(output)){
     theme(plot.title=element_text(size=10),plot.subtitle=element_text(size=8),
           axis.title = element_text(size=10)) 
 }
-wrap_plots(p_titer_summary) + plot_layout(guides = "collect",axes='collect')
 </code></pre>
-<p><img alt="" src="../../../../cohort_incidence_model_proof_of_concept_files/figure-markdown_strict/unnamed-chunk-8-6.png" /></p>
-<pre><code>ggsave('scratch/figures/cohort_model_titer_vs_age_summary.png',units='in',width=7,height=4)
-
-wrap_plots(p_protective_efficacy_summary) + plot_layout(guides = "collect",axes='collect')
+<p>This first plot shows the titer distribution by age, and</p>
+<pre><code>wrap_plots(p_titer_summary) + plot_layout(guides = "collect",axes='collect')
 </code></pre>
-<p><img alt="" src="../../../../cohort_incidence_model_proof_of_concept_files/figure-markdown_strict/unnamed-chunk-8-7.png" /></p>
-<pre><code>ggsave('scratch/figures/cohort_model_protective_efficacy_infection_vs_age_summary.png',units='in',width=7,height=4)
-
-wrap_plots(p_titer_density) + plot_layout(guides = "collect",axes='collect')
-
-## Warning: Removed 4856 rows containing non-finite outside the scale range (`stat_density_ridges()`).
-
-## Warning: Removed 4080 rows containing non-finite outside the scale range (`stat_density_ridges()`).
-
-## Warning: Removed 3785 rows containing non-finite outside the scale range (`stat_density_ridges()`).
+<p><img alt="" src="../../../../cohort_incidence_model_proof_of_concept_files/figure-markdown_strict/unnamed-chunk-18-1.png" /></p>
+<p>the second shows the distribution of individual-level protective
+efficacies against infection and fever given those titers.</p>
+<pre><code>wrap_plots(wrap_plots(p_protective_efficacy_fever_summary),wrap_plots(p_protective_efficacy_infection_summary),nrow=2) + plot_layout(guides = "collect",axes='collect')
 </code></pre>
-<p><img alt="" src="../../../../cohort_incidence_model_proof_of_concept_files/figure-markdown_strict/unnamed-chunk-8-8.png" /></p>
-<pre><code>ggsave('scratch/figures/cohort_model_titer_density.png',units='in',width=7,height=4)
-
-## Warning: Removed 4856 rows containing non-finite outside the scale range (`stat_density_ridges()`).
-
-## Warning: Removed 4080 rows containing non-finite outside the scale range (`stat_density_ridges()`).
-
-## Warning: Removed 3785 rows containing non-finite outside the scale range (`stat_density_ridges()`).
+<p><img alt="" src="../../../../cohort_incidence_model_proof_of_concept_files/figure-markdown_strict/unnamed-chunk-19-1.png" /></p>
+<p>Across settings, we see that immunity gets higher with age due to
+intensity of exposure and infection number, and that people, perhaps
+non-intuitively, have the highest protective efficacy in the highest
+incidence settings. This shows how exposure can more than compensate
+immunity, and thus the population-level epidemiology is a result of both
+transmission ecology and individual-level traits. This last figure shows
+densities of randomly sampled titers for simulated people who are above
+the detection threshold of the <a href="https://www.thermofisher.com/bindingsite/wo/en/products/immunoassays/vaccine-response.html">VaccZyme anti-Vi IgG
+assay</a>.</p>
+<pre><code>wrap_plots(p_titer_density) + plot_layout(guides = "collect",axes='collect')
 </code></pre>
+<p><img alt="" src="../../../../cohort_incidence_model_proof_of_concept_files/figure-markdown_strict/unnamed-chunk-20-1.png" /></p>
+<p>This last figure below shows densities by age from pre-vaccine time
+points in Bangladesh published in <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC8387974/">Quadri <em>et al</em>
+2021</a>. Visually, our
+model is consistent with this data in the high or very high incidence
+settings, as expected. <img alt="data from
+Quadri2021" src="https://raw.githubusercontent.com/famulare/typhoid-immune-dynamics/refs/heads/main/scratch/figures/quadri2021_titer_density_given_detection_day0.png" /></p>
+<h3 id="open-questions-for-model-development">Open questions for model development</h3>
+<p>I’m sure there’s more to say, but the biggest open questions for model
+development are</p>
+<ol>
+<li>Infection is defined as stool-positive in this model. How common are
+    infections that trigger immune responses but are not detectable in
+    stool? Serosurveys indicate this is a thing (<a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC9329131/">Aiemjoy <em>et al</em>
+    2022</a>), and so we
+    should figure out an additional dose-response component to account
+    for it.</li>
+<li>Immunity also affects the amount shed given infection, and that is
+    important to transmission. For modeling immunity and susceptibility
+    only, the current model is complete (up to question 1 above). But in
+    a future update, we should close the loop.</li>
+<li>Related, carrier status is likely modulated via bacteremia, the
+    probability of which also depends on immunity. This is again of
+    interest for a future update.</li>
+</ol>
 
 
 
@@ -1696,7 +1906,7 @@ wrap_plots(p_titer_density) + plot_layout(guides = "collect",axes='collect')
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="April 25, 2025 23:51:09">April 25, 2025</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="June 23, 2025 18:29:55">June 23, 2025</span>
   </span>
 
     
