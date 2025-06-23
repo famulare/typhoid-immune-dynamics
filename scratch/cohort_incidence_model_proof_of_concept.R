@@ -7,6 +7,7 @@
 #'   return(out)})
 #' ---
 #' 
+#' 
 #' # A view over the horizon: cohort incidence model
 #' 
 #' After spending a lot of time with the primary literature on typhoid vaccine efficacy, correlates of protection, natural immunity, dose response from human challenge studies, seroepidemiology studies, and a lot of thinking, my manager Edward Wenger *encouraged* me to just do the thing. 
@@ -507,8 +508,10 @@ wrap_plots(p_exposure) + plot_layout(guides = "collect",axes='collect')
 # /*
 ggsave('scratch/figures/cohort_model_individual_level_exposure_examples.png',units='in',width=7,height=6)
 # */
+#' The exposure events are shown as points, with the color indicating the outcome of the exposure. The outcome is either "exposed" (no infection or fever), "infected" (stool shedding but no fever), or "fever" (stool shedding and fever). The x-axis is age in years, and the y-axis is person id. We see that most people are exposed at least once, and that some people have multiple exposures, infections, and fevers.
 #' 
-
+#' The next figure shows the same thing, but with the titer traces for each person. In the medium incidence setting, most people are never infected, whereas mulitple infection is common in the high and very high incidence settings. If you look closely, you can also see how the waning rate slows down with age, consistent with data from TCV trials. 
+#' 
 p_titer_examples=list()
 for (k in 1:length(output)){
   p_titer_examples[[k]] = ggplot() +
@@ -527,18 +530,26 @@ for (k in 1:length(output)){
     scale_color_discrete(drop = FALSE)
 }
 wrap_plots(p_titer_examples) + plot_layout(guides = "collect",axes='collect')
+# /*
 ggsave('scratch/figures/cohort_model_individual_level_titer_examples.png',units='in',width=12,height=6)
+# */
+#' 
+#' ### Population immunity
+#' 
+#' This last figure block calculates the population-level anti-Vi IgG titers and protective efficacy by age, given the model outputs. It shows how the titer and protective efficacy change with age, and how they differ across the three incidence settings. The titer is calculated as the geometric mean titer (GMT) and median titer, with 95% and IQR confidence intervals. The protective efficacy is calculated as the median and IQR of the protective efficacy given dose, which is a function of the exposure dose and the titer.
 
-
+#+ echo=TRUE, message=FALSE, results = 'hide'
 p_titer_summary=list()
 p_titer_density=list()
-p_protective_efficacy_summary=list()
+p_protective_efficacy_infection_summary=list()
+p_protective_efficacy_fever_summary=list()
 for (k in 1:length(output)){
   
   exposure_dose = output[[k]]$config$exposure_dose
   
   tmp_titer_summary =output[[k]]$titer_df |>
-    mutate(protective_efficacy = protective_efficacy(dose = exposure_dose,CoP_pre = titer, outcome='infection_given_dose')) |>
+    mutate(protective_efficacy_infection = protective_efficacy(dose = exposure_dose,CoP_pre = titer, outcome='infection_given_dose')) |>
+    mutate(protective_efficacy_fever = protective_efficacy(dose = exposure_dose,CoP_pre = titer, outcome='fever_given_dose')) |>
     group_by(age_years) |>
     summarize(titer_gmt = exp(mean(log(titer))),
            titer_median = median(titer),
@@ -546,11 +557,16 @@ for (k in 1:length(output)){
            titer_lower_iqr = quantile(titer,probs=0.25),
            titer_upper_95 = quantile(titer,probs=0.975),
            titer_lower_95 = quantile(titer,probs=0.025),
-           protective_efficacy_median = median(protective_efficacy),
-           protective_efficacy_upper_iqr = quantile(protective_efficacy,probs=0.75),
-           protective_efficacy_lower_iqr = quantile(protective_efficacy,probs=0.25),
-           protective_efficacy_upper_95 = quantile(protective_efficacy,probs=0.975),
-           protective_efficacy_lower_95 = quantile(protective_efficacy,probs=0.025))
+           protective_efficacy_infection_median = median(protective_efficacy_infection),
+           protective_efficacy_infection_upper_iqr = quantile(protective_efficacy_infection,probs=0.75),
+           protective_efficacy_infection_lower_iqr = quantile(protective_efficacy_infection,probs=0.25),
+           protective_efficacy_infection_upper_95 = quantile(protective_efficacy_infection,probs=0.975),
+           protective_efficacy_infection_lower_95 = quantile(protective_efficacy_infection,probs=0.025),
+           protective_efficacy_fever_median = median(protective_efficacy_fever),
+           protective_efficacy_fever_upper_iqr = quantile(protective_efficacy_fever,probs=0.75),
+           protective_efficacy_fever_lower_iqr = quantile(protective_efficacy_fever,probs=0.25),
+           protective_efficacy_fever_upper_95 = quantile(protective_efficacy_fever,probs=0.975),
+           protective_efficacy_fever_lower_95 = quantile(protective_efficacy_fever,probs=0.025))
   
   p_titer_summary[[k]] = ggplot(tmp_titer_summary) +
     geom_ribbon(aes(x=age_years,ymin=titer_lower_95,ymax=titer_upper_95),alpha=0.2)+
@@ -567,10 +583,10 @@ for (k in 1:length(output)){
           axis.title = element_text(size=10)) +
     ylab('anti-Vi IgG EU/ml')
   
-  p_protective_efficacy_summary[[k]] = ggplot(tmp_titer_summary) +
-    geom_ribbon(aes(x=age_years,ymin=protective_efficacy_lower_95,ymax=protective_efficacy_upper_95),alpha=0.2)+
-    geom_ribbon(aes(x=age_years,ymin=protective_efficacy_lower_iqr,ymax=protective_efficacy_upper_iqr),alpha=0.2)+
-    geom_line(aes(x=age_years,y=protective_efficacy_median)) + 
+p_protective_efficacy_infection_summary[[k]] = ggplot(tmp_titer_summary) +
+    geom_ribbon(aes(x=age_years,ymin=protective_efficacy_infection_lower_95,ymax=protective_efficacy_infection_upper_95),alpha=0.2)+
+    geom_ribbon(aes(x=age_years,ymin=protective_efficacy_infection_lower_iqr,ymax=protective_efficacy_infection_upper_iqr),alpha=0.2)+
+    geom_line(aes(x=age_years,y=protective_efficacy_infection_median)) + 
     scale_y_continuous(limits=c(0,1)) +
     theme_bw() +
     xlab('age') +
@@ -579,7 +595,21 @@ for (k in 1:length(output)){
                         1/(12*output[[k]]$config$exposure_rate),sep='')) +
     theme(plot.title=element_text(size=10),plot.subtitle=element_text(size=8),
           axis.title = element_text(size=10)) +
-    ylab('protective efficacy')
+    ylab('protective efficacy against infection')
+  
+p_protective_efficacy_fever_summary[[k]] = ggplot(tmp_titer_summary) +
+    geom_ribbon(aes(x=age_years,ymin=protective_efficacy_fever_lower_95,ymax=protective_efficacy_fever_upper_95),alpha=0.2)+
+    geom_ribbon(aes(x=age_years,ymin=protective_efficacy_fever_lower_iqr,ymax=protective_efficacy_fever_upper_iqr),alpha=0.2)+
+    geom_line(aes(x=age_years,y=protective_efficacy_fever_median)) + 
+    scale_y_continuous(limits=c(0,1)) +
+    theme_bw() +
+    xlab('age') +
+    labs(title = paste(sub('_',' ',names(output)[k]),' incidence',sep=''),
+         subtitle=paste('dose = ',output[[k]]$config$exposure_dose,' bacilli\nmean years b/w exposures = ',
+                        1/(12*output[[k]]$config$exposure_rate),sep='')) +
+    theme(plot.title=element_text(size=10),plot.subtitle=element_text(size=8),
+          axis.title = element_text(size=10)) +
+    ylab('protective efficacy against fever')
   
   
   sampled_titer_df = output[[k]]$titer_df |>
@@ -597,16 +627,37 @@ for (k in 1:length(output)){
     theme(plot.title=element_text(size=10),plot.subtitle=element_text(size=8),
           axis.title = element_text(size=10)) 
 }
+#' This first plot shows the titer distribution by age, and  
+#+ echo=TRUE, message=FALSE, results = 'hide'
 wrap_plots(p_titer_summary) + plot_layout(guides = "collect",axes='collect')
+# /*
 ggsave('scratch/figures/cohort_model_titer_vs_age_summary.png',units='in',width=7,height=4)
+# */
+#' the second shows the distribution of individual-level protective efficacies against infection and fever given those titers. 
+#+ echo=TRUE, message=FALSE, results = 'hide'
+wrap_plots(wrap_plots(p_protective_efficacy_fever_summary),wrap_plots(p_protective_efficacy_infection_summary),nrow=2) + plot_layout(guides = "collect",axes='collect')
+# /*
+ggsave('scratch/figures/cohort_model_protective_efficacy_vs_age_summary.png',units='in',width=7,height=4)
+# */
+#' Across settings, we see that immunity gets higher with age due to intensity of exposure and infection number, and that people, perhaps non-intuitively, have the highest protective efficacy in the highest incidence settings. This shows how exposure can more than compensate immunity, and thus the population-level epidemiology is a result of both transmission ecology and individual-level traits. 
 
-wrap_plots(p_protective_efficacy_summary) + plot_layout(guides = "collect",axes='collect')
-ggsave('scratch/figures/cohort_model_protective_efficacy_infection_vs_age_summary.png',units='in',width=7,height=4)
-
+#' This last figure shows densities of randomly sampled titers for simulated people who are above the detection threshold of the [VaccZyme anti-Vi IgG assay](https://www.thermofisher.com/bindingsite/wo/en/products/immunoassays/vaccine-response.html). 
+#+ echo=TRUE, warning=FALSE, message=FALSE, results = 'hide'
 wrap_plots(p_titer_density) + plot_layout(guides = "collect",axes='collect')
+# /*
 ggsave('scratch/figures/cohort_model_titer_density.png',units='in',width=7,height=4)
+# */
+#' This last figure below shows densities by age from pre-vaccine time points in Bangladesh published in [Quadri *et al* 2021](https://pmc.ncbi.nlm.nih.gov/articles/PMC8387974/). Visually, our model is consistent with this data in the high or very high incidence settings, as expected. 
+#' ![data from Quadri2021](https://raw.githubusercontent.com/famulare/typhoid-immune-dynamics/refs/heads/main/scratch/figures/quadri2021_titer_density_given_detection_day0.png)
+#' 
 
-
+#' ### Open questions for model development
+#' 
+#' I'm sure there's more to say, but the biggest open questions for model development are
+#' 
+#'   1. Infection is defined as stool-positive in this model. How common are infections that trigger immune responses but are not detectable in stool? Serosurveys indicate this is a thing ([Aiemjoy *et al* 2022](https://pmc.ncbi.nlm.nih.gov/articles/PMC9329131/)), and so we should figure out an additional dose-response component to account for it.
+#'   2. Immunity also affects the amount shed given infection, and that is important to transmission. For modeling immunity and susceptibility only, the current model is complete (up to question 1 above). But in a future update, we should close the loop. 
+#'   3. Related, carrier status is likely modulated via bacteremia, the probability of which also depends on immunity. This is again of interest for a future update. 
 
 # /* back matter for exporting as a blog post
 
