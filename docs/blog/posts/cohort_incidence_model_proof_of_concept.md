@@ -496,6 +496,9 @@ And, for summarizing the results, let’s calculate incidence per 100k
 people by age and overall from the events data, and include the total
 incidence archetype targets for reference.
 
+    # incidence targets
+    incidence_fever_targets = c(medium = 53,high=214,very_high=1255)
+
     # calculate incidence
     for (k in 1:length(output)){
       
@@ -511,9 +514,6 @@ incidence archetype targets for reference.
                incidence_infection_overall = sum(incidence_infection*age_width/sum(age_width)),
                incidence_fever_target = incidence_fever_targets[names(output)[k]])
     }
-
-    # incidence targets
-    incidence_fever_targets = c(medium = 53,high=214,very_high=1255)
 
 ## Results!
 
@@ -678,6 +678,7 @@ median and IQR of the protective efficacy given dose, which is a
 function of the exposure dose and the titer.
 
     p_titer_summary=list()
+    p_seropositive_summary=list()
     p_titer_density=list()
     p_protective_efficacy_infection_summary=list()
     p_protective_efficacy_fever_summary=list()
@@ -695,6 +696,7 @@ function of the exposure dose and the titer.
                titer_lower_iqr = quantile(titer,probs=0.25),
                titer_upper_95 = quantile(titer,probs=0.975),
                titer_lower_95 = quantile(titer,probs=0.025),
+               fraction_seropositive_VaccZyme = mean(titer>7),
                protective_efficacy_infection_median = median(protective_efficacy_infection),
                protective_efficacy_infection_upper_iqr = quantile(protective_efficacy_infection,probs=0.75),
                protective_efficacy_infection_lower_iqr = quantile(protective_efficacy_infection,probs=0.25),
@@ -711,7 +713,7 @@ function of the exposure dose and the titer.
         geom_ribbon(aes(x=age_years,ymin=titer_lower_iqr,ymax=titer_upper_iqr),alpha=0.2)+
         geom_line(aes(x=age_years,y=titer_median)) + 
         geom_line(aes(x=age_years,y=titer_gmt),linetype='dashed') + 
-        scale_y_continuous(limits=c(1,10^3.5)) +
+        scale_y_continuous(limits=c(1,10^3.5),trans='log2') +
         theme_bw() +
         xlab('age') +
         labs(title = paste(sub('_',' ',names(output)[k]),' incidence',sep=''),
@@ -720,6 +722,18 @@ function of the exposure dose and the titer.
         theme(plot.title=element_text(size=10),plot.subtitle=element_text(size=8),
               axis.title = element_text(size=10)) +
         ylab('anti-Vi IgG EU/ml')
+
+    p_seropositive_summary[[k]] = ggplot(tmp_titer_summary) +
+        geom_line(aes(x=age_years,y=fraction_seropositive_VaccZyme)) + 
+        scale_y_continuous(limits=c(0,1)) +
+        theme_bw() +
+        xlab('age') +
+        labs(title = paste(sub('_',' ',names(output)[k]),' incidence',sep=''),
+             subtitle=paste('dose = ',output[[k]]$config$exposure_dose,' bacilli\nmean years b/w exposures = ',
+                            1/(12*output[[k]]$config$exposure_rate),sep='')) +
+        theme(plot.title=element_text(size=10),plot.subtitle=element_text(size=8),
+              axis.title = element_text(size=10)) +
+        ylab('fraction seropositive\n[anti-Vi IgG EU/ml > 7]')
       
     p_protective_efficacy_infection_summary[[k]] = ggplot(tmp_titer_summary) +
         geom_ribbon(aes(x=age_years,ymin=protective_efficacy_infection_lower_95,ymax=protective_efficacy_infection_upper_95),alpha=0.2)+
@@ -766,13 +780,15 @@ function of the exposure dose and the titer.
               axis.title = element_text(size=10)) 
     }
 
-This first plot shows the titer distribution by age, and
+This first plot shows the titer distribution by age and the fraction
+detected positive on the VaccZyme anti-Vi IgG assay.
 
-    wrap_plots(p_titer_summary) + plot_layout(guides = "collect",axes='collect')
+    wrap_plots(wrap_plots(p_titer_summary),wrap_plots(p_seropositive_summary),nrow=2) + 
+      plot_layout(guides = "collect",axes='collect')
 
 ![](cohort_incidence_model_proof_of_concept_files/figure-markdown_strict/unnamed-chunk-18-1.png)
 
-the second shows the distribution of individual-level protective
+The second shows the distribution of individual-level protective
 efficacies against infection and fever given those titers.
 
     wrap_plots(wrap_plots(p_protective_efficacy_fever_summary),wrap_plots(p_protective_efficacy_infection_summary),nrow=2) + plot_layout(guides = "collect",axes='collect')
