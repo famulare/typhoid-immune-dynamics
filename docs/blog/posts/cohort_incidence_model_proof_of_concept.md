@@ -140,14 +140,21 @@ another day.
 
     # fold-rise model. defaults set to natural immunity defaults
     fold_rise_model = function(CoP_pre,
-                               mu_0=2.5,
-                               CoP_max=10^3.5, CoP_min=1){
-      fold_rise = 10^(mu_0*(1-(log10(CoP_pre)-log10(CoP_min))/(log10(CoP_max)-log10(CoP_min))))
+                               mu_0=1.25,
+                               CoP_max=10^3.5, CoP_min=1,
+                               sigma_0=0.5, # made up value for now, informed by polio (2.9/7.2)*mu_0
+                               response='individual'){# 'median'
+      if(response == 'median'){
+        mu = mu_0
+      } else if (response=='individual'){
+        mu = pmax(0,rnorm(length(CoP_pre),mean=mu_0,sd=sigma_0))
+      }
+      fold_rise = 10^(mu*(1-(log10(CoP_pre)-log10(CoP_min))/(log10(CoP_max)-log10(CoP_min))))
       return(fold_rise)
     }
 
     pl_df=expand.grid(CoP_pre=10^seq(0,3.5,by=0.1)) |> 
-      mutate(fold_rise = fold_rise_model(CoP_pre=CoP_pre)) |>
+      mutate(fold_rise = fold_rise_model(CoP_pre=CoP_pre, response='median')) |>
       mutate(CoP_post = fold_rise * CoP_pre) 
     (ggplot(pl_df) +
       geom_line(aes(x=CoP_pre,y=fold_rise)) +
@@ -198,7 +205,7 @@ another day.
     p_outcome_given_dose = function(dose=1e4,  CoP_pre=1, outcome = 'fever_given_dose', 
                                     n50_fever_given_dose=27800, alpha_fever_given_dose=0.84, 
                                     gamma_fever_given_dose=0.4,
-                                    n50_infection_given_dose=27800/10,alpha_infection_given_dose = 0.84*2, 
+                                    n50_infection_given_dose=27800/40,alpha_infection_given_dose = 0.84*2, 
                                     gamma_infection_given_dose=0.4/2 
                                     ){
       
@@ -464,27 +471,27 @@ differ in overall incidence (100/100k &lt; “high” &lt; 1000/100k
 vs. $1000/100k &lt; “very high”).
 
     # if the simulation output is saved, just use the cache. Otherwise, run the models.
-    if (!file.exists('scratch/output_cache.RData')){
+    if (TRUE | !file.exists('scratch/output_cache.RData')){
       output=list()
       
       # define setting ecology: exposure rate and dose
 
-        # N_cohort=2e4 # a lot faster for playing
-        N_cohort=1e6 # made huge to get good stats at lower incidence
+        N_cohort=2e4 # a lot faster for playing
+        # N_cohort=1e6 # made huge to get good stats at lower incidence
       
         # medium
-        output[['medium']] = cohort_model(exposure_dose = 5e2,
-                                          exposure_rate=1/(12*40), # per month
+        output[['medium']] = cohort_model(exposure_dose = 3e2,
+                                          exposure_rate=1/(12*20), # per month
                                           N=N_cohort)
         
         # high
-        output[['high']] = cohort_model(exposure_dose = 5e3,
-                                        exposure_rate=1/(12*20), # per month
+        output[['high']] = cohort_model(exposure_dose = 5e2,
+                                        exposure_rate=1/(12*5), # per month
                                         N=N_cohort/5)
         
         # very high
-        output[['very_high']] = cohort_model(exposure_dose = 5e4,
-                                             exposure_rate=1/(12*20), # per month
+        output[['very_high']] = cohort_model(exposure_dose = 5e3,
+                                             exposure_rate=1/(12*2), # per month
                                              N=N_cohort/10)
         
         save(output,N,file='scratch/output_cache.RData')
@@ -512,6 +519,7 @@ incidence archetype targets for reference.
                   age_width = unique(age_width)) |>
         mutate(incidence_fever_overall = sum(incidence_fever*age_width/sum(age_width)),
                incidence_infection_overall = sum(incidence_infection*age_width/sum(age_width)),
+               symptomatic_fraction_overall = sum(symptomatic_fraction*age_width/sum(age_width)),
                incidence_fever_target = incidence_fever_targets[names(output)[k]])
     }
 
@@ -557,10 +565,11 @@ model diagnostics in action.
       
       p_symptomatic_fraction[[k]]=ggplot(output[[k]]$incidence_vs_age) +
         geom_bar(aes(x=age_group,y=symptomatic_fraction),stat='identity') +
+        geom_hline(aes(yintercept=symptomatic_fraction_overall[1]),linetype='solid') +
         theme_bw() +
         xlab('') +
         ylab('symptomatic fraction') +
-        ylim(c(0,1)) +
+        # ylim(c(0,1)) +
         labs(title = paste(sub('_',' ',names(output)[k]),' incidence',sep=''),
              subtitle=paste('dose = ',output[[k]]$config$exposure_dose,' bacilli\nmean years b/w exposures = ',
                             1/(12*output[[k]]$config$exposure_rate),sep='')) +
@@ -689,6 +698,7 @@ function of the exposure dose and the titer.
       tmp_titer_summary =output[[k]]$titer_df |>
         mutate(protective_efficacy_infection = protective_efficacy(dose = exposure_dose,CoP_pre = titer, outcome='infection_given_dose')) |>
         mutate(protective_efficacy_fever = protective_efficacy(dose = exposure_dose,CoP_pre = titer, outcome='fever_given_dose')) |>
+        mutate(seropositive_VaccZyme = 10^(log10(titer)*(1 + 0.37*rnorm(length(titer))))>7) |>
         group_by(age_years) |>
         summarize(titer_gmt = exp(mean(log(titer))),
                titer_median = median(titer),
@@ -696,7 +706,7 @@ function of the exposure dose and the titer.
                titer_lower_iqr = quantile(titer,probs=0.25),
                titer_upper_95 = quantile(titer,probs=0.975),
                titer_lower_95 = quantile(titer,probs=0.025),
-               fraction_seropositive_VaccZyme = mean(titer>7),
+               fraction_seropositive_VaccZyme = mean(seropositive_VaccZyme),
                protective_efficacy_infection_median = median(protective_efficacy_infection),
                protective_efficacy_infection_upper_iqr = quantile(protective_efficacy_infection,probs=0.75),
                protective_efficacy_infection_lower_iqr = quantile(protective_efficacy_infection,probs=0.25),
