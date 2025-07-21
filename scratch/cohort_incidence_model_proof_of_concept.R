@@ -160,20 +160,35 @@ p_outcome_given_dose = function(dose=1e4,  CoP_pre=1, outcome = 'fever_given_dos
   return(p)
 }
 
-expand.grid(dose = 10^seq(0,9,by=0.1),
-            CoP_pre = round(10^seq(0,3.5,by=0.5)),
+plot_dat = expand.grid(dose = 10^seq(0,9,by=0.1),
+            CoP_pre = c(50,round(10^seq(0,3.5,by=0.5))),
             outcome=factor(c('infection_given_dose','fever_given_dose'),
                            levels=c('infection_given_dose','fever_given_dose','fever_given_infection'))) |>
   group_by(outcome,CoP_pre,dose) |>
   mutate(probability = p_outcome_given_dose(dose=dose,CoP_pre=CoP_pre,outcome = outcome)) |>
-  mutate(CoP_pre = factor(CoP_pre)) |>
-  ggplot() +
-  geom_line(aes(x=dose,y=probability,group=CoP_pre,color=CoP_pre)) +
+  mutate(CoP_pre = factor(CoP_pre))
+
+ggplot() +
+  geom_line(data = plot_dat |> filter(CoP_pre!=50),
+            aes(x=dose,y=probability,group=CoP_pre,color=CoP_pre)) +
+  geom_line(data = plot_dat |> filter(CoP_pre==50 & outcome == 'fever_given_dose'),
+            aes(x=dose,y=probability,group=CoP_pre),color='black',linewidth=1) +
   facet_grid('~outcome') +
   theme_bw() +
   ylim(c(0,1)) +
   scale_x_continuous(trans='log10', breaks=10^seq(0,10,by=2),minor_breaks = NULL,
-                     labels = trans_format("log10", math_format(10^.x)) ) 
+                     labels = trans_format("log10", math_format(10^.x)) ) +
+  geom_text(
+    data = data.frame(
+      x = 10^2,
+      y = 0.3,
+      label = "Hornick/\nLevine",
+      outcome = factor("fever_given_dose",levels=levels(plot_dat$outcome))
+    ),
+    aes(x = x, y = y, label = label),fontface = "bold",size=3
+  ) +
+  labs(color = "anti-Vi titer\n[EU/ml]")
+ggsave('scratch/figures/cohort_model_susceptibility_vs_dose_CoP_pre.png',units='in',width=5, height=3)
 
 #' The **protective efficacy of prior infection** (in this case, also vaccine efficacy more generally) is defined as the relative risk reduction in the outcome (either stool-culture confirmed infection or fever, but could be other things like seroresponse, bacteremia, and conversion to carrier status) for a person with a given level of immunity vs a person who has never been exposed. 
 #' 
@@ -201,7 +216,7 @@ expand.grid(dose = 10^seq(0,8,by=0.1),
   scale_x_continuous(trans='log10', breaks=10^seq(0,10,by=2),minor_breaks = NULL,
                      labels = scales::trans_format("log10", math_format(10^.x)) ) 
 #+ echo=FALSE, message=FALSE, results = 'hide'
-ggsave('scratch/figures/cohort_model_vaccine_efficacy_vs_dose_CoP_pre.png',units='in',width=7, height=3)
+ggsave('scratch/figures/cohort_model_vaccine_efficacy_vs_dose_CoP_pre.png',units='in',width=5, height=3)
 
 #' The really interesting thing about this kind of model is that it captures how high doses can overwhelm prior immunity and reduce efficacy. This effect is critical for typhoid epidemiology, where exposures can vary by a factor of 1000 or more across settings in time and place, but is missing from the standard logistic regression approaches to modeling efficacy vs CoP that are standard in vaccinology (and which this model reduces to in the low dose limit.)
 #'
