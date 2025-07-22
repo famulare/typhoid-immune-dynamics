@@ -238,8 +238,9 @@ ggsave('scratch/figures/cohort_model_vaccine_efficacy_vs_dose_CoP_pre.png',units
 cohort_model = function(exposure_dose,exposure_rate,
                         N=1000,age_max=75,
                         titer_dt=365/12, # monthly timesteps so I can assume infections last one timestep
-                        max_titer_id = 1000 # saving every titer above ~1000 gets really slow
-                        ){
+                        max_titer_id = 1000, # saving every titer above ~1000 gets really slow
+                        exposure_rate_multiplier = c(rep(0.2,13),rep(0.5,12),rep(0.8,36),rep(1,120),rep(0.5,75*12-25-36-120))
+){
   #' The two variables that define the transmission ecology are the exposure dose and exposure rate. The exposure dose is the number of bacilli typically ingested when exposed in the setting. This could be drawn from a distribution, but we'll just assume it's a fixed value for now. The exposure rate is the Poisson rate for how often a person is exposed to an infectious dose. Together, through the dose response model, the exposure rate and dose determine how often people get infected. 
   #' 
   #' The other parameters are just basic simulation config stuff. How many people (default `N=1000`), what is the maximimum age in years (default `age_max = 75`), the timestep (default `titer_dt=365/12`= 1 month), and how many people will we track the full time history of the titer for (default 'max_titer_id=1000'; I suggest you keep this at this size regardless of the N, as this is the slowest part of the code), 
@@ -265,8 +266,8 @@ cohort_model = function(exposure_dose,exposure_rate,
   #' We also make one extra accounting for reality, which is that young children have less exposure to typhoid. Infants because they do not eat adult food, and toddlers because they tyically eat small and limited diets. This should probably be configurable as parameters, but I'm not gonna play with it in this script so I just hard coded that children up through 12 months of age have 10% the exposure of adults and children 1-2 years have 50%, by pure assumption.
 
   # age-dependent exposure rate, to account for kids under 2y having less exposure to food and sewage
-  exposure_rate_multiplier = c(rep(0.1,13),rep(0.5,12),rep(1,length(simulation_months)-25))
-
+  # exposure_rate_multiplier = c(rep(0.2,13),rep(0.5,12),rep(1,length(simulation_months)-25))
+  
   #' With that set up, we can expose everyone for their lifetimes and save the exposure event times.
 
   # expose
@@ -395,32 +396,36 @@ if (TRUE | !file.exists('scratch/output_cache.RData')){
   
   # define setting ecology: exposure rate and dose
 
-    N_cohort=2e4 # a lot faster for playing
+    # N_cohort=2e4 # a lot faster for playing
+    N_cohort=2e5 
     # N_cohort=1e6 # made huge to get good stats at lower incidence
   
     # medium
-    output[['medium']] = cohort_model(exposure_dose = 3e2,
+    output[['medium']] = cohort_model(exposure_dose = 4e2,
                                       exposure_rate=1/(12*20), # per month
-                                      N=N_cohort)
+                                      N=N_cohort,
+                                      exposure_rate_multiplier = c(rep(0.1,13),rep(0.5,12),rep(0.7,36),rep(1,60),rep(1,60),rep(0.5,75*12-25-36-120)))
     
     # high
-    output[['high']] = cohort_model(exposure_dose = 5e2,
-                                    exposure_rate=1/(12*5), # per month
-                                    N=N_cohort/5)
+    output[['high']] = cohort_model(exposure_dose = 4e2,
+                                    exposure_rate=1/(12*3), # per month
+                                    N=N_cohort/5,
+                                    exposure_rate_multiplier = c(rep(0.1,13),rep(0.5,12),rep(1,36),rep(1,60),rep(0.7,60),rep(0.5,75*12-25-36-120)))
     
     # very high
     output[['very_high']] = cohort_model(exposure_dose = 5e3,
-                                         exposure_rate=1/(12*2), # per month
-                                         N=N_cohort/10)
+                                         exposure_rate=1/(12*3), # per month
+                                         N=N_cohort/10,
+                                         exposure_rate_multiplier = c(rep(0.1,13),rep(0.5,12),rep(1,36),rep(0.7,60),rep(0.5,60),rep(0.5,75*12-25-36-120)))
     
-    save(output,N,file='scratch/output_cache.RData')
+    save(output,N_cohort,file='scratch/output_cache.RData')
 } else {
   load(file='scratch/output_cache.RData')  
 }
 
 #' And, for summarizing the results, let's calculate incidence per 100k people by age and overall from the events data, and include the total incidence archetype targets for reference.
 #+ echo=TRUE, message=FALSE, results = 'hide'
-# incidence targets
+
 incidence_fever_targets = c(medium = 53,high=214,very_high=1255)
 
 # calculate incidence
@@ -447,14 +452,32 @@ for (k in 1:length(output)){
 #' Now we make lots of plots. This first loop makes panels for each transmission setting and type of incidence we're currently interested in -- fever, any infection (as determined by stool shedding), and the fraction of infections with fever. There's a bunch of ggplot stuff and I'm sure I could make it less verbose but that's not the point--this is model diagnostics in action.
 
 #+ echo=TRUE, message=FALSE, results = 'hide'
+# fever incidence targets from WHO TCV working group
+incidence_fever_by_age_targets = rep(list(data.frame(age_group=unique(output[[1]]$incidence_vs_age$age_group),
+                                                     incidence_fever = NaN,
+                                                     lower=NaN,
+                                                     upper=NaN)),3)
+incidence_fever_by_age_targets[[1]]$incidence_fever <- c(20,53,71,72,35)
+incidence_fever_by_age_targets[[1]]$lower <- c(15,40,58,57,30)
+incidence_fever_by_age_targets[[1]]$upper <- c(27,66,83,84,40)
+incidence_fever_by_age_targets[[2]]$incidence_fever = c(160,500,420,275,140)
+incidence_fever_by_age_targets[[2]]$lower <- c(120,440,370,240,160)
+incidence_fever_by_age_targets[[2]]$upper <- c(200,560,470,320,120)
+incidence_fever_by_age_targets[[3]]$incidence_fever = c(1400,4350,2950,1750,600)
+incidence_fever_by_age_targets[[3]]$lower <- c(1200,4000,2750,1600,550)
+incidence_fever_by_age_targets[[3]]$upper <- c(1600,4700,3150,1900,650)
+
+# calculate incidences from the model
 p_incidence_fever=list()
 p_incidence_infection=list()
 p_symptomatic_fraction=list()
 for (k in 1:length(output)){
   p_incidence_fever[[k]]=ggplot(output[[k]]$incidence_vs_age) +
     geom_bar(aes(x=age_group,y=incidence_fever),stat='identity') +
-    geom_hline(aes(yintercept=incidence_fever_overall[1]),linetype='solid') +
-    geom_hline(aes(yintercept=incidence_fever_target[1]),linetype='dashed') +
+    # geom_hline(aes(yintercept=incidence_fever_overall[1]),linetype='solid') +
+    # geom_hline(aes(yintercept=incidence_fever_target[1]),linetype='dashed') +
+    geom_segment(data=incidence_fever_by_age_targets[[k]],aes(x=age_group,y=lower,yend=upper,group=age_group),stat='identity',color='orangered') +
+    geom_point(data=incidence_fever_by_age_targets[[k]],aes(x=age_group,y=incidence_fever),stat='identity',color='orangered') +
     theme_bw() +
     xlab('') +
     ylab('annual incidence of fever per 100k') +
@@ -482,13 +505,14 @@ for (k in 1:length(output)){
     theme_bw() +
     xlab('') +
     ylab('symptomatic fraction') +
-    # ylim(c(0,1)) +
+    ylim(c(0,0.2)) +
     labs(title = paste(sub('_',' ',names(output)[k]),' incidence',sep=''),
          subtitle=paste('dose = ',output[[k]]$config$exposure_dose,' bacilli\nmean years b/w exposures = ',
                         1/(12*output[[k]]$config$exposure_rate),sep='')) +
     theme(plot.title=element_text(size=10),plot.subtitle=element_text(size=8),
           axis.title = element_text(size=10))
 }
+
 
 #' First up, typhoid fever incidence.
 #' 
@@ -707,3 +731,4 @@ render_blog_post(input_file = './scratch/cohort_incidence_model_proof_of_concept
                  date_created = '2025-04-25')
 
 # */
+

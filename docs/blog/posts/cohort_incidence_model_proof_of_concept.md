@@ -230,22 +230,38 @@ another day.
       return(p)
     }
 
-    expand.grid(dose = 10^seq(0,9,by=0.1),
-                CoP_pre = round(10^seq(0,3.5,by=0.5)),
+    plot_dat = expand.grid(dose = 10^seq(0,9,by=0.1),
+                CoP_pre = c(50,round(10^seq(0,3.5,by=0.5))),
                 outcome=factor(c('infection_given_dose','fever_given_dose'),
                                levels=c('infection_given_dose','fever_given_dose','fever_given_infection'))) |>
       group_by(outcome,CoP_pre,dose) |>
       mutate(probability = p_outcome_given_dose(dose=dose,CoP_pre=CoP_pre,outcome = outcome)) |>
-      mutate(CoP_pre = factor(CoP_pre)) |>
-      ggplot() +
-      geom_line(aes(x=dose,y=probability,group=CoP_pre,color=CoP_pre)) +
+      mutate(CoP_pre = factor(CoP_pre))
+
+    ggplot() +
+      geom_line(data = plot_dat |> filter(CoP_pre!=50),
+                aes(x=dose,y=probability,group=CoP_pre,color=CoP_pre)) +
+      geom_line(data = plot_dat |> filter(CoP_pre==50 & outcome == 'fever_given_dose'),
+                aes(x=dose,y=probability,group=CoP_pre),color='black',linewidth=1) +
       facet_grid('~outcome') +
       theme_bw() +
       ylim(c(0,1)) +
       scale_x_continuous(trans='log10', breaks=10^seq(0,10,by=2),minor_breaks = NULL,
-                         labels = trans_format("log10", math_format(10^.x)) ) 
+                         labels = trans_format("log10", math_format(10^.x)) ) +
+      geom_text(
+        data = data.frame(
+          x = 10^2,
+          y = 0.3,
+          label = "Hornick/\nLevine",
+          outcome = factor("fever_given_dose",levels=levels(plot_dat$outcome))
+        ),
+        aes(x = x, y = y, label = label),fontface = "bold",size=3
+      ) +
+      labs(color = "anti-Vi titer\n[EU/ml]")
 
 ![](cohort_incidence_model_proof_of_concept_files/figure-markdown_strict/unnamed-chunk-5-1.png)
+
+    ggsave('scratch/figures/cohort_model_susceptibility_vs_dose_CoP_pre.png',units='in',width=5, height=3)
 
 The **protective efficacy of prior infection** (in this case, also
 vaccine efficacy more generally) is defined as the relative risk
@@ -476,8 +492,8 @@ vs. $1000/100k &lt; “very high”).
       
       # define setting ecology: exposure rate and dose
 
-        N_cohort=2e4 # a lot faster for playing
-        # N_cohort=1e6 # made huge to get good stats at lower incidence
+        # N_cohort=2e4 # a lot faster for playing
+        N_cohort=1e6 # made huge to get good stats at lower incidence
       
         # medium
         output[['medium']] = cohort_model(exposure_dose = 3e2,
@@ -491,7 +507,7 @@ vs. $1000/100k &lt; “very high”).
         
         # very high
         output[['very_high']] = cohort_model(exposure_dose = 5e3,
-                                             exposure_rate=1/(12*2), # per month
+                                             exposure_rate=1/(12*3), # per month
                                              N=N_cohort/10)
         
         save(output,N,file='scratch/output_cache.RData')
@@ -569,7 +585,7 @@ model diagnostics in action.
         theme_bw() +
         xlab('') +
         ylab('symptomatic fraction') +
-        # ylim(c(0,1)) +
+        ylim(c(0,0.16)) +
         labs(title = paste(sub('_',' ',names(output)[k]),' incidence',sep=''),
              subtitle=paste('dose = ',output[[k]]$config$exposure_dose,' bacilli\nmean years b/w exposures = ',
                             1/(12*output[[k]]$config$exposure_rate),sep='')) +
@@ -613,7 +629,9 @@ Higher doses but not significatly higher exposure rates is our
 hypothesis for the difference in fever incidence without difference in
 age distribution.
 
-    wrap_plots(p_symptomatic_fraction) + plot_layout(guides = "collect",axes='collect')
+    wrap_plots(p_symptomatic_fraction) + plot_layout(guides = "collect")
+
+    ## Warning: Removed 1 row containing missing values or values outside the scale range (`geom_bar()`).
 
 ![](cohort_incidence_model_proof_of_concept_files/figure-markdown_strict/unnamed-chunk-14-1.png)
 
