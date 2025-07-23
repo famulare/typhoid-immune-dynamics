@@ -89,28 +89,36 @@ expand.grid(t=seq(0,10,by=1/24), age_years = factor(c(1,5,15,45))) |>
 #+ echo=TRUE, message=FALSE, results = 'hide'
 # fold-rise model. defaults set to natural immunity defaults
 fold_rise_model = function(CoP_pre,
-                           mu_0=1.25,
+                           mu_0_inf=1.25,
+                           mu_0_tcv=3.16,
                            CoP_max=10^3.5, CoP_min=1,
                            sigma_0=0.5, # made up value for now, informed by polio (2.9/7.2)*mu_0
-                           response='individual'){# 'median'
-  if(response == 'median'){
-    mu = mu_0
-  } else if (response=='individual'){
-    mu = pmax(0,rnorm(length(CoP_pre),mean=mu_0,sd=sigma_0))
+                           response='individual',# 'median'
+                           source='infection'){# 'tcv'
+  if (source=='infection'){
+    mu = mu_0_inf
+  } else if (source == 'tcv'){
+    mu = mu_0_tcv
+  }
+  
+  if (response=='individual'){
+    mu = pmax(0,rnorm(length(CoP_pre),mean=mu,sd=sigma_0))
   }
   fold_rise = 10^(mu*(1-(log10(CoP_pre)-log10(CoP_min))/(log10(CoP_max)-log10(CoP_min))))
   return(fold_rise)
 }
 
-pl_df=expand.grid(CoP_pre=10^seq(0,3.5,by=0.1)) |> 
-  mutate(fold_rise = fold_rise_model(CoP_pre=CoP_pre, response='median')) |>
+pl_df=expand.grid(CoP_pre=10^seq(0,3.5,by=0.1),
+                  source = c('infection','tcv')) |> 
+  group_by(CoP_pre,source) |>
+  mutate(fold_rise = fold_rise_model(CoP_pre=CoP_pre, response='median',source=source)) |>
   mutate(CoP_post = fold_rise * CoP_pre) 
 (ggplot(pl_df) +
-  geom_line(aes(x=CoP_pre,y=fold_rise)) +
+  geom_line(aes(x=CoP_pre,y=fold_rise,color=source)) +
   theme_bw() + scale_y_continuous(trans='log10') + scale_x_continuous(trans='log10') +
   xlab('pre-challenge titer') + ylab('fold-rise')) +
   (ggplot(pl_df) +
-     geom_line(aes(x=CoP_pre,y=CoP_post)) +
+     geom_line(aes(x=CoP_pre,y=CoP_post,color=source)) +
      theme_bw() + scale_y_continuous(trans='log10') + scale_x_continuous(trans='log10') +
      xlab('pre-challenge titer') + ylab('post-challenge titer'))
 
@@ -241,7 +249,8 @@ cohort_model = function(exposure_dose,exposure_rate,
                         N=1000,age_max=75,
                         titer_dt=365/12, # monthly timesteps so I can assume infections last one timestep
                         max_titer_id = 1000, # saving every titer above ~1000 gets really slow
-                        exposure_rate_multiplier = c(rep(0.2,13),rep(0.5,12),rep(0.8,36),rep(1,120),rep(0.5,75*12-25-36-120))
+                        exposure_rate_multiplier = c(rep(0.2,13),rep(0.5,12),rep(0.8,36),rep(1,120),rep(0.5,75*12-25-36-120)),
+                        vaccination_rate = 1.0
 ){
   #' The two variables that define the transmission ecology are the exposure dose and exposure rate. The exposure dose is the number of bacilli typically ingested when exposed in the setting. This could be drawn from a distribution, but we'll just assume it's a fixed value for now. The exposure rate is the Poisson rate for how often a person is exposed to an infectious dose. Together, through the dose response model, the exposure rate and dose determine how often people get infected. 
   #' 
@@ -283,6 +292,16 @@ cohort_model = function(exposure_dose,exposure_rate,
     events_list[[id]]$fever = rep(0, length(events_list[[id]]$exposure_month))
   }
 
+  #' Vaccinate
+  for (id in (1:N)){
+    events_list[[id]]$vaccinated = FALSE
+    if (runif(n=1) <= vaccination_rate){
+      events_list[[id]]$vaccination_month = sample(seq(9,age_max*12-1,by=1),1)
+    } else {
+      events_list[[id]]$vaccination_month = max(simulation_months)+1
+    }
+  }
+
   #' Now that we know when everone is exposed, we can step through to find when they are infected, and after each infection, what their antibody titers are until the next infection. At each exposure, the probability of infection is determined by the dose and the current titer. At each infection, the current titer is boosted by the fold-rise model and between infections, it wanes with the waning model. 
 
   # infect and titer
@@ -293,55 +312,80 @@ cohort_model = function(exposure_dose,exposure_rate,
     
     # for each exposed person
     if (length(events_list[[id]]$exposure_month) >0){
-      for (k in 1:length(events_list[[id]]$exposure_month)){
+      for (k in 1:(length(events_list[[id]]$exposure_month)+1)){
         
         exposure_month = events_list[[id]]$exposure_month[k]
-        
-        # calculate their infection probability in that timestep (which may have more than 1 exposure)
-        p_once = p_outcome_given_dose(dose=exposure_dose,CoP_pre=tmp_titer[exposure_month],
-                                      outcome='infection_given_dose')
-        p_inf = 1-(1-p_once)^events_list[[id]]$exposure_count[k]
-        
-        if(runif(1)>p_inf){
-          # if not infected, record not infected upon exposure
-          events_list[[id]]$infected[k] = 0
-          events_list[[id]]$fever[k]    = 0
-        } else {
-          # if infected 
-          
-          # update infection list
-          events_list[[id]]$infected[k]=1
-          
-          # calculate probability they get a fever given infection
-          p_fever = p_outcome_given_dose(dose=exposure_dose,CoP_pre=tmp_titer[exposure_month],
-                                         outcome='fever_given_infection')
-          
-          # update fever list
-          if (runif(n=1)<=p_fever){
-            # if fever
-            events_list[[id]]$fever[k]=1
-          } else {
-            # if no fever
-            events_list[[id]]$fever[k]=0
-          }
+        vaccination_month = events_list[[id]]$vaccination_month
+        # vaccinate
+        if (!events_list[[id]]$vaccinated & vaccination_month <= max(simulation_months) &
+            ((exposure_month >= vaccination_month) | k == (1+length(events_list[[id]]$exposure_month)))){
           
           # construct piecewise titer curve from current infection forward
-            titer_pre = tmp_titer[exposure_month]
-            titer_post = titer_pre * fold_rise_model(CoP_pre = titer_pre)
-            
-            future_times = exposure_month:length(simulation_months)
-            future_times_from_new_infection = titer_dt*(simulation_months-exposure_month+1)[future_times]
-            
-            # call titer function
-            tmp_titer[future_times] = titer_vs_time(t=future_times_from_new_infection,
-                                                    age_years = exposure_month/12,
-                                                    CoP_pre = titer_pre,
-                                                    CoP_peak= titer_post)
-            
+          titer_pre = tmp_titer[vaccination_month]
+          titer_post = titer_pre * fold_rise_model(CoP_pre = titer_pre,source = 'tcv')
+          
+          future_times = vaccination_month:length(simulation_months)
+          future_times_from_vaccination = titer_dt*(simulation_months-vaccination_month+1)[future_times]
+          
+          # call titer function
+          tmp_titer[future_times] = titer_vs_time(t=future_times_from_vaccination,
+                                                  age_years = vaccination_month/12,
+                                                  CoP_pre = titer_pre,
+                                                  CoP_peak= titer_post)
+          
           # round just because I don't need a bazillion digits
-          tmp_titer[exposure_month:length(tmp_titer)] = round(tmp_titer[exposure_month:length(tmp_titer)],2)
+          tmp_titer[vaccination_month:length(tmp_titer)] = round(tmp_titer[vaccination_month:length(tmp_titer)],2)
+          # update vaccination status
+          events_list[[id]]$vaccinated=TRUE
         }
         
+        if (k <= length(events_list[[id]]$exposure_month)){
+          # calculate their infection probability in that timestep (which may have more than 1 exposure)
+          p_once = p_outcome_given_dose(dose=exposure_dose,CoP_pre=tmp_titer[exposure_month],
+                                        outcome='infection_given_dose')
+          p_inf = 1-(1-p_once)^events_list[[id]]$exposure_count[k]
+          
+          if(runif(1)>p_inf){
+            # if not infected, record not infected upon exposure
+            events_list[[id]]$infected[k] = 0
+            events_list[[id]]$fever[k]    = 0
+          } else {
+            # if infected 
+            
+            # update infection list
+            events_list[[id]]$infected[k]=1
+            
+            # calculate probability they get a fever given infection
+            p_fever = p_outcome_given_dose(dose=exposure_dose,CoP_pre=tmp_titer[exposure_month],
+                                           outcome='fever_given_infection')
+            
+            # update fever list
+            if (runif(n=1)<=p_fever){
+              # if fever
+              events_list[[id]]$fever[k]=1
+            } else {
+              # if no fever
+              events_list[[id]]$fever[k]=0
+            }
+            
+            # construct piecewise titer curve from current infection forward
+              titer_pre = tmp_titer[exposure_month]
+              titer_post = titer_pre * fold_rise_model(CoP_pre = titer_pre)
+              
+              future_times = exposure_month:length(simulation_months)
+              future_times_from_new_infection = titer_dt*(simulation_months-exposure_month+1)[future_times]
+              
+              # call titer function
+              tmp_titer[future_times] = titer_vs_time(t=future_times_from_new_infection,
+                                                      age_years = exposure_month/12,
+                                                      CoP_pre = titer_pre,
+                                                      CoP_peak= titer_post)
+              
+            # round just because I don't need a bazillion digits
+            tmp_titer[exposure_month:length(tmp_titer)] = round(tmp_titer[exposure_month:length(tmp_titer)],2)
+          }
+          
+        }
       }
       
       # only save titer traces if the subject id is <= max_titer_id, because this is expensive.
@@ -362,8 +406,10 @@ cohort_model = function(exposure_dose,exposure_rate,
     # challenge to the reader (and author): how does this work???
     events_df = tibble(id = not_empty_idx, data = events_list[not_empty_idx]) |>
       unnest_wider(data) |>
-      unnest_longer(c(exposure_month,exposure_count,infected,fever), keep_empty = TRUE) |>
+      unnest_longer(c(exposure_month,exposure_count,infected,fever,vaccination_month), keep_empty = TRUE) |>
+      mutate(vaccination_month = if_else(vaccination_month>max(simulation_months),NaN,vaccination_month)) |>
       mutate(exposure_age=exposure_month/12,
+             vaccination_age=vaccination_month/12,
              age_group=cut(exposure_age,breaks=c(0,2,5,10,15,age_max),include.lowest = TRUE)) |>
       mutate(age_width=age_width(age_group,age_max)) |>
       group_by(id) |>
@@ -373,12 +419,16 @@ cohort_model = function(exposure_dose,exposure_rate,
              fever = factor(fever)) |>
       mutate(outcome = interaction(infected,fever)) |>
       mutate(outcome = fct_recode(outcome,exposed='0.0',infected='1.0',fever='1.1')) |>
-      mutate(outcome = factor(outcome,levels=c('exposed', 'infected', 'fever')))
+      mutate(outcome = factor(outcome,levels=c('exposed', 'infected', 'fever'))) 
 
   # combine time of infection events with titers for plotting
   titer_df = titer_df |>
     left_join(events_df |> select(id,infection_age,infected,fever) |> 
                 drop_na(infected),by=join_by(id ==id, age_years == infection_age))
+    titer_df = titer_df |>
+      left_join(events_df |> select(id,vaccination_age) |> filter(!duplicated(id)) |> drop_na(vaccination_age),
+                by=join_by(id ==id)) |>
+      mutate(vaccination_age = if_else(abs(vaccination_age-age_years)>0.01,NA,vaccination_age))
 
   # return
   return(list(titer_df=titer_df,
@@ -399,8 +449,8 @@ if (TRUE | !file.exists('scratch/output_cache.RData')){
   # define setting ecology: exposure rate and dose
 
     # N_cohort=2e4 # a lot faster for playing
-    # N_cohort=2e5 
-    N_cohort=1e6 # made huge to get good stats at lower incidence
+    N_cohort=2e5
+    # N_cohort=1e6 # made huge to get good stats at lower incidence
   
     # medium
     output[['medium']] = cohort_model(exposure_dose = 4e2,
@@ -605,6 +655,7 @@ p_exposure=list()
 for (k in 1:length(output)){
   p_exposure[[k]] = ggplot(output[[k]]$events_df |> filter(id<=40)) +
                       geom_point(aes(x=exposure_age,color=outcome,y=id)) +
+                      geom_point(aes(x=vaccination_age,color='vaccinated',y=id)) +
                       theme_bw() +
                       xlab('age') +
       labs(title = paste(sub('_',' ',names(output)[k]),' incidence',sep=''),
@@ -626,9 +677,11 @@ p_titer_examples=list()
 for (k in 1:length(output)){
   p_titer_examples[[k]] = ggplot() +
     geom_line(data=output[[k]]$titer_df |> filter(id<=20),aes(x=age_years,y=titer)) + 
-    geom_point(data=output[[k]]$titer_df |> filter(id<=20) |> filter(!is.na(infected)),
-               aes(x=age_years,y=titer,color=fever)) +
-    scale_y_continuous(trans='log10',limits=c(1,10^3.5)) +
+    # geom_point(data=output[[k]]$titer_df |> filter(id<=20) |> filter(!is.na(infected)),
+    #            aes(x=age_years,y=titer,color=fever)) +
+    # geom_point(data=output[[k]]$titer_df |> filter(id<=20) |> filter(!is.na(vaccination_age)),
+    #            aes(x=age_years,y=titer,color='vaccinated')) +
+    scale_y_continuous(trans='log10',limits=c(1,10^4)) +
     facet_wrap('id') +
     theme_bw() +
     xlab('age') +
@@ -794,6 +847,40 @@ ggsave('scratch/figures/cohort_model_titer_density.png',units='in',width=7,heigh
 #' ## Vaccine efficacy!
 #' 
 #' 
+p_crude_ve=list()
+for (k in 1:3){
+  tmp_events =  output[[k]]$events_df |> 
+    select(id,exposure_age,infected,fever,vaccination_age,age_group) |>
+    # drop_na(infection_age) |>
+    mutate(vaccinated = exposure_age > vaccination_age,
+           years_at_risk = if_else(vaccinated, exposure_age-vaccination_age, exposure_age)) 
+  
+  # quick and dirty counts
+  output[[k]]$VE_df = tmp_events |> distinct(id,vaccinated,.keep_all = TRUE) |> filter(years_at_risk<=20) |>
+    group_by(age_group,vaccinated) |>
+    summarize(n_at_risk=n(),
+              n_infected=sum(infected==1),
+              n_fever=sum(fever==1)) |>
+    mutate(rate_infection = n_infected/n_at_risk,
+           rate_fever = n_fever/n_at_risk) |>
+    group_by(age_group) |>
+    summarize(VE_infection = 1-rate_infection[vaccinated]/rate_infection[!vaccinated],
+              VE_fever = 1-rate_fever[vaccinated]/rate_fever[!vaccinated])
+  
+  p_crude_ve[[k]] = ggplot(output[[k]]$VE_df) +
+    geom_point(aes(y=VE_fever,x=age_group,color='fever')) + 
+    geom_line(aes(y=VE_fever,x=as.numeric(age_group),color='fever')) + 
+    geom_point(aes(y=VE_infection,x=age_group,color='infection')) + 
+    geom_line(aes(y=VE_infection,x=as.numeric(age_group),color='infection')) + 
+    theme_bw() + 
+    ylim(c(0,1)) +
+    ylab('vaccine efficacy (counts)') +
+    labs(title = paste(sub('_',' ',names(output)[k]),' incidence',sep='')) +
+    theme(plot.title=element_text(size=10),plot.subtitle=element_text(size=8),
+          axis.title = element_text(size=10)) 
+}
+wrap_plots(p_crude_ve) + plot_layout(guides = "collect",axes='collect')
+
 
 # /* back matter for exporting as a blog post
 
