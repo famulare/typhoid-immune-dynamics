@@ -232,28 +232,29 @@ another day.
 
     plot_dat = expand.grid(dose = 10^seq(0,9,by=0.1),
                 CoP_pre = c(50,round(10^seq(0,3.5,by=0.5))),
-                outcome=factor(c('infection_given_dose','fever_given_dose'),
-                               levels=c('infection_given_dose','fever_given_dose','fever_given_infection'))) |>
+                outcome=factor(c('infection given dose','fever given dose','fever given infection'),
+                               levels=c('infection given dose','fever given dose','fever given infection'))) |>
       group_by(outcome,CoP_pre,dose) |>
-      mutate(probability = p_outcome_given_dose(dose=dose,CoP_pre=CoP_pre,outcome = outcome)) |>
+      mutate(probability = p_outcome_given_dose(dose=dose,CoP_pre=CoP_pre,outcome = gsub(' ','_',outcome))) |>
       mutate(CoP_pre = factor(CoP_pre))
 
     ggplot() +
       geom_line(data = plot_dat |> filter(CoP_pre!=50),
                 aes(x=dose,y=probability,group=CoP_pre,color=CoP_pre)) +
-      geom_line(data = plot_dat |> filter(CoP_pre==50 & outcome == 'fever_given_dose'),
+      geom_line(data = plot_dat |> filter(CoP_pre==50 & outcome == 'fever given dose'),
                 aes(x=dose,y=probability,group=CoP_pre),color='black',linewidth=1) +
       facet_grid('~outcome') +
       theme_bw() +
       ylim(c(0,1)) +
       scale_x_continuous(trans='log10', breaks=10^seq(0,10,by=2),minor_breaks = NULL,
                          labels = trans_format("log10", math_format(10^.x)) ) +
+      xlab('bacilli') +
       geom_text(
         data = data.frame(
           x = 10^2,
           y = 0.3,
           label = "Hornick/\nLevine",
-          outcome = factor("fever_given_dose",levels=levels(plot_dat$outcome))
+          outcome = factor("fever given dose",levels=levels(plot_dat$outcome))
         ),
         aes(x = x, y = y, label = label),fontface = "bold",size=3
       ) +
@@ -261,7 +262,7 @@ another day.
 
 ![](cohort_incidence_model_proof_of_concept_files/figure-markdown_strict/unnamed-chunk-5-1.png)
 
-    ggsave('scratch/figures/cohort_model_susceptibility_vs_dose_CoP_pre.png',units='in',width=5, height=3)
+    ggsave('scratch/figures/cohort_model_susceptibility_vs_dose_CoP_pre.png',units='in',width=6, height=3)
 
 The **protective efficacy of prior infection** (in this case, also
 vaccine efficacy more generally) is defined as the relative risk
@@ -279,10 +280,10 @@ immunity vs a person who has never been exposed.
 
     expand.grid(dose = 10^seq(0,8,by=0.1),
                 CoP_pre = round(10^seq(0,3.5,by=0.5)),
-                outcome=factor(c('infection_given_dose','fever_given_dose'),
-                               levels=c('infection_given_dose','fever_given_dose','fever_given_infection'))) |>
+                outcome=factor(c('infection given dose','fever given dose'),
+                               levels=c('infection given dose','fever given dose','fever given infection'))) |>
       group_by(outcome,CoP_pre,dose) |>
-      mutate(protective_efficacy = protective_efficacy(dose=dose,CoP_pre=CoP_pre,outcome = outcome)) |>
+      mutate(protective_efficacy = protective_efficacy(dose=dose,CoP_pre=CoP_pre,outcome = gsub(' ','_',outcome))) |>
       mutate(CoP_pre = factor(CoP_pre)) |>
       ggplot() +
       geom_line(aes(x=dose,y=protective_efficacy,group=CoP_pre,color=CoP_pre)) +
@@ -290,7 +291,8 @@ immunity vs a person who has never been exposed.
       theme_bw() +
       ylim(c(0,1)) +
       scale_x_continuous(trans='log10', breaks=10^seq(0,10,by=2),minor_breaks = NULL,
-                         labels = scales::trans_format("log10", math_format(10^.x)) ) 
+                         labels = scales::trans_format("log10", math_format(10^.x)) ) +
+      xlab('bacilli') + ylab('protective efficacy')
 
 ![](cohort_incidence_model_proof_of_concept_files/figure-markdown_strict/unnamed-chunk-6-1.png)
 
@@ -324,8 +326,9 @@ First, we define the function and it’s inputs.
     cohort_model = function(exposure_dose,exposure_rate,
                             N=1000,age_max=75,
                             titer_dt=365/12, # monthly timesteps so I can assume infections last one timestep
-                            max_titer_id = 1000 # saving every titer above ~1000 gets really slow
-                            ){
+                            max_titer_id = 1000, # saving every titer above ~1000 gets really slow
+                            exposure_rate_multiplier = c(rep(0.2,13),rep(0.5,12),rep(0.8,36),rep(1,120),rep(0.5,75*12-25-36-120))
+    ){
 The two variables that define the transmission ecology are the exposure dose and exposure rate. The exposure dose is the number of bacilli typically ingested when exposed in the setting. This could be drawn from a distribution, but we'll just assume it's a fixed value for now. The exposure rate is the Poisson rate for how often a person is exposed to an infectious dose. Together, through the dose response model, the exposure rate and dose determine how often people get infected. 
 
 The other parameters are just basic simulation config stuff. How many people (default `N=1000`), what is the maximimum age in years (default `age_max = 75`), the timestep (default `titer_dt=365/12`= 1 month), and how many people will we track the full time history of the titer for (default 'max_titer_id=1000'; I suggest you keep this at this size regardless of the N, as this is the slowest part of the code), 
@@ -351,8 +354,8 @@ With the function header and parameters defined, we step into the code. First, w
 We also make one extra accounting for reality, which is that young children have less exposure to typhoid. Infants because they do not eat adult food, and toddlers because they tyically eat small and limited diets. This should probably be configurable as parameters, but I'm not gonna play with it in this script so I just hard coded that children up through 12 months of age have 10% the exposure of adults and children 1-2 years have 50%, by pure assumption.
 
       # age-dependent exposure rate, to account for kids under 2y having less exposure to food and sewage
-      exposure_rate_multiplier = c(rep(0.1,13),rep(0.5,12),rep(1,length(simulation_months)-25))
-
+      # exposure_rate_multiplier = c(rep(0.2,13),rep(0.5,12),rep(1,length(simulation_months)-25))
+      
 With that set up, we can expose everyone for their lifetimes and save the exposure event times.
 
       # expose
@@ -493,24 +496,28 @@ vs. $1000/100k &lt; “very high”).
       # define setting ecology: exposure rate and dose
 
         # N_cohort=2e4 # a lot faster for playing
+        # N_cohort=2e5 
         N_cohort=1e6 # made huge to get good stats at lower incidence
       
         # medium
-        output[['medium']] = cohort_model(exposure_dose = 3e2,
+        output[['medium']] = cohort_model(exposure_dose = 4e2,
                                           exposure_rate=1/(12*20), # per month
-                                          N=N_cohort)
+                                          N=N_cohort,
+                                          exposure_rate_multiplier = c(rep(0.1,13),rep(0.5,12),rep(0.7,36),rep(1,60),rep(1,60),rep(0.5,75*12-25-36-120)))
         
         # high
-        output[['high']] = cohort_model(exposure_dose = 5e2,
-                                        exposure_rate=1/(12*5), # per month
-                                        N=N_cohort/5)
+        output[['high']] = cohort_model(exposure_dose = 4e2,
+                                        exposure_rate=1/(12*3), # per month
+                                        N=N_cohort/5,
+                                        exposure_rate_multiplier = c(rep(0.1,13),rep(0.5,12),rep(1,36),rep(1,60),rep(0.7,60),rep(0.5,75*12-25-36-120)))
         
         # very high
         output[['very_high']] = cohort_model(exposure_dose = 5e3,
                                              exposure_rate=1/(12*3), # per month
-                                             N=N_cohort/10)
+                                             N=N_cohort/10,
+                                             exposure_rate_multiplier = c(rep(0.1,13),rep(0.5,12),rep(1,36),rep(0.7,60),rep(0.5,60),rep(0.5,75*12-25-36-120)))
         
-        save(output,N,file='scratch/output_cache.RData')
+        save(output,N_cohort,file='scratch/output_cache.RData')
     } else {
       load(file='scratch/output_cache.RData')  
     }
@@ -519,7 +526,6 @@ And, for summarizing the results, let’s calculate incidence per 100k
 people by age and overall from the events data, and include the total
 incidence archetype targets for reference.
 
-    # incidence targets
     incidence_fever_targets = c(medium = 53,high=214,very_high=1255)
 
     # calculate incidence
@@ -539,6 +545,71 @@ incidence archetype targets for reference.
                incidence_fever_target = incidence_fever_targets[names(output)[k]])
     }
 
+    ## exposure rate by age
+    exposure_rate_by_age_targets = expand.grid(age_group=unique(output[[1]]$incidence_vs_age$age_group),
+                                               setting = names(output)) |>
+      mutate(age_group_numeric = as.numeric(age_group)-0.5) |>
+      mutate(exposures_per_year = c(1/20*c(0.3,0.7,1,1,0.5),
+                                    1/3*c(0.3,1,1,0.7,0.5),
+                                    1/3*c(0.3,1,0.7,0.5,0.5))) |>
+      mutate(bacilli_per_exposure = c(4e2*c(1,1,1,1,1),
+                                  4e2*c(1,1,1,1,1),
+                                  5e3*c(1,1,1,1,1))) |>
+      # mutate(bacilli_per_year = c(4e2/20*c(0.3,0.7,1,1,0.5),
+      #                             4e2/3*c(0.3,1,1,0.7,0.5),
+      #                             5e3/3*c(0.3,1,0.7,0.5,0.5))) |>
+      mutate(bacilli_per_year = bacilli_per_exposure * exposures_per_year) |>
+      rbind(data.frame(age_group=NA,
+                       age_group_numeric=5.5,
+                       exposures_per_year=c(1/20*0.5,1/3*0.5,1/3*0.5),
+                       bacilli_per_exposure = c(4e2,4e2,5e3),
+                       bacilli_per_year=c(4e2/20*0.5,4e2/3*0.5,5e3/3*0.5),
+                       setting = names(output)))
+
+    ggplot(exposure_rate_by_age_targets) +
+      geom_step(aes(x=age_group_numeric,y=bacilli_per_year,group=setting)) +
+      theme_bw() +
+      facet_grid('~setting') +
+      scale_x_continuous(breaks=1:5,labels = as.character(unique(output[[1]]$incidence_vs_age$age_group))) +
+      scale_y_continuous(trans='log10',breaks=c(1,2,5,10,20,50,100,200,500,1000,2000),
+                         minor_breaks = NULL) +
+      xlab('age [years]') +
+      ylab('bacilli\ningested\nper exposure') +
+      theme(strip.text = element_blank())
+
+![](cohort_incidence_model_proof_of_concept_files/figure-markdown_strict/unnamed-chunk-10-1.png)
+
+    ggsave('scratch/figures/cohort_model_mean_bacilli_ingested_per_year_by_age.png',units='in',width=8, height=1.25)
+
+    ggplot(exposure_rate_by_age_targets) +
+      geom_step(aes(x=age_group_numeric,y=bacilli_per_exposure,group=setting)) +
+      theme_bw() +
+      facet_grid('~setting') +
+      scale_x_continuous(breaks=1:5,labels = as.character(unique(output[[1]]$incidence_vs_age$age_group))) +
+      scale_y_continuous(trans='log10',breaks=c(1,2,5,10,20,50,100,200,500,1000,2000,5000),
+                         minor_breaks = NULL) +
+      xlab('age [years]') +
+      ylab('bacilli\ningested\nper exposure') +
+      theme(strip.text = element_blank())
+
+![](cohort_incidence_model_proof_of_concept_files/figure-markdown_strict/unnamed-chunk-10-2.png)
+
+    ggsave('scratch/figures/cohort_model_mean_bacilli_ingested_per_exposure_by_age.png',units='in',width=8, height=1.25)
+
+    ggplot(exposure_rate_by_age_targets) +
+      geom_step(aes(x=age_group_numeric,y=exposures_per_year,group=setting)) +
+      theme_bw() +
+      facet_grid('~setting') +
+      scale_x_continuous(breaks=1:5,labels = as.character(unique(output[[1]]$incidence_vs_age$age_group))) +
+      scale_y_continuous(minor_breaks = NULL) +
+      theme(strip.text = element_blank()) +
+      xlab('age [years]') +
+      ylab('mean\nexposures\nper year')
+
+![](cohort_incidence_model_proof_of_concept_files/figure-markdown_strict/unnamed-chunk-10-3.png)
+
+    ggsave('scratch/figures/cohort_model_fitted_exposure_rates_by_age.png',units='in',width=8, height=1.25)
+
 ## Results!
 
 ### Incidence by age and across setting archetypes
@@ -550,20 +621,39 @@ fraction of infections with fever. There’s a bunch of ggplot stuff and
 I’m sure I could make it less verbose but that’s not the point–this is
 model diagnostics in action.
 
+    # fever incidence targets from WHO TCV working group
+    incidence_fever_by_age_targets = rep(list(data.frame(age_group=unique(output[[1]]$incidence_vs_age$age_group),
+                                                         incidence_fever = NaN,
+                                                         lower=NaN,
+                                                         upper=NaN)),3)
+    incidence_fever_by_age_targets[[1]]$incidence_fever <- c(20,53,71,72,35)
+    incidence_fever_by_age_targets[[1]]$lower <- c(15,40,58,57,30)
+    incidence_fever_by_age_targets[[1]]$upper <- c(27,66,83,84,40)
+    incidence_fever_by_age_targets[[2]]$incidence_fever = c(160,500,420,275,140)
+    incidence_fever_by_age_targets[[2]]$lower <- c(120,440,370,240,160)
+    incidence_fever_by_age_targets[[2]]$upper <- c(200,560,470,320,120)
+    incidence_fever_by_age_targets[[3]]$incidence_fever = c(1400,4350,2950,1750,600)
+    incidence_fever_by_age_targets[[3]]$lower <- c(1200,4000,2750,1600,550)
+    incidence_fever_by_age_targets[[3]]$upper <- c(1600,4700,3150,1900,650)
+
+    # calculate incidences from the model
     p_incidence_fever=list()
     p_incidence_infection=list()
     p_symptomatic_fraction=list()
     for (k in 1:length(output)){
       p_incidence_fever[[k]]=ggplot(output[[k]]$incidence_vs_age) +
         geom_bar(aes(x=age_group,y=incidence_fever),stat='identity') +
-        geom_hline(aes(yintercept=incidence_fever_overall[1]),linetype='solid') +
-        geom_hline(aes(yintercept=incidence_fever_target[1]),linetype='dashed') +
+        # geom_hline(aes(yintercept=incidence_fever_overall[1]),linetype='solid') +
+        # geom_hline(aes(yintercept=incidence_fever_target[1]),linetype='dashed') +
+        geom_segment(data=incidence_fever_by_age_targets[[k]],aes(x=age_group,y=lower,yend=upper,group=age_group),stat='identity',color='orangered') +
+        geom_point(data=incidence_fever_by_age_targets[[k]],aes(x=age_group,y=incidence_fever),stat='identity',color='orangered') +
         theme_bw() +
         xlab('') +
         ylab('annual incidence of fever per 100k') +
         labs(title = paste(sub('_',' ',names(output)[k]),' incidence',sep=''),
-             subtitle=paste('dose = ',output[[k]]$config$exposure_dose,' bacilli\nmean years b/w exposures = ',
-                            1/(12*output[[k]]$config$exposure_rate),sep='')) +
+        #      subtitle=paste('dose = ',output[[k]]$config$exposure_dose,' bacilli\nmean years b/w exposures = ',
+        #                     1/(12*output[[k]]$config$exposure_rate),sep='')
+        ) +
         theme(plot.title=element_text(size=10),plot.subtitle=element_text(size=8),
               axis.title = element_text(size=10))
       
@@ -574,8 +664,9 @@ model diagnostics in action.
         xlab('') +
         ylab('annual incidence of infection per 100k') +
         labs(title = paste(sub('_',' ',names(output)[k]),' incidence',sep=''),
-             subtitle=paste('dose = ',output[[k]]$config$exposure_dose,' bacilli\nmean years b/w exposures = ',
-                            1/(12*output[[k]]$config$exposure_rate),sep='')) +
+        #      subtitle=paste('dose = ',output[[k]]$config$exposure_dose,' bacilli\nmean years b/w exposures = ',
+        #                     1/(12*output[[k]]$config$exposure_rate),sep='')
+        ) +
         theme(plot.title=element_text(size=10),plot.subtitle=element_text(size=8),
               axis.title = element_text(size=10))
       
@@ -585,10 +676,11 @@ model diagnostics in action.
         theme_bw() +
         xlab('') +
         ylab('symptomatic fraction') +
-        ylim(c(0,0.16)) +
+        ylim(c(0,0.2)) +
         labs(title = paste(sub('_',' ',names(output)[k]),' incidence',sep=''),
-             subtitle=paste('dose = ',output[[k]]$config$exposure_dose,' bacilli\nmean years b/w exposures = ',
-                            1/(12*output[[k]]$config$exposure_rate),sep='')) +
+        #      subtitle=paste('dose = ',output[[k]]$config$exposure_dose,' bacilli\nmean years b/w exposures = ',
+        #                     1/(12*output[[k]]$config$exposure_rate),sep='')
+        ) +
         theme(plot.title=element_text(size=10),plot.subtitle=element_text(size=8),
               axis.title = element_text(size=10))
     }
@@ -629,9 +721,7 @@ Higher doses but not significatly higher exposure rates is our
 hypothesis for the difference in fever incidence without difference in
 age distribution.
 
-    wrap_plots(p_symptomatic_fraction) + plot_layout(guides = "collect")
-
-    ## Warning: Removed 1 row containing missing values or values outside the scale range (`geom_bar()`).
+    wrap_plots(p_symptomatic_fraction) + plot_layout(guides = "collect",axes='collect')
 
 ![](cohort_incidence_model_proof_of_concept_files/figure-markdown_strict/unnamed-chunk-14-1.png)
 
@@ -737,11 +827,16 @@ function of the exposure dose and the titer.
                protective_efficacy_fever_lower_95 = quantile(protective_efficacy_fever,probs=0.025))
       
       p_titer_summary[[k]] = ggplot(tmp_titer_summary) +
-        geom_ribbon(aes(x=age_years,ymin=titer_lower_95,ymax=titer_upper_95),alpha=0.2)+
-        geom_ribbon(aes(x=age_years,ymin=titer_lower_iqr,ymax=titer_upper_iqr),alpha=0.2)+
-        geom_line(aes(x=age_years,y=titer_median)) + 
-        geom_line(aes(x=age_years,y=titer_gmt),linetype='dashed') + 
-        scale_y_continuous(limits=c(1,10^3.5),trans='log2') +
+        # geom_ribbon(aes(x=age_years,ymin=titer_lower_95,ymax=titer_upper_95),alpha=0.2)+
+        # geom_ribbon(aes(x=age_years,ymin=titer_lower_iqr,ymax=titer_upper_iqr),alpha=0.2)+
+        # geom_line(aes(x=age_years,y=titer_median)) + 
+        # geom_line(aes(x=age_years,y=titer_gmt),linetype='dashed') +
+        # scale_y_continuous(limits=c(1,10^3.5),trans='log2') +
+        geom_ribbon(aes(x=age_years,ymin=log2(titer_lower_95),ymax=log2(titer_upper_95)),alpha=0.2)+
+        geom_ribbon(aes(x=age_years,ymin=log2(titer_lower_iqr),ymax=log2(titer_upper_iqr)),alpha=0.2)+
+        geom_line(aes(x=age_years,y=log2(titer_median))) + 
+        geom_line(aes(x=age_years,y=log2(titer_gmt)),linetype='dashed') +
+        scale_y_continuous(breaks=seq(0,10,by=1),minor_breaks=NULL)+
         theme_bw() +
         xlab('age') +
         labs(title = paste(sub('_',' ',names(output)[k]),' incidence',sep=''),
@@ -861,4 +956,4 @@ development are
     a future update, we should close the loop.
 3.  Related, carrier status is likely modulated via bacteremia, the
     probability of which also depends on immunity. This is again of
-    interest for a future update.
+    interest for a future update. \## Vaccine efficacy!
