@@ -122,11 +122,11 @@ data.frame(t=seq(0,15,by=1/12), titer=1) |>
   mutate(titer = if_else(t<=2, titer, 
                          titer_vs_time(t=(t-2)*365,age=2,
                                        CoP_pre=titer[t==2],
-                                       CoP_peak = titer[t==2]*fold_rise_model(CoP_pre = titer[t==2])))) |>
+                                       CoP_peak = titer[t==2]*fold_rise_model(CoP_pre = titer[t==2], response='median')))) |>
   mutate(titer = if_else(t<=7, titer, 
                          titer_vs_time(t=(t-7)*365,age=7,
                                        CoP_pre=titer[t==7],
-                                       CoP_peak = titer[t==7]*fold_rise_model(CoP_pre = titer[t==7])))) |>
+                                       CoP_peak = titer[t==7]*fold_rise_model(CoP_pre = titer[t==7], response='median')))) |>
   ggplot() +
   geom_line(aes(x=t,y=titer)) + 
   theme_bw() + scale_y_continuous(trans='log10') + xlab('age [years]') + ylab('Anti-Vi IgG [EU/ml]')
@@ -393,36 +393,36 @@ cohort_model = function(exposure_dose,exposure_rate,
 #' 
 #+ echo=TRUE, message=FALSE, results = 'hide'
 # if the simulation output is saved, just use the cache. Otherwise, run the models.
-if (TRUE | !file.exists('scratch/output_cache_flat.RData')){
+if (!file.exists('scratch/output_cache_flat_highdose.RData')){
   output=list()
   
   # define setting ecology: exposure rate and dose
 
     # N_cohort=2e4 # a lot faster for playing
-    # N_cohort=2e5
-    N_cohort=1e6 # made huge to get good stats at lower incidence
+    N_cohort=2e5
+    # N_cohort=1e6 # made huge to get good stats at lower incidence
   
     # medium
-    output[['medium']] = cohort_model(exposure_dose = 4e2,
-                                      exposure_rate=1/(12*20), # per month
+    output[['medium']] = cohort_model(exposure_dose = 1.3e2,
+                                      exposure_rate=1/(12*7), # per month
                                       N=N_cohort,
-                                      exposure_rate_multiplier = c(rep(0.1,13),rep(0.5,12),rep(1,36),rep(1,60),rep(1,60),rep(1,75*12-25-36-120)))
+                                      exposure_rate_multiplier = c(rep(0.25,13),rep(0.25,12),rep(1,36),rep(1,60),rep(1,60),rep(1,75*12-25-36-120)))
     
     # high
-    output[['high']] = cohort_model(exposure_dose = 4e2,
-                                    exposure_rate=1/(12*3), # per month
+    output[['high']] = cohort_model(exposure_dose = 1.3e2,
+                                    exposure_rate=1/(12*0.8), # per month
                                     N=N_cohort/5,
-                                    exposure_rate_multiplier = c(rep(0.3,13),rep(0.3,12),rep(1,36),rep(1,60),rep(1,60),rep(1,75*12-25-36-120)))
+                                    exposure_rate_multiplier = c(rep(0.25,13),rep(0.25,12),rep(1,36),rep(1,60),rep(1,60),rep(1,75*12-25-36-120)))
     
     # very high
-    output[['very_high']] = cohort_model(exposure_dose = 5e3,
-                                         exposure_rate=1/(12*3), # per month
+    output[['very_high']] = cohort_model(exposure_dose = 1.3e3,  #2.4, 1.5 is pretty good
+                                         exposure_rate=1/(12*0.8), # per month
                                          N=N_cohort/10,
-                                         exposure_rate_multiplier = c(rep(0.3,13),rep(0.3,12),rep(1,36),rep(1,60),rep(1,60),rep(1,75*12-25-36-120)))
+                                         exposure_rate_multiplier = c(rep(0.25,13),rep(0.25,12),rep(1,36),rep(1,60),rep(1,60),rep(1,75*12-25-36-120)))
     
-    save(output,N_cohort,file='scratch/output_cache_flat.RData')
+    save(output,N_cohort,file='scratch/output_cache_flat_highdose.RData')
 } else {
-  load(file='scratch/output_cache_flat.RData')  
+  load(file='scratch/output_cache_flat_highdose.RData')  
 }
 
 
@@ -452,21 +452,21 @@ for (k in 1:length(output)){
 exposure_rate_by_age_targets = expand.grid(age_group=unique(output[[1]]$incidence_vs_age$age_group),
                                            setting = names(output)) |>
   mutate(age_group_numeric = as.numeric(age_group)-0.5) |>
-  mutate(exposures_per_year = c(1/20*c(0.3,1,1,1,1),
-                                1/3*c(0.3,1,1,1,1),
-                                1/3*c(0.3,1,1,1,1))) |>
-  mutate(bacilli_per_exposure = c(4e2*c(1,1,1,1,1),
-                              4e2*c(1,1,1,1,1),
-                              5e3*c(1,1,1,1,1))) |>
+  mutate(exposures_per_year = c(1/7*c(0.25,1,1,1,1),
+                                1/0.8*c(0.25,1,1,1,1),
+                                1/0.8*c(0.25,1,1,1,1))) |>
+  mutate(bacilli_per_exposure = c(1.3e2*c(1,1,1,1,1),
+                              1.3e2*c(1,1,1,1,1),
+                              1.3e3*c(1,1,1,1,1))) |>
   # mutate(bacilli_per_year = c(4e2/20*c(0.3,0.7,1,1,0.5),
   #                             4e2/3*c(0.3,1,1,0.7,0.5),
   #                             5e3/3*c(0.3,1,0.7,0.5,0.5))) |>
   mutate(bacilli_per_year = bacilli_per_exposure * exposures_per_year) |>
   rbind(data.frame(age_group=NA,
                    age_group_numeric=5.5,
-                   exposures_per_year=c(1/20*1,1/3*1,1/3*1),
-                   bacilli_per_exposure = c(4e2,4e2,5e3),
-                   bacilli_per_year=c(4e2/20*1,4e2/3*1,5e3/3*1),
+                   exposures_per_year=c(1/7*1,1/0.8*1,1/0.8*1),
+                   bacilli_per_exposure = c(1.3e2,1.3e2,1.3e3),
+                   bacilli_per_year=c(1.3e2/7*1,1.3e2/0.8*1,1.3e3/0.8*1),
                    setting = names(output)))
 
 ggplot(exposure_rate_by_age_targets) +
@@ -566,7 +566,7 @@ for (k in 1:length(output)){
     theme_bw() +
     xlab('') +
     ylab('symptomatic fraction') +
-    ylim(c(0,0.2)) +
+    ylim(c(0,0.1)) +
     labs(title = paste(sub('_',' ',names(output)[k]),' incidence',sep=''),
     #      subtitle=paste('dose = ',output[[k]]$config$exposure_dose,' bacilli\nmean years b/w exposures = ',
     #                     1/(12*output[[k]]$config$exposure_rate),sep='')

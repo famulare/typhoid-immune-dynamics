@@ -445,7 +445,7 @@ cohort_model = function(exposure_dose,exposure_rate,
 #' 
 #+ echo=TRUE, message=FALSE, results = 'hide'
 # if the simulation output is saved, just use the cache. Otherwise, run the models.
-if (!file.exists('scratch/output_cache_VE.RData')){
+if (!file.exists('scratch/output_cache_VE_highdose.RData')){
   output=list()
   
   # define setting ecology: exposure rate and dose
@@ -472,9 +472,9 @@ if (!file.exists('scratch/output_cache_VE.RData')){
                                          N=N_cohort/10,
                                          exposure_rate_multiplier = c(rep(0.1,13),rep(0.5,12),rep(1,36),rep(0.7,60),rep(0.5,60),rep(0.5,75*12-25-36-120)))
     
-    save(output,N_cohort,file='scratch/output_cache_VE.RData')
+    save(output,N_cohort,file='scratch/output_cache_VE_highdose.RData')
 } else {
-  load(file='scratch/output_cache_VE.RData')  
+  load(file='scratch/output_cache_VE_highdose.RData')  
 }
 
 
