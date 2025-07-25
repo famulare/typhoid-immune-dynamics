@@ -455,22 +455,22 @@ if (!file.exists('scratch/output_cache_VE_highdose.RData')){
     N_cohort=2e6 # made huge to get good stats at lower incidence
   
     # medium
-    output[['medium']] = cohort_model(exposure_dose = 4e2,
-                                      exposure_rate=1/(12*20), # per month
+    output[['medium']] = cohort_model(exposure_dose = 1.3e2,
+                                      exposure_rate=1/(12*7), # per month
                                       N=N_cohort,
-                                      exposure_rate_multiplier = c(rep(0.1,13),rep(0.5,12),rep(0.7,36),rep(1,60),rep(1,60),rep(0.5,75*12-25-36-120)))
+                                      exposure_rate_multiplier = c(rep(0.25,13),rep(0.25,12),rep(1,36),rep(1,60),rep(1,60),rep(1,75*12-25-36-120)))
     
     # high
-    output[['high']] = cohort_model(exposure_dose = 4e2,
-                                    exposure_rate=1/(12*3), # per month
+    output[['high']] = cohort_model(exposure_dose = 1.3e2,
+                                    exposure_rate=1/(12*0.8), # per month
                                     N=N_cohort/5,
-                                    exposure_rate_multiplier = c(rep(0.1,13),rep(0.5,12),rep(1,36),rep(1,60),rep(0.7,60),rep(0.5,75*12-25-36-120)))
+                                    exposure_rate_multiplier = c(rep(0.25,13),rep(0.25,12),rep(1,36),rep(1,60),rep(1,60),rep(1,75*12-25-36-120)))
     
     # very high
-    output[['very_high']] = cohort_model(exposure_dose = 5e3,
-                                         exposure_rate=1/(12*3), # per month
+    output[['very_high']] = cohort_model(exposure_dose = 1.3e3,
+                                         exposure_rate=1/(12*0.8), # per month
                                          N=N_cohort/10,
-                                         exposure_rate_multiplier = c(rep(0.1,13),rep(0.5,12),rep(1,36),rep(0.7,60),rep(0.5,60),rep(0.5,75*12-25-36-120)))
+                                         exposure_rate_multiplier = c(rep(0.25,13),rep(0.25,12),rep(1,36),rep(1,60),rep(1,60),rep(1,75*12-25-36-120)))
     
     save(output,N_cohort,file='scratch/output_cache_VE_highdose.RData')
 } else {
@@ -504,21 +504,21 @@ for (k in 1:length(output)){
 exposure_rate_by_age_targets = expand.grid(age_group=unique(output[[1]]$incidence_vs_age$age_group),
                                            setting = names(output)) |>
   mutate(age_group_numeric = as.numeric(age_group)-0.5) |>
-  mutate(exposures_per_year = c(1/20*c(0.3,0.7,1,1,0.5),
-                                1/3*c(0.3,1,1,0.7,0.5),
-                                1/3*c(0.3,1,0.7,0.5,0.5))) |>
-  mutate(bacilli_per_exposure = c(4e2*c(1,1,1,1,1),
-                              4e2*c(1,1,1,1,1),
-                              5e3*c(1,1,1,1,1))) |>
+  mutate(exposures_per_year = c(1/7*c(0.25,1,1,1,1),
+                                1/0.8*c(0.25,1,1,1,1),
+                                1/0.8*c(0.25,1,1,1,1))) |>
+  mutate(bacilli_per_exposure = c(1.3e2*c(1,1,1,1,1),
+                                  1.3e2*c(1,1,1,1,1),
+                                  1.3e3*c(1,1,1,1,1))) |>
   # mutate(bacilli_per_year = c(4e2/20*c(0.3,0.7,1,1,0.5),
   #                             4e2/3*c(0.3,1,1,0.7,0.5),
   #                             5e3/3*c(0.3,1,0.7,0.5,0.5))) |>
   mutate(bacilli_per_year = bacilli_per_exposure * exposures_per_year) |>
   rbind(data.frame(age_group=NA,
                    age_group_numeric=5.5,
-                   exposures_per_year=c(1/20*0.5,1/3*0.5,1/3*0.5),
-                   bacilli_per_exposure = c(4e2,4e2,5e3),
-                   bacilli_per_year=c(4e2/20*0.5,4e2/3*0.5,5e3/3*0.5),
+                   exposures_per_year=c(1/7*1,1/0.8*1,1/0.8*1),
+                   bacilli_per_exposure = c(1.3e2,1.3e2,1.3e3),
+                   bacilli_per_year=c(1.3e2/7*1,1.3e2/0.8*1,1.3e3/0.8*1),
                    setting = names(output)))
 
 ggplot(exposure_rate_by_age_targets) +
@@ -1020,7 +1020,7 @@ VE_df = rbind(data.frame(incidence=names(output[1]),output[[1]]$VE_df),
               data.frame(incidence=names(output[3]),output[[3]]$VE_df)) |>
   mutate(incidence=factor(incidence,levels=c('medium','high','very_high')))
 
-mod = lm(log(VE_fever/(1-VE_fever))~incidence*log(interval_midpoint) + incidence*age_group,
+mod = lm(log((0.00+VE_fever)/(1.00-VE_fever))~incidence*log(interval_midpoint) + incidence*age_group,
          data=VE_df)
 summary(mod)
 
@@ -1053,6 +1053,7 @@ VE_df |>
   xlab('years since enrollment') +
   theme(plot.title=element_text(size=10),plot.subtitle=element_text(size=8),
         axis.title = element_text(size=10)) 
+
 ggsave('scratch/figures/cohort_model_VE_fever_by_age.png',units='in',width=7,height=2.5)
 
 ggplot(VE_df ) +
