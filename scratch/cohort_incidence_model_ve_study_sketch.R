@@ -89,7 +89,7 @@ expand.grid(t=seq(0,10,by=1/24), age_years = factor(c(1,5,15,45))) |>
 #+ echo=TRUE, message=FALSE, results = 'hide'
 # fold-rise model. defaults set to natural immunity defaults
 fold_rise_model = function(CoP_pre,
-                           mu_0_inf=1.25,
+                           mu_0_inf=1.5, #1.25
                            mu_0_tcv=3.16,
                            CoP_max=10^3.5, CoP_min=1,
                            sigma_0=0.5, # made up value for now, informed by polio (2.9/7.2)*mu_0
@@ -452,23 +452,23 @@ if (!file.exists('scratch/output_cache_VE_highdose.RData')){
 
     # N_cohort=2e4 # a lot faster for playing
     # N_cohort=2e5
-    N_cohort=2e6 # made huge to get good stats at lower incidence
+    N_cohort=3e6 # made huge to get good stats at lower incidence
   
     # medium
-    output[['medium']] = cohort_model(exposure_dose = 1.3e2,
-                                      exposure_rate=1/(12*7), # per month
+    output[['medium']] = cohort_model(exposure_dose = 6.5e2,
+                                      exposure_rate=1/(12*19), # per month
                                       N=N_cohort,
                                       exposure_rate_multiplier = c(rep(0.25,13),rep(0.25,12),rep(1,36),rep(1,60),rep(1,60),rep(1,75*12-25-36-120)))
     
     # high
-    output[['high']] = cohort_model(exposure_dose = 1.3e2,
-                                    exposure_rate=1/(12*0.8), # per month
+    output[['high']] = cohort_model(exposure_dose = 6.5e2,
+                                    exposure_rate=1/(12*1.9), # per month
                                     N=N_cohort/5,
                                     exposure_rate_multiplier = c(rep(0.25,13),rep(0.25,12),rep(1,36),rep(1,60),rep(1,60),rep(1,75*12-25-36-120)))
     
     # very high
-    output[['very_high']] = cohort_model(exposure_dose = 1.3e3,
-                                         exposure_rate=1/(12*0.8), # per month
+    output[['very_high']] = cohort_model(exposure_dose = 3.3e3,
+                                         exposure_rate=1/(12*1.9), # per month
                                          N=N_cohort/10,
                                          exposure_rate_multiplier = c(rep(0.25,13),rep(0.25,12),rep(1,36),rep(1,60),rep(1,60),rep(1,75*12-25-36-120)))
     

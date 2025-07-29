@@ -89,7 +89,7 @@ expand.grid(t=seq(0,10,by=1/24), age_years = factor(c(1,5,15,45))) |>
 #+ echo=TRUE, message=FALSE, results = 'hide'
 # fold-rise model. defaults set to natural immunity defaults
 fold_rise_model = function(CoP_pre,
-                           mu_0=1.25,
+                           mu_0=1.5, #1.25
                            CoP_max=10^3.5, CoP_min=1,
                            sigma_0=0.5, # made up value for now, informed by polio (2.9/7.2)*mu_0
                            response='individual'){# 'median'
@@ -140,28 +140,26 @@ data.frame(t=seq(0,15,by=1/12), titer=1) |>
 #+ echo=TRUE, message=FALSE, results = 'hide'
 # dose response
 p_outcome_given_dose = function(dose=1e4,  CoP_pre=1, outcome = 'fever_given_dose', 
-                                n50_fever_given_dose=27800, alpha_fever_given_dose=0.84, 
-                                gamma_fever_given_dose=0.4,
+                                n50_fever_given_infection=26150, alpha_fever_given_infection=0.79, 
+                                gamma_fever_given_infection=0.39,
                                 n50_infection_given_dose=27800/40,alpha_infection_given_dose = 0.84*2, 
                                 gamma_infection_given_dose=0.4/2 
-                                ){
+){
   
-  if(outcome == 'fever_given_dose'){
+  if(outcome == 'fever_given_infection'){
     
-    p = 1 - (1+dose*(2^(1/alpha_fever_given_dose)-1)/n50_fever_given_dose)^(-alpha_fever_given_dose/(CoP_pre^gamma_fever_given_dose))
+    p = 1 - (1+dose*(2^(1/alpha_fever_given_infection)-1)/n50_fever_given_infection)^(-alpha_fever_given_infection/(CoP_pre^gamma_fever_given_infection))
     
   } else if (outcome == 'infection_given_dose'){
     
     p = 1 - (1+dose*(2^(1/alpha_infection_given_dose)-1)/n50_infection_given_dose)^
       (-alpha_infection_given_dose/(CoP_pre^gamma_infection_given_dose))
     
-  } else if (outcome == 'fever_given_infection'){
+  } else if (outcome == 'fever_given_dose'){
     
-    p = (1 - (1+dose*(2^(1/alpha_fever_given_dose)-1)/n50_fever_given_dose)^
-           (-alpha_fever_given_dose/(CoP_pre^gamma_fever_given_dose))) /
-      (1 - (1+dose*(2^(1/alpha_infection_given_dose)-1)/n50_infection_given_dose)^
-         (-alpha_infection_given_dose/(CoP_pre^gamma_infection_given_dose)))
-    
+    p = (1 - (1+dose*(2^(1/alpha_infection_given_dose)-1)/n50_infection_given_dose)^
+           (-alpha_infection_given_dose/(CoP_pre^gamma_infection_given_dose))) *
+      (1 - (1+dose*(2^(1/alpha_fever_given_infection)-1)/n50_fever_given_infection)^(-alpha_fever_given_infection/(CoP_pre^gamma_fever_given_infection)))
   }
   
   return(p)
@@ -211,7 +209,7 @@ protective_efficacy = function(dose=1e4,  CoP_pre=1, outcome = 'fever_given_dose
 
 expand.grid(dose = 10^seq(0,8,by=0.1),
             CoP_pre = round(10^seq(0,3.5,by=0.5)),
-            outcome=factor(c('infection given dose','fever given dose'),
+            outcome=factor(c('infection given dose','fever given infection','fever given dose'),
                            levels=c('infection given dose','fever given dose','fever given infection'))) |>
   group_by(outcome,CoP_pre,dose) |>
   mutate(protective_efficacy = protective_efficacy(dose=dose,CoP_pre=CoP_pre,outcome = gsub(' ','_',outcome))) |>
@@ -399,24 +397,24 @@ if (!file.exists('scratch/output_cache_flat_highdose.RData')){
   # define setting ecology: exposure rate and dose
 
     # N_cohort=2e4 # a lot faster for playing
-    N_cohort=2e5
-    # N_cohort=1e6 # made huge to get good stats at lower incidence
+    # N_cohort=2e5
+    N_cohort=1e6 # made huge to get good stats at lower incidence
   
     # medium
-    output[['medium']] = cohort_model(exposure_dose = 1.3e2,
-                                      exposure_rate=1/(12*7), # per month
+    output[['medium']] = cohort_model(exposure_dose = 6.5e2,
+                                      exposure_rate=1/(12*19), # per month
                                       N=N_cohort,
                                       exposure_rate_multiplier = c(rep(0.25,13),rep(0.25,12),rep(1,36),rep(1,60),rep(1,60),rep(1,75*12-25-36-120)))
     
     # high
-    output[['high']] = cohort_model(exposure_dose = 1.3e2,
-                                    exposure_rate=1/(12*0.8), # per month
+    output[['high']] = cohort_model(exposure_dose = 6.5e2,
+                                    exposure_rate=1/(12*1.9), # per month
                                     N=N_cohort/5,
                                     exposure_rate_multiplier = c(rep(0.25,13),rep(0.25,12),rep(1,36),rep(1,60),rep(1,60),rep(1,75*12-25-36-120)))
     
     # very high
-    output[['very_high']] = cohort_model(exposure_dose = 1.3e3,  #2.4, 1.5 is pretty good
-                                         exposure_rate=1/(12*0.8), # per month
+    output[['very_high']] = cohort_model(exposure_dose = 3.3e3,  #2.5, 1.4 is pretty good
+                                         exposure_rate=1/(12*1.9), # per month
                                          N=N_cohort/10,
                                          exposure_rate_multiplier = c(rep(0.25,13),rep(0.25,12),rep(1,36),rep(1,60),rep(1,60),rep(1,75*12-25-36-120)))
     
@@ -452,21 +450,21 @@ for (k in 1:length(output)){
 exposure_rate_by_age_targets = expand.grid(age_group=unique(output[[1]]$incidence_vs_age$age_group),
                                            setting = names(output)) |>
   mutate(age_group_numeric = as.numeric(age_group)-0.5) |>
-  mutate(exposures_per_year = c(1/7*c(0.25,1,1,1,1),
-                                1/0.8*c(0.25,1,1,1,1),
-                                1/0.8*c(0.25,1,1,1,1))) |>
-  mutate(bacilli_per_exposure = c(1.3e2*c(1,1,1,1,1),
-                              1.3e2*c(1,1,1,1,1),
-                              1.3e3*c(1,1,1,1,1))) |>
+  mutate(exposures_per_year = c(1/19*c(0.25,1,1,1,1),
+                                1/1.9*c(0.25,1,1,1,1),
+                                1/1.9*c(0.25,1,1,1,1))) |>
+  mutate(bacilli_per_exposure = c(6.5e2*c(1,1,1,1,1),
+                              6.5e2*c(1,1,1,1,1),
+                              3.3e3*c(1,1,1,1,1))) |>
   # mutate(bacilli_per_year = c(4e2/20*c(0.3,0.7,1,1,0.5),
   #                             4e2/3*c(0.3,1,1,0.7,0.5),
   #                             5e3/3*c(0.3,1,0.7,0.5,0.5))) |>
   mutate(bacilli_per_year = bacilli_per_exposure * exposures_per_year) |>
   rbind(data.frame(age_group=NA,
                    age_group_numeric=5.5,
-                   exposures_per_year=c(1/7*1,1/0.8*1,1/0.8*1),
-                   bacilli_per_exposure = c(1.3e2,1.3e2,1.3e3),
-                   bacilli_per_year=c(1.3e2/7*1,1.3e2/0.8*1,1.3e3/0.8*1),
+                   exposures_per_year=c(1/19*1,1/1.9*1,1/1.9*1),
+                   bacilli_per_exposure = c(6.5e2,6.5e2,3.3e3),
+                   bacilli_per_year=c(6.5e2/19*1,6.5e2/1.9*1,3.3e3/1.9*1),
                    setting = names(output)))
 
 ggplot(exposure_rate_by_age_targets) +
@@ -516,15 +514,9 @@ incidence_fever_by_age_targets = rep(list(data.frame(age_group=unique(output[[1]
                                                      incidence_fever = NaN,
                                                      lower=NaN,
                                                      upper=NaN)),3)
-incidence_fever_by_age_targets[[1]]$incidence_fever <- c(20,53,71,72,35)
-incidence_fever_by_age_targets[[1]]$lower <- c(15,40,58,57,30)
-incidence_fever_by_age_targets[[1]]$upper <- c(27,66,83,84,40)
-incidence_fever_by_age_targets[[2]]$incidence_fever = c(160,500,420,275,140)
-incidence_fever_by_age_targets[[2]]$lower <- c(120,440,370,240,160)
-incidence_fever_by_age_targets[[2]]$upper <- c(200,560,470,320,120)
-incidence_fever_by_age_targets[[3]]$incidence_fever = c(1400,4350,2950,1750,600)
-incidence_fever_by_age_targets[[3]]$lower <- c(1200,4000,2750,1600,550)
-incidence_fever_by_age_targets[[3]]$upper <- c(1600,4700,3150,1900,650)
+incidence_fever_by_age_targets[[1]]$incidence_fever <- c(22,50,65,72,35)
+incidence_fever_by_age_targets[[2]]$incidence_fever = c(160,520,380,330,120)
+incidence_fever_by_age_targets[[3]]$incidence_fever = c(1300,4200,2750,1900,600)
 
 # calculate incidences from the model
 p_incidence_fever=list()
@@ -533,9 +525,8 @@ p_symptomatic_fraction=list()
 for (k in 1:length(output)){
   p_incidence_fever[[k]]=ggplot(output[[k]]$incidence_vs_age) +
     geom_bar(aes(x=age_group,y=incidence_fever),stat='identity') +
-    # geom_hline(aes(yintercept=incidence_fever_overall[1]),linetype='solid') +
-    # geom_hline(aes(yintercept=incidence_fever_target[1]),linetype='dashed') +
-    geom_segment(data=incidence_fever_by_age_targets[[k]],aes(x=age_group,y=lower,yend=upper,group=age_group),stat='identity',color='orangered') +
+    # geom_hline(aes(yintercept=incidence_fever_overall[1])) +
+    # geom_hline(aes(yintercept=incidence_fever_target[1]),color='orangered',linewidth=1) +
     geom_point(data=incidence_fever_by_age_targets[[k]],aes(x=age_group,y=incidence_fever),stat='identity',color='orangered') +
     theme_bw() +
     xlab('') +
@@ -566,7 +557,7 @@ for (k in 1:length(output)){
     theme_bw() +
     xlab('') +
     ylab('symptomatic fraction') +
-    ylim(c(0,0.1)) +
+    ylim(c(0,0.15)) +
     labs(title = paste(sub('_',' ',names(output)[k]),' incidence',sep=''),
     #      subtitle=paste('dose = ',output[[k]]$config$exposure_dose,' bacilli\nmean years b/w exposures = ',
     #                     1/(12*output[[k]]$config$exposure_rate),sep='')

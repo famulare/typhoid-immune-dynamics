@@ -69,8 +69,8 @@ plot_dat = expand.grid(dose = 10^seq(0,9,by=0.1),
   group_by(outcome,CoP_pre,dose) |>
   mutate(probability_wrong = p_outcome_given_dose_wrong(dose=dose,CoP_pre=CoP_pre,outcome = gsub(' ','_',outcome))) |>
   mutate(probability = p_outcome_given_dose(dose=dose,CoP_pre=CoP_pre,outcome = gsub(' ','_',outcome),
-                                            n50_fever_given_infection=27800, alpha_fever_given_infection=0.84, 
-                                            gamma_fever_given_infection=0.4)) |>
+                                            n50_fever_given_infection=26150, alpha_fever_given_infection=0.79, 
+                                            gamma_fever_given_infection=0.39)) |>
   mutate(CoP_pre = factor(CoP_pre))
 
 ggplot() +
@@ -105,7 +105,7 @@ ggplot() +
 mlogl = function(n50_fever_given_infection=27800, alpha_fever_given_infection=0.84, 
                          gamma_fever_given_infection=0.4){
   
-  fit_dat = expand.grid(dose = 10^seq(0,9,by=0.1), # typical dosing # default used in Typhoidsim, from https://qmrawiki.canr.msu.edu/experiments/salmonella-typhi recommended model
+  fit_dat = expand.grid(dose = 10^seq(3,9,by=1), # typical dosing # default used in Typhoidsim, from https://qmrawiki.canr.msu.edu/experiments/salmonella-typhi recommended model
                         CoP_pre = (10^seq(0,3.5,by=0.1)),
                         outcome=c('fever_given_dose')) |>
     group_by(outcome,CoP_pre,dose) |>
@@ -115,9 +115,9 @@ mlogl = function(n50_fever_given_infection=27800, alpha_fever_given_infection=0.
                                               alpha_fever_given_infection=alpha_fever_given_infection, 
                                               gamma_fever_given_infection=gamma_fever_given_infection)) 
   
-  # mlogl = sum((log(fit_dat$probability/(1-fit_dat$probability)) - 
+  # mlogl = sum((log(fit_dat$probability/(1-fit_dat$probability)) -
   #                 log(fit_dat$probability_wrong/(1-fit_dat$probability_wrong)))^2)
-  mlogl = sum((fit_dat$probability - 
+  mlogl = sum((fit_dat$probability -
                  fit_dat$probability_wrong)^2)
   return(mlogl)
 }
@@ -198,3 +198,4 @@ expand.grid(dose = 10^seq(0,8,by=0.1),
   scale_x_continuous(trans='log10', breaks=10^seq(0,10,by=2),minor_breaks = NULL,
                      labels = scales::trans_format("log10", math_format(10^.x)) ) +
   xlab('bacilli') + ylab('protective efficacy')
+
