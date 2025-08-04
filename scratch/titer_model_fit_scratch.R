@@ -157,7 +157,7 @@ fit_dat = fit_dat |> arrange(age_mean)
 
 log_lsq_likelihood = function(C_max_TCV,T_decay,alpha,
                               beta_C_max_age=0,beta_T_decay_age=0,beta_alpha_age=0,
-                              Delta_C_max_Vips=0,Delta_C_max_VirEPA=0,tp=28){
+                              Delta_C_max_Vips=0,Delta_C_max_VirEPA=0,tp=30.4,g=1){
   
   # use age_mean
   titer=rep(NA,nrow(fit_dat))
@@ -176,12 +176,12 @@ log_lsq_likelihood = function(C_max_TCV,T_decay,alpha,
   #     titer[row]=titer_vs_time(t=fit_dat$day[row],C_max=Cma[row],T_decay=Tda[row],alpha=alpha_a[row])
   #   }
   # } else if (age_method=='endpoint'){
-    Tda_lower = T_decay*exp(beta_T_decay_age * fit_dat$age_min_years)
-    alpha_a_lower = alpha*exp(beta_alpha_age * fit_dat$age_min_years)
+    Tda_lower = T_decay*1/(1+exp(beta_T_decay_age * fit_dat$age_min_years))
+    alpha_a_lower = alpha*(exp(beta_alpha_age * (fit_dat$age_min_years^exp(g))))
     Cma_lower=C_max_TCV*exp(beta_C_max_age * fit_dat$age_min_years)
     
-    Tda_upper = T_decay*exp(beta_T_decay_age * fit_dat$age_max_years)
-    alpha_a_upper = alpha*exp(beta_alpha_age * fit_dat$age_max_years)
+    Tda_upper = T_decay*1/(1+exp(beta_T_decay_age * fit_dat$age_max_years))
+    alpha_a_upper = alpha*(exp(beta_alpha_age * (fit_dat$age_max_years^exp(g))))
     Cma_upper=C_max_TCV*exp(beta_C_max_age * fit_dat$age_max_years)
     
     for (row in 1:length(titer)){
@@ -206,10 +206,12 @@ log_lsq_likelihood = function(C_max_TCV,T_decay,alpha,
 
 
 mod = mle(log_lsq_likelihood,
-          start=list(C_max_TCV=4000,T_decay=10,alpha=1,Delta_C_max_Vips=-0,Delta_C_max_VirEPA=0,beta_C_max_age=0,beta_T_decay_age=0,beta_alpha_age=0),
-          fixed=list(tp=28),
-          control=list(parscale=c(1000,1,0.05,1,1,0.1,0.001,0.001)))
-summary(mod) 
+          start=list(C_max_TCV=4000,T_decay=10,alpha=1,Delta_C_max_Vips=-0,Delta_C_max_VirEPA=0,
+                     beta_C_max_age=0,beta_T_decay_age=0,beta_alpha_age=0,g=0),
+          fixed=list(tp=30.4),
+          control=list(parscale=c(1000,1,0.05,1,1,0.1,0.001,0.001,0.001))) 
+summary(mod)
+data.frame(summary(mod)@coef) |> mutate(z = Estimate / `Std..Error`)
 
 cov2cor(vcov(mod))
 
@@ -237,13 +239,13 @@ for (k in 1:length(age_labels)){
     age_max=unique(fitted$age_max_years[idx])
     fitted$titer[idx] = 1/2*(titer_vs_time( t=seq(0,2000,by=10),
                                        C_max=model_coeffs['C_max_TCV']*exp(model_coeffs['beta_C_max_age']*age_min)*exp(Delta_coeff_C[n]),
-                                       T_decay=model_coeffs['T_decay']*exp(model_coeffs['beta_T_decay_age']*age_min),
-                                       alpha=model_coeffs['alpha']*exp(model_coeffs['beta_alpha_age']*age_min),
+                                       T_decay=model_coeffs['T_decay']*1/(1+exp(model_coeffs['beta_T_decay_age']*age_min)),
+                                       alpha=model_coeffs['alpha']*(exp(model_coeffs['beta_alpha_age']*(age_min^exp(model_coeffs['g'])))),
                                        t_peak=model_coeffs['tp']) +
                                titer_vs_time( t=seq(0,2000,by=10),
                                               C_max=model_coeffs['C_max_TCV']*exp(model_coeffs['beta_C_max_age']*age_max)*exp(Delta_coeff_C[n]),
-                                              T_decay=model_coeffs['T_decay']*exp(model_coeffs['beta_T_decay_age']*age_max),
-                                              alpha=model_coeffs['alpha']*exp(model_coeffs['beta_alpha_age']*age_max),
+                                              T_decay=model_coeffs['T_decay']*1/(1+exp(model_coeffs['beta_T_decay_age']*age_max)),
+                                              alpha=model_coeffs['alpha']*(exp(model_coeffs['beta_alpha_age']*(age_max^exp(model_coeffs['g'])))),
                                               t_peak=model_coeffs['tp']))
   }
 }
@@ -267,6 +269,8 @@ ggplot() +
 ggsave('scratch/figures/fitted_titers.png',units='in',width=9, height=5)
 
 
+model_coeffs['T_decay']*1/(1+exp(model_coeffs['beta_T_decay_age']*seq(0,75,by=1)))
+model_coeffs['alpha']*(exp(model_coeffs['beta_alpha_age']*((seq(0,75,by=1)^exp(model_coeffs['g'])))))
 
 ## boosting
 
