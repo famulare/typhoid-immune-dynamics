@@ -199,7 +199,30 @@ A paper extraction is complete when:
 
 ---
 
-## Phase 3: Paper-by-Paper Joint Review
+## Phase 3: Reference Model Specification
+
+**Purpose**: Define the most elaborate model the literature supports—what we would fit with optimal data and unlimited precision. This serves as a benchmark for reasoning clearly about which simplifications are forced by data limitations versus chosen for parsimony.
+
+**3.1 Write reference model document** (`notes/reference_model.md`):
+
+- Latent biological processes (infection cascade, outcome hierarchy)
+- Full immunity representation (humoral, mucosal, cellular; dynamics)
+- Simplification pathway to scalar CoP
+- Dose-response framework with outcome-specific parameters
+- Joint/conditional relationships between outcomes
+- Time-to-event structure and severity gradations
+- Observational model: $P(\text{observed} | \text{latent}, \text{ascertainment})$
+- Heterogeneity sources (study-level and individual-level)
+
+**3.2 Create DAG** showing latent processes → observables
+
+**3.3 Document simplifications** needed to reach practical model (to be filled after Phase 4)
+
+**3.4 Map reference model to available data** (to be filled after Phase 4)
+
+---
+
+## Phase 4: Paper-by-Paper Joint Review
 
 **For each paper (you reading alongside):**
 
@@ -219,22 +242,30 @@ A paper extraction is complete when:
 
 ---
 
-## Phase 4: Normalization & Schema Design
+## Phase 5: Normalization & Schema Design
 
-**4.1 Design YAML schema** (AFTER seeing all data)
+**5.1 Collapse reference model to working model** (`notes/working_model.md`)
 
-Based on what we actually extracted, design schema covering:
+Based on Phase 4 data review, document:
+- Which reference model components are estimable vs must be simplified
+- Specific simplifications chosen and justification (data limitation vs parsimony)
+- Working model specification (the model we'll actually fit)
+- Update `notes/reference_model.md` sections 7-8 with simplification table and data mapping
+
+**5.2 Design YAML schema** (informed by working model)
+
+Based on what we actually extracted and the working model needs, design schema covering:
 - Study-level metadata
 - Cohort/arm characteristics
 - Dose-outcome observations
 - Immunity measures
 - Decision provenance ([USER-LOCKED] vs sensitivity analysis needed)
 
-**4.2 Convert extracts to YAML**
+**5.3 Convert extracts to YAML**
 
 Each finalized markdown → structured YAML
 
-**4.3 Compile analysis-ready CSV**
+**5.4 Compile analysis-ready CSV**
 
 Flatten to modeling-ready format:
 - One row per dose-arm-outcome combination
@@ -244,13 +275,13 @@ Flatten to modeling-ready format:
 
 ---
 
-## Phase 5: Calibration Problem Design
+## Phase 6: Calibration Problem Design
 
-**5.1 Outcome mapping finalization** (`notes/outcome_mapping.md`)
+**6.1 Outcome mapping finalization** (`notes/outcome_mapping.md`)
 
 Lock decisions on how each observed outcome maps to model variables.
 
-**5.2 Likelihood structure** (`calibration/likelihood_design.md`)
+**6.2 Likelihood structure** (`calibration/likelihood_design.md`)
 
 - Binomial: `y ~ Binomial(n, p(dose, CoP; θ))`
 - Separate likelihoods for infection vs fever
@@ -259,18 +290,18 @@ Lock decisions on how each observed outcome maps to model variables.
   - Multiple outcome interpretations → mixture likelihood or sensitivity analysis
   - Outcome proxy differences → measurement model or stratification
 
-**5.3 Heterogeneity structure**
+**6.3 Heterogeneity structure**
 
 - Study random effects on which parameters? (N₅₀? multiplicative dose factor?)
 - Outcome-definition random effects if using mixed proxies
 
-**5.4 Latent immunity model**
+**6.4 Latent immunity model**
 
 - For cohorts without baseline serology: latent CoP with hierarchical prior
 - Prior informed by: geography, era, recruitment criteria, any partial info
 - If baseline serology exists: measurement model linking titer → CoP
 
-**5.5 Identifiability memo** (`notes/identifiability_memo.md`)
+**6.5 Identifiability memo** (`notes/identifiability_memo.md`)
 
 Pre-fitting diagnostic:
 - Can we identify N₅₀ and α from available dose spread?
@@ -280,7 +311,7 @@ Pre-fitting diagnostic:
 
 ---
 
-## Phase 6: Prior Specification (`calibration/priors.yaml`)
+## Phase 7: Prior Specification (`calibration/priors.yaml`)
 
 - Core parameters: Weakly informative centered at current defaults
 - Study random effects: Half-normal on SDs
@@ -289,21 +320,21 @@ Pre-fitting diagnostic:
 
 ---
 
-## Phase 7: Fit, Validate, Document
+## Phase 8: Fit, Validate, Document
 
-**7.1 Implementation** (Stan/brms)
+**8.1 Implementation** (Stan/brms)
 
-**7.2 Diagnostics**
+**8.2 Diagnostics**
 - Convergence (R-hat, ESS, trace plots)
 - Posterior predictive checks
 
-**7.3 Sensitivity analyses**
+**8.3 Sensitivity analyses**
 - Prior sensitivity
 - Include/exclude specific studies
 - Alternative outcome mappings
 - With/without latent immunity
 
-**7.4 Documentation**
+**8.4 Documentation**
 - Update model description with fitted values
 - Clear data provenance
 - Archive all materials

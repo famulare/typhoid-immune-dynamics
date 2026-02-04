@@ -54,13 +54,37 @@
 
 ---
 
-## Phase 3: Paper-by-Paper Joint Review
+## Phase 3: Reference Model Specification
+
+**Purpose**: Define the most elaborate model the literature supports—the benchmark for reasoning about simplifications.
+
+### Deliverables
+
+- [ ] `notes/reference_model.md` written with full prose + equations
+- [ ] DAG created showing latent processes → observables
+- [ ] Explicit list of simplifications needed to reach practical model
+- [ ] Mapping from reference model components to available data
+
+### Components to Specify
+
+- [ ] Latent biological processes (infection cascade, outcomes hierarchy)
+- [ ] Time-to-event structure for each outcome
+- [ ] Severity gradations
+- [ ] Joint/conditional relationships between outcomes
+- [ ] Immunity representation (full mechanistic → CoP simplification pathway)
+- [ ] Dose-response framework
+- [ ] Observational model (P(obs | latent) for each measurement type)
+- [ ] Heterogeneity sources (study-level and individual-level)
+
+---
+
+## Phase 4: Paper-by-Paper Joint Review
 
 ### Review Sessions
 
 | Paper | Reviewed | [ASSISTANT-PROPOSED] Resolved | [OPEN] Resolved | Finalized |
 |-------|----------|------------------------------|-----------------|-----------|
-| (to be filled during Phase 3 review) | | | | |
+| (to be filled during Phase 4 review) | | | | |
 
 ### Review Order (based on triage):
 1. **Core multi-dose papers**: Hornick 1966, Hornick & Snyder 1970, Waddington 2014 (outpatient)
@@ -70,16 +94,21 @@
 
 ---
 
-## Phase 4: Normalization & Schema Design
+## Phase 5: Normalization & Schema Design
 
-- [ ] YAML schema designed
+- [ ] Reference model collapsed to working model (`notes/working_model.md`)
+  - [ ] Estimable vs simplified components documented
+  - [ ] Simplifications justified (data limitation vs parsimony)
+  - [ ] Working model specification written
+  - [ ] `notes/reference_model.md` sections 7-8 updated
+- [ ] YAML schema designed (informed by working model)
 - [ ] All extracts converted to YAML
 - [ ] Analysis-ready CSV compiled
 - [ ] Data dictionary created
 
 ---
 
-## Phase 5: Calibration Problem Design
+## Phase 6: Calibration Problem Design
 
 - [ ] `notes/outcome_mapping.md` finalized
 - [ ] `calibration/likelihood_design.md` written
@@ -89,14 +118,14 @@
 
 ---
 
-## Phase 6: Prior Specification
+## Phase 7: Prior Specification
 
 - [ ] `calibration/priors.yaml` created
 - [ ] All prior choices documented with rationale
 
 ---
 
-## Phase 7: Fit, Validate, Document
+## Phase 8: Fit, Validate, Document
 
 - [ ] Model implemented in Stan/brms
 - [ ] MCMC diagnostics passed
@@ -112,6 +141,8 @@
 |------|-----------------|----------------|------------|
 | 2026-02-03 | Created contract and checklist | Ready to begin Phase 1 | Create folder structure, begin batch extraction |
 | 2026-02-03 | Completed Phase 1 setup | Phase 1 complete | Begin Phase 2 batch extraction |
-| 2026-02-03 | Completed Phase 2 batch extraction (all 20 papers) | Phase 2 complete | Begin Phase 3 joint review |
-| 2026-02-03 | Fixed mislabeled Hornick 1970 Part 1 PDF filename; merged duplicate extracts | Cleanup complete | Phase 3 joint review |
+| 2026-02-03 | Completed Phase 2 batch extraction (all 20 papers) | Phase 2 complete | Begin Phase 3 reference model |
+| 2026-02-03 | Fixed mislabeled Hornick 1970 Part 1 PDF filename; merged duplicate extracts | Cleanup complete | Phase 3 reference model |
+| 2026-02-03 | Inserted Phase 3 (Reference Model Specification); renumbered phases 3-7 → 4-8 | Contract/checklist updated | Begin Phase 3 reference model |
+| 2026-02-03 | Added Phase 5.1 (collapse reference model to working model); created `notes/reference_model.md` draft | Contract/checklist updated | Begin Phase 3 reference model |
 
