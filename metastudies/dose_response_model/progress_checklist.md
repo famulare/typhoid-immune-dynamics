@@ -1,0 +1,148 @@
+# Dose-Response Extraction Progress Checklist
+
+**Contract document**: `dose_response_extraction_contract.md`
+**Last updated**: 2026-02-04
+
+---
+
+## Phase 1: Setup & Infrastructure
+
+- [x] Create folder structure
+  - [x] `extracts/`
+  - [x] `schemas/`
+  - [x] `analysis_data/`
+  - [x] `notes/`
+  - [x] `calibration/`
+- [x] Create `notes/outcome_mapping.md` (initial draft)
+- [x] Create `notes/paper_triage.md` (empty template)
+- [x] Create `notes/cross_cutting_observations.md` (empty template)
+
+---
+
+## Phase 2: Batch First-Pass Extraction
+
+### Paper Extractions (20 papers)
+
+| # | Paper | Extract Created | Triage Updated | Status |
+|---|-------|-----------------|----------------|--------|
+| 1 | Dahora et al. 2019 | [x] | [x] | complete |
+| 2 | Darton et al. 2012 | [x] | [x] | complete |
+| 3 | Darton et al. 2016 | [x] | [x] | complete |
+| 4 | Darton et al. 2017 | [x] | [x] | complete |
+| 5 | Dupont et al. 1971 | [x] | [x] | complete |
+| 6 | Gibani et al. 2019 | [x] | [x] | complete |
+| 7 | Gibani et al. 2020 | [x] | [x] | complete |
+| 8 | Gilman et al. 1977 | [x] | [x] | complete |
+| 9 | Glynn & Bradley 1992 | [x] | [x] | complete |
+| 10 | Glynn et al. 1995 | [x] | [x] | complete |
+| 11 | Hornick et al. 1967 | [x] | [x] | complete |
+| 12 | Hornick (Appraisal) | [x] | [x] | complete |
+| 13 | Hornick 1966 | [x] | [x] | complete |
+| 14 | Hornick & Snyder 1970 | [x] | [x] | complete |
+| 15 | Jin et al. 2017 | [x] | [x] | complete |
+| 16 | Juel et al. 2018 | [x] | [x] | complete |
+| 17 | Levine et al. 1976 | [x] | [x] | complete |
+| 18 | Waddington et al. 2014 (review) | [x] | [x] | complete |
+| 19 | Waddington et al. 2014 (outpatient) | [x] | [x] | complete |
+| 20 | Woodward 1980 | [x] | [x] | complete |
+
+### Cross-Cutting Documents
+
+- [x] `notes/cross_cutting_observations.md` needs completion in Phase 3
+- [x] `notes/paper_triage.md` completed with all papers
+- [ ] `notes/outcome_mapping.md` to be updated with all observed outcome types in Phase 3
+
+---
+
+## Phase 3: Reference Model Specification
+
+**Purpose**: Define the most elaborate model the literature supports—the benchmark for reasoning about simplifications.
+
+### Deliverables
+
+- [x] `notes/dose_response_model_specification.md` written with full prose + equations
+- [x] DAG created showing latent processes → observables
+- [ ] Explicit list of simplifications needed to reach practical model (Section 6.5, after Phase 4)
+- [ ] Mapping from reference model components to available data (Section 7, after Phase 4)
+
+### Components to Specify
+
+- [x] Latent biological processes (infection cascade, outcomes hierarchy)
+- [x] Severity gradations
+- [x] Joint/conditional relationships between outcomes
+- [x] Immunity representation (full mechanistic → CoP simplification pathway)
+- [x] Dose-response framework
+- [x] Observational model (P(obs | latent) for each measurement type)
+- [x] Heterogeneity sources (study-level and individual-level)
+
+---
+
+## Phase 4: Paper-by-Paper Joint Review
+
+### Review Sessions
+
+| Paper | Reviewed | [ASSISTANT-PROPOSED] Resolved | [OPEN] Resolved | Finalized |
+|-------|----------|------------------------------|-----------------|-----------|
+| (to be filled during Phase 4 review) | | | | |
+
+### Review Order (based on triage):
+1. **Core multi-dose papers**: Hornick 1966, Hornick & Snyder 1970, Waddington 2014 (outpatient)
+2. **Support papers with immunity**: Darton 2016, Jin 2017, Gibani 2020, Gilman 1977, Dupont 1971, Levine 1976
+3. **Remaining papers**: Dahora 2019, Darton 2017, Gibani 2019, Juel 2018, Glynn 1995, Glynn & Bradley 1992, Woodward 1980
+4. **Exclusions to confirm**: Darton 2012, Waddington 2014 (review)
+
+---
+
+## Phase 5: Normalization & Schema Design
+
+- [ ] Reference model collapsed to working model (`notes/working_model.md`)
+  - [ ] Estimable vs simplified components documented
+  - [ ] Simplifications justified (data limitation vs parsimony)
+  - [ ] Working model specification written
+  - [ ] `notes/dose_response_model_specification.md` Sections 7-8 updated
+- [ ] YAML schema designed (informed by working model)
+- [ ] All extracts converted to YAML
+- [ ] Analysis-ready CSV compiled
+- [ ] Data dictionary created
+
+---
+
+## Phase 6: Calibration Problem Design
+
+- [ ] `notes/outcome_mapping.md` finalized
+- [ ] `calibration/likelihood_design.md` written
+- [ ] `notes/identifiability_memo.md` written
+- [ ] Heterogeneity structure decided
+- [ ] Latent immunity model specified
+
+---
+
+## Phase 7: Prior Specification
+
+- [ ] `calibration/priors.yaml` created
+- [ ] All prior choices documented with rationale
+
+---
+
+## Phase 8: Fit, Validate, Document
+
+- [ ] Model implemented in Stan/brms
+- [ ] MCMC diagnostics passed
+- [ ] Posterior predictive checks completed
+- [ ] Sensitivity analyses completed
+- [ ] Final documentation written
+
+---
+
+## Session Log
+
+| Date | Session Summary | Stopping Point | Next Steps |
+|------|-----------------|----------------|------------|
+| 2026-02-03 | Created contract and checklist | Ready to begin Phase 1 | Create folder structure, begin batch extraction |
+| 2026-02-03 | Completed Phase 1 setup | Phase 1 complete | Begin Phase 2 batch extraction |
+| 2026-02-03 | Completed Phase 2 batch extraction (all 20 papers) | Phase 2 complete | Begin Phase 3 reference model |
+| 2026-02-03 | Fixed mislabeled Hornick 1970 Part 1 PDF filename; merged duplicate extracts | Cleanup complete | Phase 3 reference model |
+| 2026-02-03 | Inserted Phase 3 (Reference Model Specification); renumbered phases 3-7 → 4-8 | Contract/checklist updated | Begin Phase 3 reference model |
+| 2026-02-03 | Added Phase 5.1 (collapse reference model to working model); created `notes/reference_model.md` draft | Contract/checklist updated | Begin Phase 3 reference model |
+| 2026-02-04 | Completed Phase 3 model specification; renamed to `dose_response_model_specification.md`; cleaned contract/spec separation; aligned `outcome_mapping.md`; added README | Phase 3 complete | Phase 4 joint review |
+

@@ -27,22 +27,38 @@ plot_efficacy_df = d_eff |>
 
 names(plot_efficacy_df)
 
-ggplot(plot_efficacy_df, aes(shape=dotname,color=age_label_coarse,fill=age_label_coarse,group=interaction(age_label_coarse,design_group))) +
-  geom_ribbon(aes(x=timepoint_months_authors_mean,ymin=lower,ymax=upper),color=NA,alpha=0.1) +
-  geom_line(aes(x=timepoint_months_authors_mean,y=estimate,linetype=estimator)) +
-  geom_point(aes(x=timepoint_months_authors_mean,y=estimate)) +
+plot_dat = plot_efficacy_df |> mutate(group=interaction(age_label,design_group)) |>
+  select(dotname,age_label_coarse,group,timepoint_months_authors_min,
+         timepoint_months_authors_max,estimate,estimator,endpoint_duration,age_cohort,design_group,
+         lower,upper,timepoint_months_authors_mean)
+
+plot_dat = plot_dat |>
+  rbind(plot_dat |> group_by(group) |>
+          mutate(timepoint_months_authors_min = timepoint_months_authors_max,
+                 timepoint_months_authors_mean=NaN))
+
+ggplot(plot_dat, aes(shape=dotname,color=age_label_coarse,fill=age_label_coarse,group=group)) +
+  geom_ribbon(aes(x=timepoint_months_authors_min/12,ymin=lower,ymax=upper),color=NA,alpha=0.1) +
+  geom_step(aes(x=timepoint_months_authors_min/12,y=estimate,linetype=estimator)) +
+  geom_point(aes(x=timepoint_months_authors_mean/12,y=estimate)) +
   facet_grid('endpoint_duration ~ age_cohort') +
-  theme_bw() 
+  theme_bw()  +
+  scale_color_brewer(palette='Paired') +
+  scale_fill_brewer(palette='Paired') +
+  xlab('years since vaccination') +
+  ylab('VE estimate')
 ggsave('scratch/figures/efficacy_time_age.png',units='in',width=7, height=5)
 
 
 
-ggplot(plot_efficacy_df, aes(color=dotname,fill=dotname,group=interaction(age_label,design_group))) +
-  geom_ribbon(aes(x=timepoint_months_authors_mean,ymin=lower,ymax=upper),color=NA,alpha=0.1) +
-  geom_line(aes(x=timepoint_months_authors_mean,y=estimate,linetype=estimator)) +
-  geom_point(aes(x=timepoint_months_authors_mean,y=estimate)) +
+ggplot(plot_dat, aes(color=dotname,fill=dotname,group=group,shape = age_label_coarse)) +
+  geom_ribbon(aes(x=timepoint_months_authors_min/12,ymin=lower,ymax=upper),color=NA,alpha=0.1) +
+  geom_step(aes(x=timepoint_months_authors_min/12,y=estimate,linetype=estimator)) +
+  geom_point(aes(x=timepoint_months_authors_mean/12,y=estimate)) +
   facet_grid('endpoint_duration ~ age_cohort') +
-  theme_bw() 
+  theme_bw() +
+  xlab('years since vaccination') +
+  ylab('VE estimate')
 ggsave('scratch/figures/efficacy_time_location.png',units='in',width=7, height=5)
 
 
