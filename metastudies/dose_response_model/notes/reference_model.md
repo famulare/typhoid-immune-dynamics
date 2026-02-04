@@ -183,6 +183,8 @@ For the working model, the CoP array collapses to a scalar:
 
 $$\text{CoP} = g(\vec{\text{CoP}})$$
 
+This collapse to a scalar is implicit in the concept of a "correlate of protection"—the CoP framework assumes a low-dimensional summary sufficient to predict protection.
+
 **Key simplification assumptions** (to be documented in Phase 5):
 - Which immune compartments dominate protection?
 - How do different compartments combine (additive? multiplicative? minimum?)?
@@ -194,31 +196,31 @@ $$\text{CoP} = g(\vec{\text{CoP}})$$
 
 ### 3.1 General Form
 
-For each outcome $Y$ (infection, fever, bacteremia, etc.):
+For each outcome $Y$:
 
 $$
-P(Y | D, \vec{I}, \vec{\theta}_Y) = f_Y(D, g(\vec{I}); \vec{\theta}_Y)
+P(Y | D, \text{CoP}, \vec{\theta}_Y) = f_Y(D, \text{CoP}; \vec{\theta}_Y)
 $$
 
 Where:
 - $D$ = bacterial dose (CFU)
-- $\vec{I}$ = vector of immune state variables
-- $g(\vec{I})$ = function mapping immune state to effective protection (simplifies to scalar CoP)
+- $\text{CoP}$ = scalar correlate of protection (see Section 2)
 - $\vec{\theta}_Y$ = outcome-specific parameters
 
 ### 3.2 Hierarchy of Outcomes
 
-Some outcomes are conditional on others:
+Outcomes decompose along the causal chain defined in Section 1.5:
 
-$$
-P(\text{bacteremia} | D, \vec{I}) = P(\text{bacteremia} | \text{infection}) \cdot P(\text{infection} | D, \vec{I})
-$$
+$$P(\text{acute disease}) = P(\text{acute disease} | \text{systemic invasion}) \cdot P(\text{systemic invasion} | \text{colonization}, D_{\text{gastric}}) \cdot P(\text{colonization} | D_{\text{gastric}}) \cdot P(D_{\text{gastric}} | D_{\text{challenge}})$$
+
+(Conditioning on strain, CoP, host suppressed for readability.)
 
 Similar decompositions for:
-- Fever given bacteremia
-- Shedding given infection
-- Seroconversion given infection/bacteremia/fever
-- Clinical typhoid given component symptoms
+- Bacteremia given systemic invasion
+- Fever given acute disease
+- Shedding given colonization and $D_{\text{gastric}}$
+- Chronic carriage given systemic invasion
+- Clinical typhoid given acute disease and observations
 
 ### 3.3 Mechanistic Basis
 
@@ -230,8 +232,8 @@ $$
 
 This form has mechanistic interpretation:
 - Each bacterium has independent probability of initiating infection
-- $N_{50}$ = dose for 50% infection in naive individuals
-- $\alpha$ = heterogeneity in bacterial "hit" probability
+- $N_{50}$ = dose for 50% probability of outcome in naive individuals
+- $\alpha$ = unexplained heterogeneity of outcome given dose (aggregates all sources of variation in the cascade from challenge dose to outcome)
 - $\gamma$ = how strongly immunity scales effective dose
 
 ---
@@ -273,8 +275,11 @@ Note: Functional forms left unspecified at this stage; the reference model estab
 |--------|--------|
 | **Strain** | Quailes vs Ty2 vs wild-type may differ in virulence |
 | **Delivery medium** | Milk vs bicarbonate affects gastric survival |
+| **Fasting protocol** | Fasting duration before challenge affects gastric survival |
 | **Subject population** | Naive volunteers vs endemic-area residents |
-| **Era** | 1960s vs 2010s protocols, ascertainment, definitions |
+| **Era** | 1960s vs 2010s protocols, ascertainment methods |
+| **Outcome definition** | Clinical typhoid criteria vary (e.g., ">103°F/36hr" vs "≥38°C/12hr OR culture+") |
+| **Diagnostic methods** | Culture only vs culture + PCR affects infection ascertainment |
 
 ### 5.2 Individual-Level
 
@@ -285,45 +290,101 @@ Note: Functional forms left unspecified at this stage; the reference model estab
 
 ---
 
-## 6. DAG: Latent Processes → Observables
+## 6. DAG: Latent Processes → Observables → Observations
 
 ```
-                        ┌─────────────┐
-                        │    Dose     │
-                        └──────┬──────┘
-                               │
-                               ▼
-┌─────────────┐         ┌─────────────┐
-│  Immunity   │────────▶│  Infection  │
-│   (vec I)   │         │  (latent)   │
-└─────────────┘         └──────┬──────┘
-                               │
-              ┌────────────────┼────────────────┐
-              │                │                │
-              ▼                ▼                ▼
-       ┌─────────────┐  ┌─────────────┐  ┌─────────────┐
-       │ Bacteremia  │  │  Shedding   │  │Seroconversion│
-       │  (latent)   │  │  (latent)   │  │   (latent)   │
-       └──────┬──────┘  └──────┬──────┘  └──────┬──────┘
-              │                │                │
-              ▼                ▼                ▼
-       ┌─────────────┐  ┌─────────────┐  ┌─────────────┐
-       │Blood culture│  │Stool culture│  │  Serology   │
-       │    PCR      │  │             │  │   titer     │
-       └──────┬──────┘  └─────────────┘  └─────────────┘
-              │
-              ▼
-       ┌─────────────┐
-       │   Fever     │
-       │  (latent)   │
-       └──────┬──────┘
-              │
-              ▼
-       ┌─────────────┐
-       │ Temperature │
-       │ measurement │
-       └─────────────┘
+═══════════════════════════════════════════════════════════════════════════════
+                              INPUTS & CONTEXT
+═══════════════════════════════════════════════════════════════════════════════
+
+    ┌───────────┐   ┌───────────┐   ┌───────────┐   ┌───────────┐
+    │D_challenge│   │  Strain   │   │  Medium   │   │   Host    │
+    └─────┬─────┘   └─────┬─────┘   └─────┬─────┘   └─────┬─────┘
+          │               │               │               │
+          └───────────────┴───────┬───────┴───────────────┘
+                                  │
+═══════════════════════════════════════════════════════════════════════════════
+                            CORE LATENT STATES
+═══════════════════════════════════════════════════════════════════════════════
+                                  │
+                                  ▼
+    ┌───────────┐          ┌─────────────┐
+    │    CoP    │─────────▶│  D_gastric  │
+    │ (immunity)│          └──────┬──────┘
+    └─────┬─────┘                 │
+          │                       ▼
+          │               ┌─────────────┐
+          ├──────────────▶│ Colonization│
+          │               └──────┬──────┘
+          │                      │
+          │         ┌────────────┴────────────┐
+          │         │                         │
+          │         ▼                         ▼
+          │  ┌─────────────┐          ┌─────────────┐
+          ├─▶│  Systemic   │          │  Intestinal │
+          │  │  Invasion   │          │  Shedding   │
+          │  └──────┬──────┘          └──────┬──────┘
+          │         │                        │
+          │    ┌────┴────┐                   │
+          │    │         │                   │
+          │    ▼         ▼                   │
+          │ ┌────── ┐ ┌─────────┐            │
+          └▶│ Acute │ │ Chronic │            │
+            │Disease│ │Carriage │            │
+            └───┬───┘ └─────────┘            │
+                │                            │
+═══════════════════════════════════════════════════════════════════════════════
+                              OBSERVABLES
+═══════════════════════════════════════════════════════════════════════════════
+                │                            │
+       ┌────────┼────────┐                   │
+       │        │        │                   │
+       ▼        ▼        ▼                   ▼
+  ┌────────┐┌───────┐┌───────┐         ┌───────────┐
+  │Bactere-││ Fever ││ Death │         │   Stool   │
+  │  mia   │└───┬───┘└───────┘         │  Shedding │
+  └────┬───┘    │                      └─────┬─────┘
+       │        │                            │
+═══════════════════════════════════════════════════════════════════════════════
+                              OBSERVATIONS
+═══════════════════════════════════════════════════════════════════════════════
+       │        │                            │
+   ┌───┴───┐    │                       ┌────┴────┐
+   │       │    │                       │         │
+   ▼       ▼    ▼                       ▼         ▼
+┌──────┐┌─────┐┌─────┐              ┌───────┐   ┌─────┐
+│Blood ││Blood││Temp │              │Stool  │   │Stool│
+│Culture││PCR ││ >θ  │              │Culture│   │ PCR │
+└──────┘└─────┘└──┬──┘              └───────┘   └─────┘
+                  │
+                  ▼
+          ┌────────────────┐
+          │Clinical Typhoid│
+          │   Diagnosis    │
+          └────────────────┘
+
+───────────────────────────────────────────────────────────────────────────────
+                         IMMUNITY OBSERVATIONS
+───────────────────────────────────────────────────────────────────────────────
+
+    ┌───────────┐
+    │    CoP    │
+    │ (immunity)│
+    └─────┬─────┘
+          │
+          ▼
+    ┌───────────┐         ┌───────────────┐
+    │  Titer    │────────▶│ Seroconversion│
+    │  (assay)  │         │  (derived)    │
+    └───────────┘         └───────────────┘
 ```
+
+**Legend:**
+- Boxes = random variables
+- Arrows = conditional dependencies
+- CoP influences all latent states (arrows simplified for readability)
+- Strain conditions D_gastric, colonization, systemic invasion, shedding
+- Host conditions all latent states
 
 ---
 
