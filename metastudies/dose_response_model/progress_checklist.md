@@ -1,7 +1,7 @@
 # Dose-Response Extraction Progress Checklist
 
 **Contract document**: `dose_response_extraction_contract.md`
-**Last updated**: 2026-02-03
+**Last updated**: 2026-02-04
 
 ---
 
@@ -60,21 +60,20 @@
 
 ### Deliverables
 
-- [ ] `notes/reference_model.md` written with full prose + equations
-- [ ] DAG created showing latent processes → observables
-- [ ] Explicit list of simplifications needed to reach practical model
-- [ ] Mapping from reference model components to available data
+- [x] `notes/dose_response_model_specification.md` written with full prose + equations
+- [x] DAG created showing latent processes → observables
+- [ ] Explicit list of simplifications needed to reach practical model (Section 6.5, after Phase 4)
+- [ ] Mapping from reference model components to available data (Section 7, after Phase 4)
 
 ### Components to Specify
 
-- [ ] Latent biological processes (infection cascade, outcomes hierarchy)
-- [ ] Time-to-event structure for each outcome
-- [ ] Severity gradations
-- [ ] Joint/conditional relationships between outcomes
-- [ ] Immunity representation (full mechanistic → CoP simplification pathway)
-- [ ] Dose-response framework
-- [ ] Observational model (P(obs | latent) for each measurement type)
-- [ ] Heterogeneity sources (study-level and individual-level)
+- [x] Latent biological processes (infection cascade, outcomes hierarchy)
+- [x] Severity gradations
+- [x] Joint/conditional relationships between outcomes
+- [x] Immunity representation (full mechanistic → CoP simplification pathway)
+- [x] Dose-response framework
+- [x] Observational model (P(obs | latent) for each measurement type)
+- [x] Heterogeneity sources (study-level and individual-level)
 
 ---
 
@@ -100,7 +99,7 @@
   - [ ] Estimable vs simplified components documented
   - [ ] Simplifications justified (data limitation vs parsimony)
   - [ ] Working model specification written
-  - [ ] `notes/reference_model.md` sections 7-8 updated
+  - [ ] `notes/dose_response_model_specification.md` Sections 7-8 updated
 - [ ] YAML schema designed (informed by working model)
 - [ ] All extracts converted to YAML
 - [ ] Analysis-ready CSV compiled
@@ -145,4 +144,5 @@
 | 2026-02-03 | Fixed mislabeled Hornick 1970 Part 1 PDF filename; merged duplicate extracts | Cleanup complete | Phase 3 reference model |
 | 2026-02-03 | Inserted Phase 3 (Reference Model Specification); renumbered phases 3-7 → 4-8 | Contract/checklist updated | Begin Phase 3 reference model |
 | 2026-02-03 | Added Phase 5.1 (collapse reference model to working model); created `notes/reference_model.md` draft | Contract/checklist updated | Begin Phase 3 reference model |
+| 2026-02-04 | Completed Phase 3 model specification; renamed to `dose_response_model_specification.md`; cleaned contract/spec separation; aligned `outcome_mapping.md`; added README | Phase 3 complete | Phase 4 joint review |
 
