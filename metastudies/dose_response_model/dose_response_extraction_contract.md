@@ -6,20 +6,16 @@ We are calibrating a modified beta-Poisson dose-response model for typhoid fever
 
 ### The Model
 
-**Infection given dose:**
-$$
-P(\text{infection} | D, \text{CoP}) = 1 - \left(1 + D \cdot \frac{2^{1/\alpha_I} - 1}{N_{50,I}}\right)^{-\alpha_I / \text{CoP}^{\gamma_I}}
-$$
-
-**Fever given dose:**
-$$
-P(\text{fever} | D, \text{CoP}) = 1 - \left(1 + D \cdot \frac{2^{1/\alpha_F} - 1}{N_{50,F}}\right)^{-\alpha_F / \text{CoP}^{\gamma_F}}
-$$
+We are fitting a modified beta-Poisson dose-response model with immunity scaling. The model predicts probability of infection and fever given:
+- Bacterial challenge dose ($D$)
+- Correlate of protection ($\text{CoP}$)
 
 **Parameters to estimate:**
 - $N_{50}$: Dose for 50% probability in naive individuals
-- $\alpha$: Shape parameter controlling dose-response steepness
-- $\gamma$: Immunity scaling exponent (how strongly CoP reduces risk)
+- $\alpha$: Shape parameter (aggregates heterogeneity)
+- $\gamma$: Immunity scaling exponent
+
+*See `notes/dose_response_model_specification.md` for full mathematical formulation and causal structure.*
 
 ### The Challenge
 
@@ -203,7 +199,7 @@ A paper extraction is complete when:
 
 **Purpose**: Define the most elaborate model the literature supports—what we would fit with optimal data and unlimited precision. This serves as a benchmark for reasoning clearly about which simplifications are forced by data limitations versus chosen for parsimony.
 
-**3.1 Write reference model document** (`notes/reference_model.md`):
+**3.1 Write reference model document** (`notes/dose_response_model_specification.md`):
 
 - Latent biological processes (infection cascade, outcome hierarchy)
 - Full immunity representation (humoral, mucosal, cellular; dynamics)
@@ -250,7 +246,7 @@ Based on Phase 4 data review, document:
 - Which reference model components are estimable vs must be simplified
 - Specific simplifications chosen and justification (data limitation vs parsimony)
 - Working model specification (the model we'll actually fit)
-- Update `notes/reference_model.md` sections 7-8 with simplification table and data mapping
+- Update `notes/dose_response_model_specification.md` Sections 7-8 with simplification table and data mapping
 
 **5.2 Design YAML schema** (informed by working model)
 

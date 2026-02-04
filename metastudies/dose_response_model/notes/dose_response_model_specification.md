@@ -1,8 +1,12 @@
-# Reference Model for Typhoid Dose-Response
+# Typhoid Dose-Response Model Specification
 
-**Purpose**: Define the most elaborate model the literature supports—what we would fit with optimal data and unlimited precision. This serves as a benchmark for reasoning clearly about which simplifications are forced by data limitations versus chosen for parsimony.
+**Purpose**: Define the reference model—the most elaborate model the literature supports, what we would fit with optimal data and unlimited precision. This serves as a benchmark for reasoning clearly about which simplifications are forced by data limitations versus chosen for parsimony.
 
-**Status**: Draft - to be refined during Phase 3
+**Status**: Phase 3 complete. Sections 6-8 to be filled during Phases 4-5.
+
+**Related documents**:
+- `outcome_mapping.md` - Decision rules for mapping observed data to model variables
+- `cross_cutting_observations.md` - Patterns across the extraction corpus
 
 ---
 
@@ -13,12 +17,12 @@ The reference model distinguishes these underlying processes:
 ### 1.1 Infection Cascade
 
 ```
-Ingestion → Gastric survival → Colonization → {Systemic invasion, Intestinal shedding} → {Clinical disease, Chronic carriage}
+Ingestion → Gastric survival → Colonization → {Systemic invasion, Stool shedding} → {Clinical disease, Chronic carriage}
 ```
 
 - Bacterial survival through gastric barrier → colonization
 - Colonization → systemic invasion (bacteremia)
-- Colonization → intestinal shedding
+- Colonization → stool shedding
 - Systemic invasion → clinical disease
 - Systemic invasion → chronic carriage (independent of clinical disease)
 
@@ -34,7 +38,7 @@ Each outcome is a distinct random variable:
 | **Fever** | Elevated temperature | Thermometry (multiple threshold definitions) |
 | **Clinical typhoid** | Composite syndrome | Clinical diagnosis (definition varies by study/era) |
 | **Chronic carriage** | Persistent gallbladder colonization | Prolonged persistent or intermittent stool culture positivity (>1 year) |
-| **Serology** | Antibody titer | multiple assays |
+| **Seroconversion** | Antibody response | Serology (multiple assays, threshold-dependent) |
 
 ### 1.3 Severity Gradations
 
@@ -66,17 +70,14 @@ $$P(\text{acute disease} | \text{systemic invasion}, \text{immunity}, \text{host
 **Chronic carriage** (binary):
 $$P(\text{chronic carriage} | \text{systemic invasion}, \text{immunity}, \text{host})$$
 
-**Intestinal shedding** (binary/duration):
-$$P(\text{shedding} | \text{colonization}, D_{\text{gastric}}, \text{strain}, \text{immunity}, \text{host})$$
+**Stool shedding** (binary/duration):
+$$P(\text{stool shedding} | \text{colonization}, D_{\text{gastric}}, \text{strain}, \text{immunity}, \text{host})$$
 
 *Design note*: $D_{\text{gastric}}$ drops out of acute disease and chronic carriage conditioning. This encodes a memorylessness hypothesis: from systemic invasion forward, outcomes depend on the invasion state, not the original dose.
 
 #### Observables
 
 Biological states accessible from outside the body (without histopathology):
-
-**Stool shedding**:
-$$P(\text{stool shedding} | \text{colonization}, D_{\text{gastric}}, \text{strain}, \text{immunity}, \text{host})$$
 
 **Bacteremia**:
 $$P(\text{bacteremia} | \text{systemic invasion}, \text{immunity}, \text{host})$$
@@ -212,7 +213,7 @@ The immune state evolves in response to infection. Pre-post dynamics are importa
           │         │                         │
           │         ▼                         ▼
           │  ┌─────────────┐          ┌─────────────┐
-          ├─▶│  Systemic   │          │  Intestinal │
+          ├─▶│  Systemic   │          │    Stool    │
           │  │  Invasion   │          │  Shedding   │
           │  └──────┬──────┘          └──────┬──────┘
           │         │                        │
@@ -335,7 +336,7 @@ For the working model, this collapses to a scalar:
 
 $$\text{CoP} = g(\vec{\text{CoP}})$$
 
-**Key simplification assumptions** (to be documented in Phase 5):
+**Key simplification assumptions** (to be documented in Section 6.5):
 - Which immune compartments dominate protection?
 - How do different compartments combine (additive? multiplicative? minimum?)?
 - What is lost by ignoring dynamics within a challenge study timescale?
@@ -389,10 +390,10 @@ For variation not involving dose, the natural families of simplifying models dep
 Done correctly, conditional outcomes require nonlinear regression. For example, the relationship between fever and challenge dose is mediated by acute disease and systemic invasion. Formally:
 
 $$
-P(\text{fever} | D_{\text{chall}}, \text{immunity}, \text{strain}, \text{host}, \text{medium}) = P(\text{fever} | \text{acute disease}, \text{immunity}, \text{host}) \cdot P(\text{systemic invasion} | \text{colonization}, D_{\text{chall}}, \text{strain}, \text{immunity}, \text{medium}) \cdot P(\text{colonization} | D_{\text{chall}}, \text{strain}, \text{medium})
+P(\text{fever} | D_{\text{chall}}, \text{immunity}, \text{strain}, \text{host}, \text{medium}) = P(\text{fever} | \text{acute disease}, \text{immunity}, \text{host}) \cdot P(\text{acute disease} | \text{systemic invasion}, \text{immunity}, \text{host}) \cdot P(\text{systemic invasion} | \text{colonization}, D_{\text{chall}}, \text{strain}, \text{immunity}, \text{medium}) \cdot P(\text{colonization} | D_{\text{chall}}, \text{strain}, \text{medium})
 $$
 
-Systemic invasion and colonization independently depend on $D_{\text{chall}}$ (by assumption). Biologically, this reflects a hypothesis that systemic invasion is possible without mounting a stable enteric colony and thus has its own dose-response dynamics. The probability of fever is therefore a product of multiple dose-response processes.
+Systemic invasion and colonization independently depend on $D_{\text{chall}}$ (by assumption). Biologically, this reflects a hypothesis that systemic invasion is possible without mounting a stable enteric colony and thus has its own dose-response dynamics. The probability of fever is therefore a product of multiple conditional processes, some of which are dose-dependent.
 
 But done practically, the product of monotonic sigmoids is monotonic and definitely not a standard sigmoid—yet it looks like one with any finite data. It may therefore be reasonable to assume the product collapses to a single dose-response curve, although this is only fully justified if all but one of the stages in the cascade are not dose-dependent.
 
@@ -422,3 +423,58 @@ It thus only makes sense practically to keep nonlinear cascades when they are ne
 | Bacteremia | Yes (most studies) | Good | Culture timing varies |
 | Fever | Yes | Good | Threshold definitions vary |
 | ... | ... | ... | ... |
+
+---
+
+## 8. Calibration Setup
+
+*To be completed after data mapping*
+
+### 8.1 Likelihood Structure
+
+| Component | Form | Notes |
+|-----------|------|-------|
+| Dose-outcome counts | Binomial | $y \sim \text{Binomial}(n, p(D, \text{CoP}; \theta))$ |
+| Outcome definition | Stratified vs pooled | Different fever thresholds, clinical definitions |
+| Dose uncertainty | Integrate over range vs point estimate | Oxford reports ranges, Maryland more precise |
+| Missing immunity | Latent variable | Hierarchical prior on unobserved CoP |
+| ... | ... | ... |
+
+### 8.2 Study-Level Effects
+
+| Effect | Structure | Rationale |
+|--------|-----------|-----------|
+| Strain | Fixed effect or exclude | Only Quailes in most data |
+| Delivery medium | Fixed effect | Milk vs bicarbonate systematic difference |
+| Era | Random effect on $N_{50}$? | Protocol drift, definition changes |
+| Outcome definition | Stratify or measurement model | Maryland vs Oxford fever criteria |
+| ... | ... | ... |
+
+### 8.3 Individual-Level Nuisances
+
+| Nuisance | Treatment | Notes |
+|----------|-----------|-------|
+| Host heterogeneity | Absorbed into $\alpha$ | Unobserved individual factors |
+| Age/sex | Covariate if reported | Often missing in Maryland era |
+| Prior exposure | Covariate or stratify | Defines "naive" vs "immune" |
+| ... | ... | ... |
+
+### 8.4 Prior Specification
+
+| Parameter | Prior Family | Rationale |
+|-----------|--------------|-----------|
+| $N_{50}$ | Log-normal | Positive, order-of-magnitude uncertainty |
+| $\alpha$ | Half-normal or log-normal | Positive, weakly informative |
+| $\gamma$ | Normal or log-normal | Sign and magnitude uncertain |
+| Study random effects | Half-normal on SD | Standard hierarchical prior |
+| Latent CoP | Informed by population | Geography, era, recruitment criteria |
+| ... | ... | ... |
+
+### 8.5 Identifiability Concerns
+
+| Issue | Diagnostic | Resolution |
+|-------|------------|------------|
+| $N_{50}$ vs $\alpha$ correlation | Prior predictive, posterior correlation | Sufficient dose range in data? |
+| $\gamma$ identifiability | Requires immunity variation | Studies with baseline serology |
+| Study effects vs parameters | Leave-one-out | Sensitivity analysis |
+| ... | ... | ... |
