@@ -364,12 +364,48 @@ $$\vec{\text{CoP}}_{\text{post}} = f(\vec{\text{CoP}}_{\text{pre}}, \text{coloni
 
 ## 6. Simplifications Needed for Practical Model
 
+### 6.1 Principles of Simplification
+
+Building a practical working model requires integrating out degrees of freedom in the reference model. To see this in action, consider the first simplification one encounters when building a dose-response model.
+
+In our framework (which is already simplifying interesting biology), we assume the probability of colonization depends on the strain, pre-challenge immunity, host factors, and the gastric dose (CFU that reach the gut). But the gastric survival process and the array of host factors that influence an individual's colonization outcome are unobservable. A model tied only to observables must integrate them out. Formally:
+
+$$
+P(\text{colonization} | D_{\text{chall}}, \text{strain}, \text{medium}) = \int \mathcal{D}D_{\text{gastric}} \, \mathcal{D}\text{host} \; P(\text{colonization} | D_{\text{gastric}}, \text{host}, \text{strain}) \, P(D_{\text{gastric}} | D_{\text{chall}}, \text{strain}, \text{medium}, \text{host}) \, P(\text{host})
+$$
+
+This is where dose-response modeling usually starts, and why all realistic dose-response models need to accommodate generic heterogeneity.
+
+### 6.2 Why Beta-Poisson
+
+The beta-Poisson model is natural in this context. It derives from the assumption that colonization is a "single-hit" phenomenon: under zero heterogeneity, the probability of colonization equals the probability that at least one "colony-forming unit" (CFU) successfully establishes a colony. The beta distribution then accounts for how each CFU has a different probability of success due to all the vagaries of gastric passage, delivery medium, and host factors.
+
+### 6.3 Non-Dose Heterogeneity
+
+For variation not involving dose, the natural families of simplifying models depend on the nature of the outcomes and are more familiar: normally-distributed host effects, multinomial/1-of-N factor choices, ordinal fever scales (without concern for fever trajectories), and all the standard exponential family regressions.
+
+### 6.4 Cascaded Outcomes
+
+Done correctly, conditional outcomes require nonlinear regression. For example, the relationship between fever and challenge dose is mediated by acute disease and systemic invasion. Formally:
+
+$$
+P(\text{fever} | D_{\text{chall}}, \text{immunity}, \text{strain}, \text{host}, \text{medium}) = P(\text{fever} | \text{acute disease}, \text{immunity}, \text{host}) \cdot P(\text{systemic invasion} | \text{colonization}, D_{\text{chall}}, \text{strain}, \text{immunity}, \text{medium}) \cdot P(\text{colonization} | D_{\text{chall}}, \text{strain}, \text{medium})
+$$
+
+Systemic invasion and colonization independently depend on $D_{\text{chall}}$ (by assumption). Biologically, this reflects a hypothesis that systemic invasion is possible without mounting a stable enteric colony and thus has its own dose-response dynamics. The probability of fever is therefore a product of multiple dose-response processes.
+
+But done practically, the product of monotonic sigmoids is monotonic and definitely not a standard sigmoid—yet it looks like one with any finite data. It may therefore be reasonable to assume the product collapses to a single dose-response curve, although this is only fully justified if all but one of the stages in the cascade are not dose-dependent.
+
+It thus only makes sense practically to keep nonlinear cascades when they are necessary to capture dynamics required by your reasons for modeling.
+
+### 6.5 Specific Simplifications
+
 *To be completed after reviewing available data*
 
 | Reference Model Component | Simplification | Justification |
 |--------------------------|----------------|---------------|
 | Multiple immune compartments | Single scalar CoP | TBD |
-| Time-to-event | Binary outcome | TBD |
+| Cascaded dose-response | Single dose-response curve | TBD |
 | Joint outcome distribution | Independent outcomes | TBD |
 | ... | ... | ... |
 
