@@ -34,25 +34,15 @@ Each outcome is a distinct random variable:
 | **Fever** | Elevated temperature | Thermometry (multiple threshold definitions) |
 | **Clinical typhoid** | Composite syndrome | Clinical diagnosis (definition varies by study/era) |
 | **Chronic carriage** | Persistent gallbladder colonization | Prolonged persistent or intermittent stool culture positivity (>1 year) |
-| **Seroconversion** | Antibody response | Serology (multiple assays) |
+| **Serology** | Antibody titer | multiple assays |
 
-### 1.3 Time-to-Event Structure
-
-For each outcome, model:
-- Time to bacteremia onset
-- Time to fever onset
-- Duration of fever
-- Duration of shedding
-- Time to seroconversion
-- Time to chronic carriage establishment
-
-### 1.4 Severity Gradations
+### 1.3 Severity Gradations
 
 - Fever severity (temperature magnitude, duration)
 - Disease severity (mild/moderate/severe; hospitalization; complications)
 - Death
 
-### 1.5 Joint/Conditional Relationships
+### 1.4 Joint/Conditional Relationships
 
 #### Core Latent States
 
@@ -79,7 +69,7 @@ $$P(\text{chronic carriage} | \text{systemic invasion}, \text{immunity}, \text{h
 **Intestinal shedding** (binary/duration):
 $$P(\text{shedding} | \text{colonization}, D_{\text{gastric}}, \text{strain}, \text{immunity}, \text{host})$$
 
-*Design note*: $D_{\text{gastric}}$ drops out of acute disease and chronic carriage conditioning. This encodes a memorylessness hypothesis: from systemic invasion forward, outcomes depend on the invasion state, not the original dose. 
+*Design note*: $D_{\text{gastric}}$ drops out of acute disease and chronic carriage conditioning. This encodes a memorylessness hypothesis: from systemic invasion forward, outcomes depend on the invasion state, not the original dose.
 
 #### Observables
 
@@ -97,7 +87,9 @@ $$P(\text{fever} | \text{acute disease}, \text{immunity}, \text{host})$$
 **Death**:
 $$P(\text{death} | \text{acute disease}, \text{immunity}, \text{host})$$
 
-**CoP (Correlate of Protection)**: The true immune state—an array of cellular/molecular responses. See Section 2 for full treatment. Pre-challenge CoP is the "immunity" appearing in conditioning throughout this document.
+**Immunity** (pre-challenge):
+$$P(\text{immunity} | \text{host})$$
+The immune state at the time of challenge. This is the "immunity" appearing in conditioning throughout this section. See Section 2 for representation as a Correlate of Protection (CoP).
 
 #### Observations
 
@@ -120,8 +112,8 @@ $$P(\text{blood PCR}^+ | \text{bacteremia}, \text{assay})$$
 **Temperature recorded**:
 $$P(T > \theta | \text{fever}, \text{measurement protocol})$$
 
-**Serology titer** (observation of CoP component):
-$$P(\text{titer} | \text{CoP}, \text{assay})$$
+**Serology titer** (observation of immunity):
+$$P(\text{titer} | \text{immunity}, \text{assay})$$
 
 **Seroconversion** (derived comparison of two titer observations):
 $$P(\text{seroconversion} | \text{titer}_{\text{pre}}, \text{titer}_{\text{post}}, \text{assay})$$
@@ -142,134 +134,33 @@ Outcomes are not fully independent given shared conditioning. Key correlations:
 
 ## 2. Immunity Representation
 
-### 2.1 CoP as the True Immune State (Observable)
+### 2.1 Immune Compartments
 
-The **Correlate of Protection (CoP)** is the true immune state—in principle, an array of cellular and molecular responses:
+The true immune state comprises multiple compartments:
 
-$$\vec{\text{CoP}} = (\text{CoP}_1, \text{CoP}_2, \ldots, \text{CoP}_n)$$
-
-This array includes components from:
-
-**Immune compartments**:
 - **Humoral immunity**: Circulating antibodies (IgG, IgA) against various antigens (Vi, O, H, LPS)
 - **Mucosal immunity**: Secretory IgA, gut-resident memory
 - **Cellular immunity**: T cell responses (CD4+, CD8+), memory T cells
 
-The pre-challenge CoP array is the "immunity" appearing in conditioning throughout Section 1.
+### 2.2 Correlate of Protection (CoP)
 
-### 2.2 Titers as Observations of CoP
-
-Each serological assay measures one (or a combination of) CoP components:
-
-$$P(\text{titer} | \vec{\text{CoP}}, \text{assay})$$
-
-For example, anti-Vi IgG ELISA (Vacczyme assay) observes a specific humoral component.
-
-**Seroconversion** is a derived quantity comparing two titer observations:
-$$P(\text{seroconversion} | \text{titer}_{\text{pre}}, \text{titer}_{\text{post}}, \text{assay})$$
-
-Assay variance determines whether an observed change is classified as "real" seroconversion.
-
-### 2.3 Post-Challenge CoP Dynamics
-
-The immune state evolves in response to infection:
-$$\vec{\text{CoP}}_{\text{post}} = f(\vec{\text{CoP}}_{\text{pre}}, \text{colonization}, \text{systemic invasion}, \text{acute disease}, \ldots)$$
-
-*Scope note*: Pre-post dynamics are important to typhoid modeling but are treated as a separate data and calibration project in this repository. For this project, if seroconversion is used, we assume a lognormally distributed difference with standard error of approximately ±1 log2 unit.
-
-### 2.4 Simplification Pathway
-
-For the working model, the CoP array collapses to a scalar:
-
-$$\text{CoP} = g(\vec{\text{CoP}})$$
+The **Correlate of Protection (CoP)** is a summary measure of the immune state sufficient to predict protection. In principle, it is an array of cellular and molecular responses; in practice, it collapses to a scalar.
 
 This collapse to a scalar is implicit in the concept of a "correlate of protection"—the CoP framework assumes a low-dimensional summary sufficient to predict protection.
 
-**Key simplification assumptions** (to be documented in Phase 5):
-- Which immune compartments dominate protection?
-- How do different compartments combine (additive? multiplicative? minimum?)?
-- What is lost by ignoring dynamics within a challenge study timescale?
+The pre-challenge CoP is the "immunity" appearing in conditioning throughout Section 1.
+
+### 2.3 Scope Note: Post-Challenge Dynamics
+
+The immune state evolves in response to infection. Pre-post dynamics are important to typhoid modeling but are treated as a separate data and calibration project in this repository. For this project, if seroconversion is used, we assume a lognormally distributed difference with standard error of approximately ±1 log2 unit.
+
+*See Section 5 for mathematical formalization of CoP.*
 
 ---
 
-## 3. Dose-Response Framework
+## 3. Heterogeneity Sources
 
-### 3.1 General Form
-
-For each outcome $Y$:
-
-$$
-P(Y | D, \text{CoP}, \vec{\theta}_Y) = f_Y(D, \text{CoP}; \vec{\theta}_Y)
-$$
-
-Where:
-- $D$ = bacterial dose (CFU)
-- $\text{CoP}$ = scalar correlate of protection (see Section 2)
-- $\vec{\theta}_Y$ = outcome-specific parameters
-
-### 3.2 Hierarchy of Outcomes
-
-Outcomes decompose along the causal chain defined in Section 1.5:
-
-$$P(\text{acute disease}) = P(\text{acute disease} | \text{systemic invasion}) \cdot P(\text{systemic invasion} | \text{colonization}, D_{\text{gastric}}) \cdot P(\text{colonization} | D_{\text{gastric}}) \cdot P(D_{\text{gastric}} | D_{\text{challenge}})$$
-
-(Conditioning on strain, CoP, host suppressed for readability.)
-
-Similar decompositions for:
-- Bacteremia given systemic invasion
-- Fever given acute disease
-- Shedding given colonization and $D_{\text{gastric}}$
-- Chronic carriage given systemic invasion
-- Clinical typhoid given acute disease and observations
-
-### 3.3 Mechanistic Basis
-
-The working model uses a modified beta-Poisson framework:
-
-$$
-P(\text{infection} | D, \text{CoP}) = 1 - \left(1 + D \cdot \frac{2^{1/\alpha} - 1}{N_{50}}\right)^{-\alpha / \text{CoP}^{\gamma}}
-$$
-
-This form has mechanistic interpretation:
-- Each bacterium has independent probability of initiating infection
-- $N_{50}$ = dose for 50% probability of outcome in naive individuals
-- $\alpha$ = unexplained heterogeneity of outcome given dose (aggregates all sources of variation in the cascade from challenge dose to outcome)
-- $\gamma$ = how strongly immunity scales effective dose
-
----
-
-## 4. Observational Model
-
-For each latent process, specify the probability of observing a positive result given the true state:
-
-$$
-P(\text{observed} | \text{latent state}, \text{ascertainment protocol})
-$$
-
-### 4.1 Measurement Processes
-
-| Observable | Model |
-|------------|-------|
-| **Blood culture** | $P(\text{culture}^+ \mid \text{bacteremia}, \text{timing}, \text{antibiotic treatment})$ |
-| **PCR** | $P(\text{PCR}^+ \mid \text{bacteremia}, \text{timing})$ |
-| **Stool culture** | $P(\text{stool}^+ \mid \text{shedding}, \text{sampling schedule})$ |
-| **Temperature** | $P(T > \theta \mid \text{fever state}, \text{measurement frequency})$ |
-| **Serology** | $P(\text{titer} > \text{threshold} \mid \text{seroconversion}, \text{assay}, \text{timing})$ |
-
-### 4.2 Key Considerations
-
-- **Sensitivity vs specificity** for each assay
-- **Timing relative to infection** affects detection probability
-- **Threshold definitions** vary across studies (e.g., fever = 100°F vs 100.4°F)
-- **Sampling frequency** affects time-to-event precision
-
-Note: Functional forms left unspecified at this stage; the reference model establishes *what* needs modeling, not *how*.
-
----
-
-## 5. Heterogeneity Sources
-
-### 5.1 Study-Level
+### 3.1 Study-Level
 
 | Source | Impact |
 |--------|--------|
@@ -281,7 +172,7 @@ Note: Functional forms left unspecified at this stage; the reference model estab
 | **Outcome definition** | Clinical typhoid criteria vary (e.g., ">103°F/36hr" vs "≥38°C/12hr OR culture+") |
 | **Diagnostic methods** | Culture only vs culture + PCR affects infection ascertainment |
 
-### 5.2 Individual-Level
+### 3.2 Individual-Level
 
 - Age, sex
 - Prior exposure history
@@ -290,7 +181,7 @@ Note: Functional forms left unspecified at this stage; the reference model estab
 
 ---
 
-## 6. DAG: Latent Processes → Observables → Observations
+## 4. DAG: Latent Processes → Observables → Observations
 
 ```
 ═══════════════════════════════════════════════════════════════════════════════
@@ -388,7 +279,90 @@ Note: Functional forms left unspecified at this stage; the reference model estab
 
 ---
 
-## 7. Simplifications Needed for Practical Model
+## 5. Mathematical Framework
+
+This section formalizes the relationships described qualitatively above.
+
+### 5.1 General Form
+
+For each outcome $Y$:
+
+$$
+P(Y | D, \text{CoP}, \vec{\theta}_Y) = f_Y(D, \text{CoP}; \vec{\theta}_Y)
+$$
+
+Where:
+- $D$ = bacterial dose (CFU)
+- $\text{CoP}$ = scalar correlate of protection (see Section 2)
+- $\vec{\theta}_Y$ = outcome-specific parameters
+
+### 5.2 Outcome Hierarchy
+
+Outcomes decompose along the causal chain defined in Section 1.4:
+
+$$P(\text{acute disease}) = P(\text{acute disease} | \text{systemic invasion}) \cdot P(\text{systemic invasion} | \text{colonization}, D_{\text{gastric}}) \cdot P(\text{colonization} | D_{\text{gastric}}) \cdot P(D_{\text{gastric}} | D_{\text{challenge}})$$
+
+(Conditioning on strain, CoP, host suppressed for readability.)
+
+Similar decompositions for:
+- Bacteremia given systemic invasion
+- Fever given acute disease
+- Shedding given colonization and $D_{\text{gastric}}$
+- Chronic carriage given systemic invasion
+- Clinical typhoid given acute disease and observations
+
+### 5.3 Mechanistic Basis: Modified Beta-Poisson
+
+The working model uses a modified beta-Poisson framework:
+
+$$
+P(\text{infection} | D, \text{CoP}) = 1 - \left(1 + D \cdot \frac{2^{1/\alpha} - 1}{N_{50}}\right)^{-\alpha / \text{CoP}^{\gamma}}
+$$
+
+This form has mechanistic interpretation:
+- Each bacterium has independent probability of initiating infection
+- $N_{50}$ = dose for 50% probability of outcome in naive individuals
+- $\alpha$ = unexplained heterogeneity of outcome given dose (aggregates all sources of variation in the cascade from challenge dose to outcome)
+- $\gamma$ = how strongly immunity scales effective dose
+
+### 5.4 CoP Formalization
+
+The CoP is in principle an array:
+
+$$\vec{\text{CoP}} = (\text{CoP}_1, \text{CoP}_2, \ldots, \text{CoP}_n)$$
+
+For the working model, this collapses to a scalar:
+
+$$\text{CoP} = g(\vec{\text{CoP}})$$
+
+**Key simplification assumptions** (to be documented in Phase 5):
+- Which immune compartments dominate protection?
+- How do different compartments combine (additive? multiplicative? minimum?)?
+- What is lost by ignoring dynamics within a challenge study timescale?
+
+### 5.5 Titers as Observations of CoP
+
+Each serological assay measures one (or a combination of) CoP components:
+
+$$P(\text{titer} | \vec{\text{CoP}}, \text{assay})$$
+
+For example, anti-Vi IgG ELISA (Vacczyme assay) observes a specific humoral component.
+
+**Seroconversion** is a derived quantity comparing two titer observations:
+$$P(\text{seroconversion} | \text{titer}_{\text{pre}}, \text{titer}_{\text{post}}, \text{assay})$$
+
+Assay variance determines whether an observed change is classified as "real" seroconversion.
+
+### 5.6 Post-Challenge CoP Dynamics
+
+The immune state evolves in response to infection:
+$$\vec{\text{CoP}}_{\text{post}} = f(\vec{\text{CoP}}_{\text{pre}}, \text{colonization}, \text{systemic invasion}, \text{acute disease}, \ldots)$$
+
+*Scope note*: This is treated as a separate project. See Section 2.3.
+
+---
+
+## 6. Simplifications Needed for Practical Model
 
 *To be completed after reviewing available data*
 
@@ -401,7 +375,7 @@ Note: Functional forms left unspecified at this stage; the reference model estab
 
 ---
 
-## 8. Mapping to Available Data
+## 7. Mapping to Available Data
 
 *To be completed after Phase 4 joint review*
 
