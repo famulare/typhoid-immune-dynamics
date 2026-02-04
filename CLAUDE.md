@@ -46,14 +46,25 @@ Tidyverse code style and package dependencies are preferred, but any tools or st
 The project uses a custom workflow for converting R analysis scripts into blog posts:
 1. Write R scripts with roxygen-style comments (`#'`) for narrative text
     1. To correctly render roxygen-style comments within a function, put two spaces before the comment tag (`  #'`).
-2. Use `render_blog_post()` function to convert to markdown with proper blog metadata
-3. Scripts are rendered from `scratch/` to `docs/blog/posts/` automatically
-4. It is possible to create folders other than `scratch/` for outputs that are expected to be a more permanent part of the project base. 
+2. R scripts should start with a YAML header in roxygen comments:
+```r
+#' ---
+#' title: "Your Title"
+#' output:
+#'   md_document
+#' ---
+```
+3. Use `render_blog_post()` function to convert to markdown with proper blog metadata:
+```r
+source('docs/docs_helper_functions.R')
+render_blog_post('scratch/your_script.R', categories_list = c('category1', 'category2'))
+```
+4. Scripts are rendered from `scratch/` to `docs/blog/posts/` automatically
+5. It is possible to create folders other than `scratch/` for outputs that are expected to be a more permanent part of the project base. 
 
 ## Development Notes
 
-- 
-Uses knitr::spin for literate programming - R scripts with `#'` or `  #'` comments become narrative text
+- Uses knitr::spin for literate programming - R scripts with `#'` or `  #'` comments become narrative text
 - Blog posts require categories metadata and follow MkDocs Material blog structure
 - Site uses custom IDM branding and color scheme
 - All R scripts should use 2-space indentation (configured in .Rproj file)
