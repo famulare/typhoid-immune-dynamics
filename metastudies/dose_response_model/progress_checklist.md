@@ -21,7 +21,7 @@
 
 ## Phase 2: Batch First-Pass Extraction
 
-### Paper Extractions (20 papers)
+### Paper Extractions (21 papers)
 
 | # | Paper | Extract Created | Triage Updated | Status |
 |---|-------|-----------------|----------------|--------|
@@ -38,13 +38,14 @@
 | 11 | Hornick et al. 1967 | [x] | [x] | complete |
 | 12 | Hornick (Appraisal) | [x] | [x] | complete |
 | 13 | Hornick 1966 | [x] | [x] | complete |
-| 14 | Hornick & Snyder 1970 | [x] | [x] | complete |
-| 15 | Jin et al. 2017 | [x] | [x] | complete |
-| 16 | Juel et al. 2018 | [x] | [x] | complete |
-| 17 | Levine et al. 1976 | [x] | [x] | complete |
-| 18 | Waddington et al. 2014 (review) | [x] | [x] | complete |
-| 19 | Waddington et al. 2014 (outpatient) | [x] | [x] | complete |
-| 20 | Woodward 1980 | [x] | [x] | complete |
+| 14 | Hornick & Snyder 2008 | [x] | [x] | complete (duplicate of 1970 Part 1) |
+| 15 | Hornick & Snyder 1970 | [x] | [x] | complete |
+| 16 | Jin et al. 2017 | [x] | [x] | complete |
+| 17 | Juel et al. 2018 | [x] | [x] | complete |
+| 18 | Levine et al. 1976 | [x] | [x] | complete |
+| 19 | Waddington et al. 2014 (review) | [x] | [x] | complete |
+| 20 | Waddington et al. 2014 (outpatient) | [x] | [x] | complete |
+| 21 | Woodward 1980 | [x] | [x] | complete |
 
 ### Cross-Cutting Documents
 
@@ -66,7 +67,7 @@
 1. **Core multi-dose papers**: Hornick 1966, Waddington 2014 (outpatient)
 2. **Support papers with immunity**: Darton 2016, Jin 2017, Gibani 2020, Gilman 1977, Dupont 1971, Levine 1976
 3. **Remaining papers**: Dahora 2019, Darton 2017, Gibani 2019, Juel 2018, Glynn 1995, Glynn & Bradley 1992, Woodward 1980
-4. **Exclusions to confirm**: Darton 2012, Waddington 2014 (review)
+4. **Exclusions to confirm**: Darton 2012, Hornick 2008 (duplicate), Waddington 2014 (review)
 
 ---
 

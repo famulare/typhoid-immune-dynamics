@@ -31,13 +31,14 @@
 | 11 | Hornick et al. 1967 | include | 10^5-10^9 | Y | N | vaccine efficacy | Support | Overlaps with Hornick 1966 |
 | 12 | Hornick (Appraisal) | include | 10^5-10^7 | Y | N | vaccine efficacy | Support | Overlaps with other Hornick papers |
 | 13 | Hornick 1966 | include | 10^3-10^9 | Y | N | 0%-95% by dose | **Core** | Multi-dose dose-response curve; foundational |
-| 14 | Hornick & Snyder 1970 | include | 10^3-10^9 | Y | N | infection vs disease distinction | **Core** | Part 1+2; foundational; distinguishes infection from fever |
-| 15 | Jin et al. 2017 | include | 1-5×10^4 | N | Y (postvax serology) | 77% (24/31) control | Support | VAST trial primary report; well-characterized single dose |
-| 16 | Juel et al. 2018 | include | 10^4 | N | Y (SBA titers) | SBA correlates | Support | Antibody-severity correlations; single dose |
-| 17 | Levine et al. 1976 | include | 10^5 | N | partial | ~40% (97 controls pooled) | Support | Vaccine trial; good control group data |
-| 18 | Waddington 2014 (review) | exclude | summary | Y | N | synthesized | Exclude | Review paper; no new primary data |
-| 19 | Waddington 2014 (outpatient) | include | 10^3-10^4 | Y | N | dose-escalation data | **Core** | Oxford dose-escalation study; modern multi-dose |
-| 20 | Woodward 1980 | include | 10^3-10^9 | Y | partial (military) | 40% at 10^5 (N>300) | Support | Review/summary; military stratification unique |
+| 14 | Hornick & Snyder 2008 | exclude | N/A | N/A | N/A | N/A | Exclude | Duplicate of 1970 Part 1 (mislabeled PDF) |
+| 15 | Hornick & Snyder 1970 | include | 10^3-10^9 | Y | N | infection vs disease distinction | **Core** | Part 1+2; foundational; distinguishes infection from fever |
+| 16 | Jin et al. 2017 | include | 1-5×10^4 | N | Y (postvax serology) | 77% (24/31) control | Support | VAST trial primary report; well-characterized single dose |
+| 17 | Juel et al. 2018 | include | 10^4 | N | Y (SBA titers) | SBA correlates | Support | Antibody-severity correlations; single dose |
+| 18 | Levine et al. 1976 | include | 10^5 | N | partial | ~40% (97 controls pooled) | Support | Vaccine trial; good control group data |
+| 19 | Waddington 2014 (review) | exclude | summary | Y | N | synthesized | Exclude | Review paper; no new primary data |
+| 20 | Waddington 2014 (outpatient) | include | 10^3-10^4 | Y | N | dose-escalation data | **Core** | Oxford dose-escalation study; modern multi-dose |
+| 21 | Woodward 1980 | include | 10^3-10^9 | Y | partial (military) | 40% at 10^5 (N>300) | Support | Review/summary; military stratification unique |
 
 ---
 
@@ -72,6 +73,7 @@
 ### Exclusions
 
 1. **Darton 2012** - Conference abstract superseded by Waddington 2014
+2. **Hornick & Snyder 2008** - Mislabeled PDF; duplicate of 1970 Part 1
 3. **Waddington 2014 (review)** - Pure review; no new primary data
 
 ---
@@ -84,7 +86,7 @@ Based on triage, papers will be reviewed in this order:
 2. **Support papers with immunity data**: Darton 2016, Jin 2017, Gibani 2020, Gilman 1977, Dupont 1971, Juel 2018
 3. **Attack rate validation papers**: Levine 1976, Glynn 1995, Woodward 1980
 4. **Methodological context**: Darton 2017, Gibani 2019, Glynn & Bradley 1992, Dahora 2019
-5. **Exclusions to confirm**: Darton 2012, Waddington 2014 (review)
+5. **Exclusions to confirm**: Darton 2012, Hornick 2008, Waddington 2014 (review)
 
 ---
 

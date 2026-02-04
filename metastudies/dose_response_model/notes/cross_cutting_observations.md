@@ -22,6 +22,7 @@ Papers that share subjects or reanalyze the same underlying data:
 - **Gibani 2019** pools 6 Oxford studies including Waddington, Darton, Jin
 - **Glynn 1995** reanalyzes Hornick Maryland data
 - **Woodward 1980** summarizes entire Maryland program
+- **Hornick 2008 PDF** is mislabeled; actually **Hornick 1970 Part 1**
 
 ---
 

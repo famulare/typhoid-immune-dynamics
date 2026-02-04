@@ -232,7 +232,7 @@ This paper provides unique data on effect of prior mandatory military vaccinatio
 - Hornick_1966.md
 - Hornick_1967.md
 - Hornick_Snyder_1970.md
-- Hornick_Snyder_1970_Part1.md
+- Hornick_Snyder_2008.md
 - Dupont_immunity.md (Dupont et al. 1971a)
 - Gilman_1977.md
 
