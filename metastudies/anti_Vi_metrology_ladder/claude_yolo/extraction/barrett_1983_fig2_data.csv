@@ -1,0 +1,38 @@
+# Barrett et al. 1983 Figure 2 data extraction
+# Scattergram of Vi antibody titers by HA and ELISA in 77 sera from acute typhoid patients
+# Source: J Clin Microbiol 1983;17(4):625-627, Figure 2 (page 626)
+# Extracted: 2026-02-04
+#
+# Notes:
+# - Both titers are reciprocal values on 2-fold dilution scale
+# - <20 coded as 10 (midpoint below detection limit)
+# - Numbers inside data points represent count of sera
+# - Dotted diagonal line in original figure shows ±1 dilution agreement
+# - Total sera: 77
+#
+ELISA_titer,HA_titer,count
+10,10,37
+10,20,1
+10,40,1
+20,10,4
+20,20,2
+40,80,1
+80,10,1
+80,160,1
+80,320,2
+80,640,1
+160,160,1
+160,320,2
+160,640,2
+320,320,2
+320,640,4
+320,1280,5
+320,5120,1
+640,640,1
+640,1280,2
+640,2560,1
+1280,2560,1
+2560,1280,1
+2560,5120,1
+5120,1280,1
+5120,2560,1
