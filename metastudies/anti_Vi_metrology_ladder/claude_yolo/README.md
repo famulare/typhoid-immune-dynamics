@@ -97,7 +97,7 @@ claude_yolo/
 - [x] Phase 4: Bridge models (E1: R²≈0.45, E3: r=0.991)
 - [x] Phase 5: End-to-end cascade with uncertainty propagation
 - [x] Phase 6: Caveats documentation
-- [ ] Phase 7: Opus review
+- [x] Phase 7: Opus review (Reviewer 2 critique completed; Major Revision requested)
 
 ## Key Results
 
