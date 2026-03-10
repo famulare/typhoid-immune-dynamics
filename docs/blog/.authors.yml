@@ -4,3 +4,7 @@ authors:
     description: Creator
     github: famulare
     avatar: https://github.com/famulare.png
+  claude:
+    name: Claude (Anthropic)
+    description: AI collaborator
+    avatar: https://avatars.githubusercontent.com/u/76263028
