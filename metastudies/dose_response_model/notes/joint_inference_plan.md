@@ -413,7 +413,7 @@ Trials conducted 1970-1973. Some early trials may overlap with late Hornick enro
 
 | Excluded | Reason |
 |----------|--------|
-| Hornick 1966 10³ data (9/14 = 64%) | Anomalous; contradicted by Hornick 1970 (0/14). Use 1970 correction. |
+| ~~Hornick 1966 10³ data (9/14 = 64%)~~ | ~~Anomalous~~ — **RESOLVED**: The 9/14 was an extraction error. Both papers show 0/14. No exclusion needed. |
 | Hornick 10⁸ data (8/9 = 89%) | Include but note n=9 is very small |
 | Gibani 2019 pooled analysis | Reanalysis of primary study data; use primaries instead |
 | Non-Quailes strain data (Hornick Table 2 non-Vi strains) | Different virulence; not comparable |
@@ -744,7 +744,7 @@ For each observation in the data:
 | Share γ across outcomes | γ_inf = γ_fev | Test whether data supports separate γ |
 | Drop definition correction (φ = 1) | Treat definitions as equivalent | Assess φ's impact on δ and CoP |
 | Replace mixture with single CoP_md | Simpler Maryland model | Test whether heterogeneity matters |
-| **Hornick 10³ three-way (REQUIRED)** | **Fit with 0/14, excluded, and 9/14 (1966 value)** | **High-influence point; 1966-1970 discrepancy unresolved** |
+| Hornick 10³ influence check | Fit with 0/14 vs excluded | High-influence zero; 1966-1970 discrepancy resolved (both show 0/14, extraction was wrong) |
 | Add susceptibility classes | π_innate_resistant fraction | Address Gibani paradox |
 
 ### 9.4 Leave-One-Study-Out Cross-Validation
@@ -821,17 +821,17 @@ For quick reference, every binomial observation:
 | W-I-4 | Waddington | Infection | 10⁴ | 16 | 10 | Naive |
 | W-I-5 | Waddington | Infection | 10⁵ | 5 | 4 | Naive |
 | D-F-plac | Darton | Fever | 1.82e4 | 30 | 20 | Mixed (40% Vi+) |
-| D-F-Ty21a | Darton | Fever | 1.82e4 | 30 | 13 | Ty21a vaccinated |
-| D-F-M01 | Darton | Fever | 1.82e4 | 31 | 18 | M01ZH09 vaccinated |
-| D-I-plac | Darton | Infection | 1.82e4 | 30 | 26 | Mixed (40% Vi+) |
-| D-I-Ty21a | Darton | Infection | 1.82e4 | 30 | 16 | Ty21a vaccinated |
-| D-I-M01 | Darton | Infection | 1.82e4 | 31 | 21 | M01ZH09 vaccinated |
-| J-F-ctrl | Jin | Fever | ~1e4 | 31 | 24 | Mixed (38% Vi+) |
-| J-F-ViTT | Jin | Fever | ~1e4 | 37 | 13 | Vi-TT (GMT 563) |
-| J-F-ViPS | Jin | Fever | ~1e4 | 35 | 13 | Vi-PS (GMT 141) |
-| J-I-ctrl | Jin | Infection | ~1e4 | 31 | 22 | Mixed (38% Vi+) |
-| J-I-ViTT | Jin | Infection | ~1e4 | 37 | 22 | Vi-TT (GMT 563) |
-| J-I-ViPS | Jin | Infection | ~1e4 | 35 | 21 | Vi-PS (GMT 141) |
+| D-F-Ty21a | Darton | Fever | 1.82e4 | 30 | 13 | Ty21a vaccinated. **WARNING**: Ty21a did NOT raise anti-Vi IgG (Darton p.13). Cannot map to CoP via anti-Vi GMT. Protection via anti-LPS/anti-H. |
+| D-F-M01 | Darton | Fever | 1.82e4 | 31 | 18 | M01ZH09 vaccinated. **WARNING**: M01ZH09 did NOT raise anti-Vi IgG. Same issue as Ty21a. |
+| D-I-plac | Darton | Infection (bact OR shed) | 1.82e4 | 30 | 26 | Mixed (40% Vi+). **NOTE**: broader definition than Waddington/Jin shedding-only. No shedding-only count available in Darton. |
+| D-I-Ty21a | Darton | Infection (bact OR shed) | 1.82e4 | 30 | 16 | Ty21a. No anti-Vi response; CoP unmappable via anti-Vi. |
+| D-I-M01 | Darton | Infection (bact OR shed) | 1.82e4 | 31 | 21 | M01ZH09. No anti-Vi response; CoP unmappable via anti-Vi. |
+| J-F-ctrl | Jin | Fever | ~2e4 | 31 | 24 | Mixed (38% Vi+). Dose is target range 1-5×10⁴; no median reported; ~2e4 is geometric mean of range. |
+| J-F-ViTT | Jin | Fever | ~2e4 | 37 | 13 | Vi-TT (GMT 563) |
+| J-F-ViPS | Jin | Fever | ~2e4 | 35 | 13 | Vi-PS (GMT 141) |
+| J-I-ctrl | Jin | Infection (shedding) | ~2e4 | 31 | 22 | Mixed (38% Vi+). **NOTE**: shedding-only, not bact OR shed (differs from Darton infection definition). |
+| J-I-ViTT | Jin | Infection (shedding) | ~2e4 | 37 | 22 | Vi-TT (GMT 563). Shedding-only. |
+| J-I-ViPS | Jin | Infection (shedding) | ~2e4 | 35 | 21 | Vi-PS (GMT 141). Shedding-only. |
 | G20-F-naive | Gibani | Fever | ~2.5e4 | 19 | 12 | Naive |
 
 ### Maryland (δ > 1)
@@ -843,29 +843,38 @@ For quick reference, every binomial observation:
 | ~~H-F-7~~ | ~~Hornick~~ | ~~Fever~~ | ~~10⁷~~ | ~~32~~ | ~~16~~ | **REMOVED: double-counts with H-I-7 + H-FgI-7** |
 | H-F-8 | Hornick | Fever | 10⁸ | 9 | 8 | Maryland mixture |
 | H-F-9 | Hornick | Fever | 10⁹ | 42 | 40 | Maryland mixture |
+| *H-V-K5* | *Hornick* | *Fever* | *10⁵* | *43* | *4* | *K vaccine. CoP unknown (whole-cell killed). Excluded from primary; available for validation.* |
+| *H-V-L5* | *Hornick* | *Fever* | *10⁵* | *45* | *3* | *L vaccine. CoP unknown. Excluded from primary; available for validation.* |
+| *H-V-K7* | *Hornick* | *Fever* | *10⁷* | *28* | *12* | *K vaccine at 10⁷. Excluded from primary.* |
+| *H-V-L7* | *Hornick* | *Fever* | *10⁷* | *24* | *13* | *L vaccine at 10⁷. Excluded from primary.* |
 | H-I-7 | Hornick | Infection | 10⁷ | 30 | 28 | Maryland mixture |
 | H-FgI-7 | Hornick | Fever\|Inf | 10⁷ | 28 | 16 | Maryland mixture |
 | ~~Gil-F-ctrl~~ | ~~Gilman~~ | ~~Fever~~ | ~~10⁵~~ | ~~64~~ | ~~31~~ | **REPLACED by stratified observations below** |
 | Gil-F-Hlo | Gilman | Fever | 10⁵ | 14 | ~9 | Susceptible stratum (H Ab <1:20) |
 | Gil-F-Hhi | Gilman | Fever | 10⁵ | 13 | ~3 | Immune stratum (H Ab ≥1:20) |
-| Gil-F-rest | Gilman | Fever | 10⁵ | ~37 | ~19 | Remaining (no H Ab data); Maryland mixture |
-| Gil-I-ctrl | Gilman | Infection | 10⁵ | 43 | 26 | Maryland mixture |
-| Lev-F-1 | Levine | Fever | 10⁵ | 26 | 13 | Maryland mixture |
-| Lev-F-2 | Levine | Fever | 10⁵ | 33 | 10 | Maryland mixture |
-| Lev-F-3 | Levine | Fever | 10⁵ | 22 | 12 | Maryland mixture |
-| Lev-F-4 | Levine | Fever | 10⁵ | 16 | 4 | Maryland mixture |
-| Lev-I-1 | Levine | Infection | 10⁵ | 26 | 19 | Maryland mixture |
+| Gil-F-rest | Gilman | Fever | 10⁵ | ~37 | ~19 | **DERIVED** by subtraction (64-14-13=37, 31-~9-~3≈19). Not in any source. Sensitivity: fit with and without this row. |
+| Gil-I-ctrl | Gilman | Infection | 10⁵ | 43 | 26 | Maryland mixture. **NOTE**: endpoint is late shedding (4-30 days post-challenge), not any-time shedding. Trials 1&3 controls only. |
+| Lev-F-1 | Levine | Fever | 10⁵ | 26 | 13 | Maryland mixture. **WARNING**: Levine fever def = ≥101°F + culture, NOT Hornick's ≥103°F/24-36h. More permissive. |
+| Lev-F-2 | Levine | Fever | 10⁵ | 33 | 10 | Maryland mixture. Same Levine definition caveat. |
+| Lev-F-3 | Levine | Fever | 10⁵ | 22 | 12 | Maryland mixture. Same Levine definition caveat. |
+| Lev-F-4 | Levine | Fever | 10⁵ | 16 | 4 | Maryland mixture. Same Levine definition caveat. |
+| Lev-I-1 | Levine | Infection | 10⁵ | 26 | 19 | Maryland mixture. **NOTE**: endpoint is any-time stool positive (differs from Gilman's 4-30 day definition). |
+| *Lev-I-2* | *Levine* | *Infection* | *10⁵* | *33* | *15* | *Available but not yet included. Trial 2, 1971. Any-time stool positive.* |
+| *Lev-I-3* | *Levine* | *Infection* | *10⁵* | *22* | *17* | *Available but not yet included. Trial 3, 1972. Any-time stool positive.* |
+| *Lev-I-4* | *Levine* | *Infection* | *10⁵* | *16* | *6* | *Available but not yet included. Trial 4, 1973. Any-time stool positive.* |
 
-**Total**: 19 Oxford observations + 16 Maryland observations = 35 binomial terms.
-**Effective independent observations** (per Reviewer 2): ~28-30 after correcting for double-counting (Gil-F-ctrl replaced by strata; H-F-7 removed; within-group infection-fever correlation acknowledged as approximation).
+**Active observations (primary likelihood)**: 19 Oxford + 16 Maryland = 35 nominal. After removing 2 struck rows (H-F-7, Gil-F-ctrl) = 33 active. Waddington 10⁴ and 10⁵ values pending Mike's PDF verification (items 1-2 in action items).
+**Available but excluded**: 4 Hornick vaccine rows (CoP unmappable), 3 Levine infection rows (not yet included).
+**Effective independent observations** (per Reviewer 2): ~28-30 after correcting for within-group infection-fever correlation.
 **Total parameters**: 6 biological + 4 nuisance + 1 overdispersion = 11 (with possible reduction by sharing α or γ).
-**Data-to-parameter ratio**: ~2.5:1. Comparable to other CHIM dose-response calibrations. Bayesian framework with informative priors is essential at this ratio.
+**Data-to-parameter ratio**: ~2.5:1. Bayesian framework with informative priors is essential at this ratio.
+**Definition warnings**: (1) Oxford infection mixes shedding-only (Waddington, Jin) with bact-OR-shed (Darton) — pending harmonization. (2) Levine fever uses ≥101°F threshold, more permissive than Hornick's ≥103°F — pending decision on how to handle. (3) Gilman fever = fever + culture confirmation with tiered treatment triggers.
 
 ---
 
 ## Appendix: Prerequisites Before Implementation
 
-**PREREQUISITE 1**: Verify the Hornick 10³ discrepancy (1966: 9/14 vs 1970: 0/14) against the primary PDF publications. Determine whether these are the same 14 subjects reclassified, different subjects, or an error.
+**~~PREREQUISITE 1~~** (**RESOLVED 2026-03-18**): The Hornick 10³ discrepancy does not exist. Independent PDF verification confirmed both Hornick 1966 Figure 2 and Hornick 1970 Table 1 show 0/14 at 10³. The extraction's 9/14 was an AI hallucination. The Hornick_1966.md extraction has been corrected.
 
 **PREREQUISITE 2**: Determine whether the Gilman H-antibody measurement was performed on all 64 controls or a subsample of 27. If a subsample, assess representativeness.
 

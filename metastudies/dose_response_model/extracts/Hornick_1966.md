@@ -84,9 +84,9 @@ Hornick RB, Woodward TE, McCrumb FR, Snyder MJ, Dawkins AT, Bulkeley JT, de la M
 | 10^8 (100 million) | 9 | 8 | 88.9% |
 | 10^7 (10 million) | 32 | 16 | 50.0% |
 | 10^5 (100,000) | 116 | 32 | 27.6% |
-| 10^3 (1,000) | 14 | 9 | 64.3% |
+| 10^3 (1,000) | 14 | 0 | 0.0% |
 
-**[OPEN]** The 10^3 result (64.3%) is anomalously high - higher than 10^5 (27.6%). Small N (14) may explain variance, or these may be a different population. Text states "At the upper end of the range, the attack rate was almost 100 per cent" and "Following ingestion of 7 logs or 10 million organisms, the attack rate was 50 per cent." This matches 10^9 and 10^7 data.
+**[CORRECTION 2026-03-18]** The original extraction incorrectly reported 9/14 (64.3%) at 10^3. Independent PDF verification by two agents (Opus v2 and GPT-5.4) confirmed that Figure 2 (p.364) clearly shows **0/14** at 10^3. The text confirms: "The smallest dose employed, 1000 cells, failed to induce disease in any of the 14 volunteers." This is consistent with Hornick 1970 Part 1 Table 1, which also reports 0/14 at 10^3. The original 9/14 value was an AI extraction hallucination.
 
 **Key reference values from text (p.364)**:
 - ID50 = 10^7 = 10 million organisms
