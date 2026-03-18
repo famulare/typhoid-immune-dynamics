@@ -28,7 +28,7 @@ Your task is to verify every one of these values against the source extraction d
 - `/Users/famulare/git/famulare/typhoid-immune-dynamics/metastudies/dose_response_model/notes/joint_inference_plan.md`
   - Focus on **Section 4 (Data Catalog)** and **Section 11 (Summary of All Observations)**
 
-### The source extractions (ground truth):
+### The source extractions (intermediate — may contain errors):
 - `/Users/famulare/git/famulare/typhoid-immune-dynamics/metastudies/dose_response_model/extracts/Waddington_2014_Outpatient.md`
 - `/Users/famulare/git/famulare/typhoid-immune-dynamics/metastudies/dose_response_model/extracts/Darton_2016.md`
 - `/Users/famulare/git/famulare/typhoid-immune-dynamics/metastudies/dose_response_model/extracts/Darton_2017.md`
@@ -40,6 +40,22 @@ Your task is to verify every one of these values against the source extraction d
 - `/Users/famulare/git/famulare/typhoid-immune-dynamics/metastudies/dose_response_model/extracts/Hornick_Snyder_1970_Part1.md` (Part 1)
 - `/Users/famulare/git/famulare/typhoid-immune-dynamics/metastudies/dose_response_model/extracts/Gilman_1977.md`
 - `/Users/famulare/git/famulare/typhoid-immune-dynamics/metastudies/dose_response_model/extracts/Levine_1976.md`
+
+### The primary source papers (GROUND TRUTH — check numbers against these):
+
+**IMPORTANT**: The extractions above were AI-generated and may themselves contain errors. For every number that enters the model likelihood, you MUST verify it against the original PDF. Read the relevant tables and text in the PDFs directly.
+
+- `/Users/famulare/git/famulare/typhoid-immune-dynamics/metastudies/dose_response_model/input_papers/Waddington et al._2014_An Outpatient, Ambulant-Design, Controlled Human Infection Model Using Escalating Doses of Salmonell.pdf`
+- `/Users/famulare/git/famulare/typhoid-immune-dynamics/metastudies/dose_response_model/input_papers/Darton et al._2016_Using a Human Challenge Model of Infection to Measure Vaccine Efficacy A Randomised, Controlled Tri.pdf`
+- `/Users/famulare/git/famulare/typhoid-immune-dynamics/metastudies/dose_response_model/input_papers/Darton et al._2017_Blood culture-PCR to optimise typhoid fever diagnosis after controlled human infection identifies fr.pdf`
+- `/Users/famulare/git/famulare/typhoid-immune-dynamics/metastudies/dose_response_model/input_papers/Jin et al._2017_Efficacy and immunogenicity of a Vi-tetanus toxoid conjugate vaccine in the prevention of typhoid fe.pdf`
+- `/Users/famulare/git/famulare/typhoid-immune-dynamics/metastudies/dose_response_model/input_papers/Gibani et al._2020_Homologous and heterologous re-challenge with Salmonella Typhi and Salmonella Paratyphi A in a rando.pdf`
+- `/Users/famulare/git/famulare/typhoid-immune-dynamics/metastudies/dose_response_model/input_papers/Gibani et al._2019_The Impact of Vaccination and Prior Exposure on Stool Shedding of Salmonella Typhi and Salmonella Pa.pdf`
+- `/Users/famulare/git/famulare/typhoid-immune-dynamics/metastudies/dose_response_model/input_papers/Hornick_1966_Study_of_induced_typhoid_fever_in_man._I._Evaluati.pdf`
+- `/Users/famulare/git/famulare/typhoid-immune-dynamics/metastudies/dose_response_model/input_papers/Hornick_Snyder_1970_Typhoid_fever_pathogenesis_and_immunologic_Part_1.pdf`
+- `/Users/famulare/git/famulare/typhoid-immune-dynamics/metastudies/dose_response_model/input_papers/Hornick_Snyder_1970_Typhoid_fever_pathogenesis_and_immunologic_Part_2.pdf`
+- `/Users/famulare/git/famulare/typhoid-immune-dynamics/metastudies/dose_response_model/input_papers/Gilman et al._1977_Evaluation of a UDP-Glucose-4-Epimeraseless Mutant of Salmonella typhi as a Live Oral Vaccine.pdf`
+- `/Users/famulare/git/famulare/typhoid-immune-dynamics/metastudies/dose_response_model/input_papers/Levine et al._1976_Attenuated, Streptomycin-Dependent Salmonella typhi Oral Vaccine Potential Deleterious Effects of L.pdf`
 
 ### Additional context:
 - `/Users/famulare/git/famulare/typhoid-immune-dynamics/metastudies/dose_response_model/notes/outcome_mapping.md`
