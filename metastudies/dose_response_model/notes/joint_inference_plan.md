@@ -467,9 +467,10 @@ $$
 
 where $g(\cdot)$ is the CoP mapping from the titer model. This applies to:
 - Jin 2017 Vi-TT (GMT = 563 EU/mL), Vi-PS (GMT = 141 EU/mL)
-- Darton 2016 Ty21a, M01ZH09
 
-**The Darton anti-Vi regression**: The HR = 0.29 per log₁₀ anti-Vi enters as a soft constraint. Specifically, the model should predict that the log-odds of TD at dose ~1.8×10⁴ decreases by approximately $\ln(0.29) \approx -1.24$ per log₁₀ increase in anti-Vi. This can be checked as a posterior predictive quantity rather than entered as a separate likelihood term (to avoid double-counting subjects already in the Darton binomial observations). Alternatively, if individual-level data becomes available, use a logistic regression likelihood with anti-Vi as a continuous predictor.
+**Darton vaccine arms are EXCLUDED from γ estimation via anti-Vi CoP.** Neither M01ZH09 nor Ty21a raised anti-Vi IgG (Darton p.13). Ty21a genetically lacks the Vi capsule gene. M01ZH09 is derived from Vi-expressing Ty2 (ΔaroC ΔssaV) but a single oral dose does not generate measurable anti-Vi IgG; its protection is primarily through anti-LPS. Both vaccines operate through non-Vi mechanisms and cannot be mapped to CoP via anti-Vi GMT. They are retained in Section 11 for **validation** (does the model correctly predict their attack rates are between placebo and Vi-vaccinated?) but do not enter the γ likelihood.
+
+**The Darton anti-Vi regression**: The HR = 0.29 per log₁₀ anti-Vi (from the full Darton cohort including placebo baseline variation) enters as a soft constraint on γ. This HR reflects *baseline* anti-Vi variation across all subjects, not vaccine-induced anti-Vi. It can be checked as a posterior predictive quantity rather than entered as a separate likelihood term (to avoid double-counting subjects already in the Darton placebo binomial observation).
 
 ### 5.4 Maryland Multi-Dose Data (Hornick)
 
@@ -645,18 +646,23 @@ Before fitting, simulate from the prior to verify:
 
 | Parameter | Primary data source | Why well-identified |
 |-----------|-------------------|---------------------|
-| $N_{50,\text{fev}}$ | Waddington multi-dose + pooled 10⁴ data | Near N50 at 10³ bicarb; 5+ data groups |
-| $\gamma_{\text{fev}}$ | Darton anti-Vi HR + Jin vaccine VE | Multiple independent immunity contrasts at fixed dose |
+| $N_{50,\text{fev&#124;inf}}$ | Waddington multi-dose + pooled 10⁴ data | Near N50 at 10³ bicarb; 5+ data groups |
 | $\phi$ | Jin fever threshold analysis | Direct measurement of definition gap |
 | $\pi_{\text{susc}}$ | Gilman + Levine H-antibody stratification | Direct measurement of immunity prevalence |
 
-### 8.2 Weakly Identified Parameters
+### 8.2 Moderately Identified Parameters
+
+| Parameter | Primary data source | Why moderate (not strong) |
+|-----------|-------------------|--------------------------|
+| $\gamma_{\text{fev&#124;inf}}$ | Jin Vi-TT/Vi-PS vaccine VE + Darton baseline anti-Vi HR | **Downgraded from "well-identified"**: Darton M01ZH09 and Ty21a excluded (non-Vi mechanisms). Remaining constraints: Jin Vi-TT (35% vs 77%) and Vi-PS (37% vs 77%) = 2 Vi-vaccine contrasts at known GMT, plus Darton baseline anti-Vi HR (continuous, across all arms including placebo). Moderate but thinner than previously claimed. |
+| $\gamma_{\text{inf}}$ | Jin Vi-TT/Vi-PS shedding + Gibani 2019 shedding ORs | Jin Vi-vaccine arms show modest shedding reduction (59-60% vs 71%); Gibani 2019 pooled anti-Vi → shedding P<.0001 |
+
+### 8.3 Weakly Identified Parameters
 
 | Parameter | Why weak | What helps |
 |-----------|----------|------------|
-| $\alpha_{\text{inf}}$, $\alpha_{\text{fev}}$ | Oxford has only ~1 log of informative dose range | Maryland 6-log range through δ bridge |
+| $\alpha_{\text{inf}}$, $\alpha_{\text{fev&#124;inf}}$ | Oxford has only ~1 log of informative dose range | Maryland 6-log range through δ bridge |
 | $N_{50,\text{inf}}$ | Shedding rates ~63-65% at 10³-10⁴ (flat); N50 well below observed range | Bounded above by 10³; lower bound from model coherence |
-| $\gamma_{\text{inf}}$ | Fewer direct immunity-shedding contrasts | Gibani 2019 shedding ORs provide moderate signal |
 | $\text{CoP}_{\text{imm}}$ | Confounded with δ through the ID50 position | Gilman stratified data + curve shape asymmetry |
 
 ### 8.3 Structural Confounds
@@ -675,6 +681,11 @@ The Maryland fever likelihood at any dose is $p = \phi \cdot [\text{mixture prob
 **Confound 4: α × N50 correlation from Oxford.**
 Standard β-Poisson identifiability issue. With only ~1 log of dose range from Oxford, N50 and α are correlated. The Maryland data (with much wider dose range, after the δ bridge) breaks this correlation substantially.
 
+**Confound 5: γ identification after Darton vaccine exclusion.**
+With Darton M01ZH09 and Ty21a excluded (non-Vi mechanisms), the γ parameters rest on: (a) Jin Vi-TT and Vi-PS contrasts (2 groups with known anti-Vi GMT vs 1 control group, at a single dose), and (b) the Darton baseline anti-Vi HR (continuous variation within the full Darton cohort, but confounded with other baseline differences). This is thinner than previously assessed. If γ is weakly identified from Oxford alone, the Maryland data — which should be constraining δ and CoP_imm — will also absorb γ uncertainty, creating a four-way interaction (δ, CoP_imm, γ, φ). The staged fitting diagnostic (Section 10.4) should explicitly report the γ marginal posterior width at Stage 1 to assess whether this is a problem.
+
+**Mitigating factor**: The Gibani 2020 rechallenge data (naive 63% vs rechallenge 44%) provides an additional γ constraint through natural immunity, independent of the Vi pathway. However, this is confounded by the susceptibility paradox (Section 9.2) and by mixed prior vaccination in the rechallenge arm.
+
 **Diagnostic**: Compute and report the expected posterior correlation matrix for all parameters from a Laplace approximation at a plausible parameter point. Verify that the pairwise confounds discussed above are the dominant structure and that no unexpected higher-order interactions exist.
 
 ### 8.4 Information Flow Summary
@@ -684,8 +695,9 @@ LAYER 1: Oxford naive multi-dose (Waddington)
   → N50_inf, N50_fev [bounded above, weakly below]
   → α_inf, α_fev [weak — only 1 log of dose range]
 
-LAYER 2: Oxford immunity variation (Darton, Jin, Gibani)
-  → γ_inf, γ_fev [moderate-strong]
+LAYER 2: Oxford immunity variation (Jin Vi-TT/Vi-PS only for γ calibration)
+  → γ_inf, γ_fev|inf [moderate — only 2 Vi vaccine contrasts + baseline anti-Vi HR]
+  → Darton M01ZH09/Ty21a EXCLUDED from γ (non-Vi mechanisms); used for validation
   → Validates CoP mapping from titer model
 
 LAYER 3: Maryland multi-dose (Hornick) via δ bridge
@@ -821,11 +833,11 @@ For quick reference, every binomial observation:
 | W-I-4 | Waddington | Infection | 10⁴ | 16 | 10 | Naive |
 | W-I-5 | Waddington | Infection | 10⁵ | 5 | 4 | Naive |
 | D-F-plac | Darton | Fever | 1.82e4 | 30 | 20 | Mixed (40% Vi+) |
-| D-F-Ty21a | Darton | Fever | 1.82e4 | 30 | 13 | Ty21a vaccinated. **WARNING**: Ty21a did NOT raise anti-Vi IgG (Darton p.13). Cannot map to CoP via anti-Vi GMT. Protection via anti-LPS/anti-H. |
-| D-F-M01 | Darton | Fever | 1.82e4 | 31 | 18 | M01ZH09 vaccinated. **WARNING**: M01ZH09 did NOT raise anti-Vi IgG. Same issue as Ty21a. |
+| D-F-Ty21a | Darton | Fever | 1.82e4 | 30 | 13 | Ty21a. **VALIDATION ONLY** — lacks Vi gene; non-Vi protection mechanism. Cannot map to anti-Vi CoP. |
+| D-F-M01 | Darton | Fever | 1.82e4 | 31 | 18 | M01ZH09. **VALIDATION ONLY** — did not raise anti-Vi IgG; protection via anti-LPS. Cannot map to anti-Vi CoP. |
 | D-I-plac | Darton | Infection (bact OR shed) | 1.82e4 | 30 | 26 | Mixed (40% Vi+). **NOTE**: broader definition than Waddington/Jin shedding-only. No shedding-only count available in Darton. |
-| D-I-Ty21a | Darton | Infection (bact OR shed) | 1.82e4 | 30 | 16 | Ty21a. No anti-Vi response; CoP unmappable via anti-Vi. |
-| D-I-M01 | Darton | Infection (bact OR shed) | 1.82e4 | 31 | 21 | M01ZH09. No anti-Vi response; CoP unmappable via anti-Vi. |
+| D-I-Ty21a | Darton | Infection (bact OR shed) | 1.82e4 | 30 | 16 | Ty21a. **VALIDATION ONLY** — non-Vi mechanism. |
+| D-I-M01 | Darton | Infection (bact OR shed) | 1.82e4 | 31 | 21 | M01ZH09. **VALIDATION ONLY** — non-Vi mechanism. |
 | J-F-ctrl | Jin | Fever | ~2e4 | 31 | 24 | Mixed (38% Vi+). Dose is target range 1-5×10⁴; no median reported; ~2e4 is geometric mean of range. |
 | J-F-ViTT | Jin | Fever | ~2e4 | 37 | 13 | Vi-TT (GMT 563) |
 | J-F-ViPS | Jin | Fever | ~2e4 | 35 | 13 | Vi-PS (GMT 141) |
