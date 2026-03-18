@@ -839,15 +839,15 @@ For quick reference, every binomial observation:
 | D-F-plac | Darton | Fever | 1.82e4 | 30 | 20 | Mixed (40% Vi+) |
 | D-F-Ty21a | Darton | Fever | 1.82e4 | 30 | 13 | Ty21a. **VALIDATION ONLY** — lacks Vi gene; non-Vi protection mechanism. Cannot map to anti-Vi CoP. |
 | D-F-M01 | Darton | Fever | 1.82e4 | 31 | 18 | M01ZH09. **VALIDATION ONLY** — did not raise anti-Vi IgG; protection via anti-LPS. Cannot map to anti-Vi CoP. |
-| D-I-plac | Darton | Infection (bact OR shed) | 1.82e4 | 30 | 26 | Mixed (40% Vi+). **NOTE**: broader definition than Waddington/Jin shedding-only. No shedding-only count available in Darton. |
+| D-I-plac | Darton | Infection (bact OR shed) | 1.82e4 | 30 | 26 | Mixed (40% Vi+). **DEFINITION MISMATCH**: 87% by bact-OR-shed vs ~71% expected by shedding-only (based on Jin control rate at similar dose). No shedding-only count available in Darton publication. **OPTIONS**: (a) Drop from infection likelihood entirely (safest). (b) Keep but note ~15% inflation vs shedding-only studies. (c) Model a definition offset. Recommend (a) for primary fit, (b) for sensitivity. |
 | D-I-Ty21a | Darton | Infection (bact OR shed) | 1.82e4 | 30 | 16 | Ty21a. **VALIDATION ONLY** — non-Vi mechanism. |
 | D-I-M01 | Darton | Infection (bact OR shed) | 1.82e4 | 31 | 21 | M01ZH09. **VALIDATION ONLY** — non-Vi mechanism. |
 | J-F-ctrl | Jin | Fever | ~2e4 | 31 | 24 | Mixed (38% Vi+). Dose is target range 1-5×10⁴; no median reported; ~2e4 is geometric mean of range. |
 | J-F-ViTT | Jin | Fever | ~2e4 | 37 | 13 | Vi-TT (GMT 563) |
 | J-F-ViPS | Jin | Fever | ~2e4 | 35 | 13 | Vi-PS (GMT 141) |
-| J-I-ctrl | Jin | Infection (shedding) | ~2e4 | 31 | 22 | Mixed (38% Vi+). **NOTE**: shedding-only, not bact OR shed (differs from Darton infection definition). |
-| J-I-ViTT | Jin | Infection (shedding) | ~2e4 | 37 | 22 | Vi-TT (GMT 563). Shedding-only. |
-| J-I-ViPS | Jin | Infection (shedding) | ~2e4 | 35 | 21 | Vi-PS (GMT 141). Shedding-only. |
+| J-I-ctrl | Jin | Infection (shedding) | ~2e4 | 31 | 22 | Mixed (38% Vi+). Full-cohort stool culture. Jin bacteremia (24/24) is tautological subset of diagnosed — not usable as independent infection endpoint. |
+| J-I-ViTT | Jin | Infection (shedding) | ~2e4 | 37 | 22 | Vi-TT (GMT 563). Full-cohort stool culture. |
+| J-I-ViPS | Jin | Infection (shedding) | ~2e4 | 35 | 21 | Vi-PS (GMT 141). Full-cohort stool culture. |
 | G20-F-naive | Gibani | Fever | ~2.5e4 | 19 | 12 | Naive |
 
 ### Maryland (δ > 1)
@@ -884,7 +884,7 @@ For quick reference, every binomial observation:
 **Effective independent observations** (per Reviewer 2): ~28-30 after correcting for within-group infection-fever correlation.
 **Total parameters**: 6 biological + 4 nuisance + 1 overdispersion = 11 (with possible reduction by sharing α or γ).
 **Data-to-parameter ratio**: ~2.5:1. Bayesian framework with informative priors is essential at this ratio.
-**Definition warnings**: (1) Oxford infection mixes shedding-only (Waddington, Jin) with bact-OR-shed (Darton) — pending harmonization. (2) Levine fever uses ≥101°F threshold, more permissive than Hornick's ≥103°F — pending decision on how to handle. (3) Gilman fever = fever + culture confirmation with tiered treatment triggers.
+**Definition warnings**: (1) Oxford infection: Waddington and Jin use shedding-only (full-cohort stool culture). Darton uses bact-OR-shed (broader; ~15% higher rate). **Recommendation: use shedding-only as the consistent infection endpoint; drop D-I-plac from primary infection likelihood or model the offset.** Jin bacteremia data (24/24, 13/13, 11/13) is a tautological subset of diagnosed — not an independent infection measure. (2) Levine fever uses ≥101°F threshold, more permissive than Hornick's ≥103°F — pending decision on how to handle. (3) Gilman fever = fever + culture confirmation with tiered treatment triggers.
 
 ---
 
@@ -894,7 +894,7 @@ For quick reference, every binomial observation:
 
 **PREREQUISITE 2**: Determine whether the Gilman H-antibody measurement was performed on all 64 controls or a subsample of 27. If a subsample, assess representativeness.
 
-**PREREQUISITE 3**: Extract shedding-only rates from Darton 2016 and Jin 2017 (as opposed to bacteremia OR shedding) to ensure consistent infection definition across Oxford studies. If not available in publications, use Gibani 2019 pooled analysis as a secondary source.
+**PREREQUISITE 3** (**PARTIALLY RESOLVED 2026-03-18**): Jin 2017 infection data confirmed as shedding-only (full-cohort stool culture, 22/31, 22/37, 21/35) — valid and consistent with Waddington. Jin bacteremia denominators are diagnosed-subset, not full-cohort (tautological: bacteremia is a diagnostic criterion). Darton shedding-only remains unavailable — Darton only reports "bacteremia OR stool positive." **Decision needed**: drop Darton infection placebo (D-I-plac) from primary infection likelihood, or model the ~15% definition inflation.
 
 ---
 
