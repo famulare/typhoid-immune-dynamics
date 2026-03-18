@@ -11,13 +11,14 @@
 
 We propose a joint Bayesian model that fits two dose-response curves — **infection** and **fever** — to data from all Oxford (2011-2017) and Maryland (1960s-1970s) controlled human infection studies. The model uses the modified beta-Poisson form with immunity scaling, a delivery medium offset, and latent immunity for the Maryland cohort. We work in **bicarbonate-equivalent dose units** as the reference frame, with the milk-to-bicarbonate conversion as an explicit parameter.
 
-The inference has three layers:
-1. **Oxford data** pins the naive dose-response (N50, α) and immunity scaling (γ) in bicarb units
-2. **Maryland data** sharpens α through its 6-log dose range, constrains the medium offset δ, and uniquely identifies the infection-fever conditional
-3. **Cross-era bridging** requires explicit assumptions about what biology is portable across 50 years and what is not
+The inference has three layers, each contributing information that the others cannot:
+1. **Oxford data** bounds N50 from above (both outcomes >50% at 10³ bicarb) and estimates immunity scaling (γ) from Vi-vaccine contrasts (Jin Vi-TT/Vi-PS). Oxford alone is **underconstrained** for α — with only 2 dose levels 1 log apart, both in the flat upper tail, the dose-response shape is not identifiable from Oxford alone.
+2. **Maryland data** is where α gets pinned: 6 orders of magnitude of dose range (10³-10⁹) spanning the full S-curve. Maryland also uniquely identifies the infection-fever conditional (Hornick Table 2: P(fever|infected) = 57% at 10⁷) and constrains the medium offset δ.
+3. **Cross-era bridging** requires explicit assumptions about what biology is portable across 50 years (strain virulence, α, γ, functional form) and what is not (delivery medium, background immunity, outcome definitions). This is the load-bearing structure of the entire inference.
 
-Total parameters: 6 biological + 4 nuisance + priors = 10 free parameters
-Total independent data groups: ~30 binomial observations across ~8 non-overlapping study arms
+Total parameters: 6 biological + 4 nuisance + 1 overdispersion = 11 free parameters
+Active calibration observations: ~25 binomial terms across ~8 non-overlapping study arms
+Validation observations: 4 (Darton M01ZH09/Ty21a, non-Vi mechanisms)
 
 ---
 
@@ -691,9 +692,12 @@ With Darton M01ZH09 and Ty21a excluded (non-Vi mechanisms), the γ parameters re
 ### 8.4 Information Flow Summary
 
 ```
-LAYER 1: Oxford naive multi-dose (Waddington)
-  → N50_inf, N50_fev [bounded above, weakly below]
-  → α_inf, α_fev [weak — only 1 log of dose range]
+LAYER 1: Oxford naive (Waddington — 2 doses only: 10³ and 10⁴)
+  → N50_inf, N50_fev|inf [bounded above by 10³; lower bound very weak]
+  → α_inf, α_fev|inf [essentially unconstrained — 2 points in the flat tail]
+  NOTE: Oxford alone is underconstrained for N50 and α. This is expected
+  and is why the cross-era bridge exists. Stage 1 fit will show wide
+  posteriors; Stage 2 (adding Maryland) is where α gets pinned.
 
 LAYER 2: Oxford immunity variation (Jin Vi-TT/Vi-PS only for γ calibration)
   → γ_inf, γ_fev|inf [moderate — only 2 Vi vaccine contrasts + baseline anti-Vi HR]
@@ -802,15 +806,15 @@ For $p$ very close to 0 or 1, use `log1m_exp` for the log-likelihood to avoid ca
 
 3. **Mixture model multimodality**: The two-component Maryland mixture could have label-switching issues. Enforce ordering: CoP_susc < CoP_imm.
 
-4. **Small-n data**: Several observations have n ≤ 10 (Hornick 10⁸: n=9; Waddington 10⁵: n=5). These contribute weak likelihood but can create posterior irregularities. The beta-binomial overdispersion helps.
+4. **Small-n data**: Hornick 10⁸ (n=9) contributes weak likelihood but can create posterior irregularities. The beta-binomial overdispersion helps.
 
 ### 10.4 Staged Fitting Strategy
 
 To diagnose issues, fit in stages:
 
-**Stage 1**: Oxford only (infection + fever). Fix δ = 1, CoP_susc = 1. Estimate (N50_inf, N50_fev, α_inf, α_fev, γ_inf, γ_fev). Verify basic model behavior.
+**Stage 1**: Oxford only (infection + fever). Fix δ = 1, CoP_susc = 1. Estimate (N50_inf, N50_fev|inf, α_inf, α_fev|inf, γ_inf, γ_fev|inf). **Expected behavior**: N50 bounded above (~10³) but with very wide lower bound. α essentially unconstrained (only 2 dose points, 1 log apart, both in the flat upper tail). γ moderately constrained from Jin Vi-TT/Vi-PS contrasts + Darton baseline anti-Vi variation. This stage confirms that the β-Poisson machinery works and that γ is estimable, but it will NOT produce useful N50 or α estimates. That is by design — α requires the 6-log Maryland dose range.
 
-**Stage 2**: Add Maryland multi-dose fever data. Add δ, π_susc, CoP_imm, φ. Verify the cross-era bridge works.
+**Stage 2**: Add Maryland multi-dose fever data. Add δ, π_susc, CoP_imm, φ. **This is where α gets pinned.** The Maryland curve spanning 10³-10⁹ (0% to 95%) constrains the dose-response shape that Oxford alone cannot. Verify that (a) the cross-era bridge produces a coherent joint fit, (b) the α posterior narrows dramatically relative to Stage 1, and (c) the δ-CoP_imm ridge is present but manageable.
 
 **Stage 3**: Add Maryland infection data (Hornick Table 2) and single-dose studies (Gilman, Levine). Add σ_study. Full model.
 
