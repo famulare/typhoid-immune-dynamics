@@ -207,25 +207,25 @@ All Oxford studies use the same strain, same delivery, same fever definition (TD
 
 #### 4.1.1 Waddington 2014 — Multi-dose naive (INDEPENDENT)
 
-Study ID: OVG2009/10. N=41. Dose escalation.
+Study ID: OVG2009/10. N=40 per-protocol (20 at 10³, 20 at 10⁴). **Two dose levels only** — the extraction erroneously included a 10⁵ arm that does not exist in this paper.
 
-**Fever (TD composite):**
+**Fever (TD composite) — PDF-verified 2026-03-18:**
 
 | Obs ID | Dose (CFU) | n | y | p | Outcome |
 |--------|-----------|---|---|---|---------|
 | W-F-3 | 10³ | 20 | 11 | 0.55 | TD |
-| W-F-4 | 10⁴ | 16 | 10 | 0.63 | TD |
-| W-F-5 | 10⁵ | 5 | 5 | 1.00 | TD |
+| W-F-4 | 10⁴ | 20 | 13 | 0.65 | TD |
 
 **Infection (stool shedding):**
 
 | Obs ID | Dose (CFU) | n | y | p | Outcome |
 |--------|-----------|---|---|---|---------|
 | W-I-3 | 10³ | 20 | 13 | 0.65 | Shedding |
-| W-I-4 | 10⁴ | 16 | 10 | 0.63 | Shedding |
-| W-I-5 | 10⁵ | 5 | 4 | 0.80 | Shedding |
+| W-I-4 | 10⁴ | 20 | ? | ? | Shedding. Numerator needs verification — extraction claimed 10/16 but denominator was wrong. With n=20, the numerator may also differ. |
 
 **Immunity status**: Screened naive. Baseline anti-Vi not reported per subject; Waddington notes "no statistically significant differences" in pre-challenge anti-Vi between diagnosed and not-diagnosed. Treat as CoP ≈ 1 with a note that ~29% may have had detectable anti-Vi (based on comparable Oxford cohort rates).
+
+**Extraction errors corrected**: (1) 10⁵ arm removed — does not exist in paper. (2) 10⁴ denominator corrected from n=16 to n=20, fever from y=10 to y=13. Source of errant 10⁵ data under investigation (see `waddington_10e5_source_investigation.md`).
 
 #### 4.1.2 Darton 2016 — Vaccine trial at ~1.8×10⁴ (INDEPENDENT)
 
@@ -827,11 +827,11 @@ For quick reference, every binomial observation:
 | ID | Study | Outcome | Dose | n | y | CoP status |
 |----|-------|---------|------|---|---|------------|
 | W-F-3 | Waddington | Fever | 10³ | 20 | 11 | Naive |
-| W-F-4 | Waddington | Fever | 10⁴ | 16 | 10 | Naive |
-| W-F-5 | Waddington | Fever | 10⁵ | 5 | 5 | Naive |
-| W-I-3 | Waddington | Infection | 10³ | 20 | 13 | Naive |
-| W-I-4 | Waddington | Infection | 10⁴ | 16 | 10 | Naive |
-| W-I-5 | Waddington | Infection | 10⁵ | 5 | 4 | Naive |
+| W-F-4 | Waddington | Fever | 10⁴ | 20 | 13 | Naive. **CORRECTED**: n=20 not 16, y=13 not 10 (PDF-verified 2026-03-18). |
+| ~~W-F-5~~ | | | | | | **REMOVED**: 10⁵ arm does not exist in Waddington 2014. Extraction hallucination. |
+| W-I-3 | Waddington | Infection (shedding) | 10³ | 20 | 13 | Naive |
+| W-I-4 | Waddington | Infection (shedding) | 10⁴ | 20 | ? | Naive. **CORRECTED**: n=20 not 16. Shedding numerator needs verification (extraction claimed 10; not confirmed in PDF tables). |
+| ~~W-I-5~~ | | | | | | **REMOVED**: 10⁵ arm does not exist. |
 | D-F-plac | Darton | Fever | 1.82e4 | 30 | 20 | Mixed (40% Vi+) |
 | D-F-Ty21a | Darton | Fever | 1.82e4 | 30 | 13 | Ty21a. **VALIDATION ONLY** — lacks Vi gene; non-Vi protection mechanism. Cannot map to anti-Vi CoP. |
 | D-F-M01 | Darton | Fever | 1.82e4 | 31 | 18 | M01ZH09. **VALIDATION ONLY** — did not raise anti-Vi IgG; protection via anti-LPS. Cannot map to anti-Vi CoP. |
@@ -875,7 +875,7 @@ For quick reference, every binomial observation:
 | *Lev-I-3* | *Levine* | *Infection* | *10⁵* | *22* | *17* | *Available but not yet included. Trial 3, 1972. Any-time stool positive.* |
 | *Lev-I-4* | *Levine* | *Infection* | *10⁵* | *16* | *6* | *Available but not yet included. Trial 4, 1973. Any-time stool positive.* |
 
-**Active observations (primary likelihood)**: 19 Oxford + 16 Maryland = 35 nominal. After removing 2 struck rows (H-F-7, Gil-F-ctrl) = 33 active. Waddington 10⁴ and 10⁵ values pending Mike's PDF verification (items 1-2 in action items).
+**Active observations (primary likelihood)**: 17 Oxford + 16 Maryland = 33 nominal. After removing struck rows (H-F-7, Gil-F-ctrl, W-F-5, W-I-5) and validation-only rows (D-F-Ty21a, D-F-M01, D-I-Ty21a, D-I-M01) = **25 active calibration observations**. Plus 4 Darton vaccine validation observations. W-I-4 shedding numerator still needs verification.
 **Available but excluded**: 4 Hornick vaccine rows (CoP unmappable), 3 Levine infection rows (not yet included).
 **Effective independent observations** (per Reviewer 2): ~28-30 after correcting for within-group infection-fever correlation.
 **Total parameters**: 6 biological + 4 nuisance + 1 overdispersion = 11 (with possible reduction by sharing α or γ).
