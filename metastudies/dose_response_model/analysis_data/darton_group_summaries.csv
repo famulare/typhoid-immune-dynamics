@@ -1,0 +1,4 @@
+group,n_ppp,n_td,n_fever_37,n_fever_37_5,n_fever_38,n_fever_38_5,n_fever_39,n_bacteremia,n_stool_positive,n_bact_or_stool,gmt_vi_igg_day0,frac_vi_detectable_baseline
+M01ZH09,31,18,27,16,14,9,7,16,20,21,5.608418038685174,0.1935483870967742
+Placebo,30,20,27,20,16,10,8,20,19,26,7.309463064737769,0.36666666666666664
+Ty21a,30,13,20,11,9,6,2,11,18,16,7.7335075578347,0.27586206896551724
