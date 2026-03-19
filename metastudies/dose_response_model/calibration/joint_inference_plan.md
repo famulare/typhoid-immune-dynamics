@@ -79,7 +79,9 @@ $$y_{\text{fev|inf}} = 16 \sim \text{Binomial}(28, P_{\text{fev|inf}}(10^7/\delt
 
 The infection observation: $y_{\text{inf}} = 28 \sim \text{Binomial}(30, P_{\text{inf}}(10^7/\delta, \text{CoP}_{\text{md}}))$. No double-counting.
 
-For all other data where only marginal fever rates are observed (no individual-level crossover), the likelihood uses the product:
+**Darton cross-tabulation (from S1 individual-level data)**: The Darton S1 extraction provides individual-level infection × fever crossover for all 91 per-protocol subjects. For the Placebo group (n=30): 13 stool+/TD+, 6 stool+/TD-, 7 stool-/TD+, 4 stool-/TD-. This enables a joint bivariate likelihood for Darton (per Reviewer 2 Major Concern 2), rather than two independent marginal binomials. Cross-tabulations at fever thresholds ≥38°C and ≥39°C are also available. See `analysis_data/darton_cross_tabulation.csv`.
+
+For all other data where only marginal rates are observed (no individual-level crossover), the likelihood uses the product:
 
 $$y_{\text{fev},j} \sim \text{Binomial}(n_j, P_{\text{inf}}(D_j, \text{CoP}_j) \times P_{\text{fev|inf}}(D_j, \text{CoP}_j))$$
 
@@ -236,9 +238,9 @@ Study ID: OVG2011/02. N=91 per-protocol. Dose: median 1.82×10⁴ CFU.
 
 | Obs ID | Group | Dose (CFU) | n | y | p | CoP source |
 |--------|-------|-----------|---|---|---|------------|
-| D-F-plac | Placebo | 1.82e4 | 30 | 20 | 0.67 | Baseline anti-Vi measured; 40% >7.4 EU/mL |
-| D-F-M01 | M01ZH09 | 1.82e4 | 31 | 18 | 0.58 | Post-vax anti-Vi available |
-| D-F-Ty21a | Ty21a | 1.82e4 | 30 | 13 | 0.43 | Post-vax anti-Vi available |
+| D-F-plac | Placebo | 1.82e4 | 30 | 20 | 0.67 | Baseline anti-Vi measured; 37% >7.4 EU/mL (S1 data). Individual-level titers available. |
+| D-F-M01 | M01ZH09 | 1.82e4 | 31 | 18 | 0.58 | VALIDATION ONLY. Did not raise anti-Vi; 19% had detectable baseline. |
+| D-F-Ty21a | Ty21a | 1.82e4 | 30 | 13 | 0.43 | VALIDATION ONLY. Lacks Vi gene; 28% had detectable baseline anti-Vi. |
 
 **Infection (shedding-only, from S1 individual-level data):**
 
@@ -452,7 +454,7 @@ $$
 p_j = 0.7 \cdot P_k(D_j, 1) + 0.3 \cdot P_k(D_j, \overline{\text{CoP}}_{\text{Vi+}})
 $$
 
-This matters most for the Jin 2017 control arm (38% had baseline anti-Vi) and Darton 2016 placebo (40% had baseline anti-Vi). For Waddington, the baseline anti-Vi was not significantly associated with outcome; treat as all-naive for the initial model.
+This matters most for the Jin 2017 control arm (38% had baseline anti-Vi) and Darton 2016 placebo (37% had baseline anti-Vi per S1 data; published paper claims 40%). Individual-level anti-Vi titers are available from the Darton S1 Dataset for all 91 per-protocol subjects. For Waddington, the baseline anti-Vi was not significantly associated with outcome; treat as all-naive for the initial model.
 
 ### 5.3 Oxford Immunity Variation Data
 
@@ -473,7 +475,12 @@ where $g(\cdot)$ is the CoP mapping from the titer model. This applies to:
 
 **Darton vaccine arms are EXCLUDED from γ estimation via anti-Vi CoP.** Neither M01ZH09 nor Ty21a raised anti-Vi IgG (Darton p.13). Ty21a genetically lacks the Vi capsule gene. M01ZH09 is derived from Vi-expressing Ty2 (ΔaroC ΔssaV) but a single oral dose does not generate measurable anti-Vi IgG; its protection is primarily through anti-LPS. Both vaccines operate through non-Vi mechanisms and cannot be mapped to CoP via anti-Vi GMT. They are retained in Section 11 for **validation** (does the model correctly predict their attack rates are between placebo and Vi-vaccinated?) but do not enter the γ likelihood.
 
-**The Darton anti-Vi regression**: The HR = 0.29 per log₁₀ anti-Vi (from the full Darton cohort including placebo baseline variation) enters as a soft constraint on γ. This HR reflects *baseline* anti-Vi variation across all subjects, not vaccine-induced anti-Vi. It can be checked as a posterior predictive quantity rather than entered as a separate likelihood term (to avoid double-counting subjects already in the Darton placebo binomial observation).
+**The Darton anti-Vi regression — upgraded with individual-level data**: The published HR = 0.29 per log₁₀ anti-Vi can now be replaced by direct individual-level modeling. The S1 Dataset provides pre-challenge anti-Vi IgG for all 91 per-protocol subjects. This enables:
+- Individual-level logistic regression: TD ~ anti-Vi IgG (replacing the aggregate HR)
+- Proper integration over the within-group CoP distribution (addressing Jensen's inequality, per Reviewer 2 Minor Concern 4)
+- Direct calibration of the CoP mapping g(anti-Vi) → CoP for use in the dose-response model
+
+For the primary likelihood, the Darton placebo enters as a group-level observation (D-F-plac: 20/30, D-I-plac: 19/30) with the group's CoP distribution characterized by the individual-level anti-Vi titers from S1. The individual-level data is available in `analysis_data/darton_individual_endpoints.csv`.
 
 ### 5.4 Maryland Multi-Dose Data (Hornick)
 
