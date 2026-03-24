@@ -575,6 +575,35 @@ Faceted Vi IgG trajectories by P(responder) quintile from the working model. Lin
 
 Clear gradient from Q1 (waning-dominated: high starting titers, mostly declining) to Q5 (boost-dominated: lower starting titers, mostly rising). Reinfection algo stars are concentrated in the extreme quintiles (Q1 and Q5), as expected — extreme fold changes trigger both the mixture model and the threshold rule.
 
+Additional faceted views (same script):
+- **Acute vs long-gap** (10_trajectories_acute_vs_long.png): 122 subjects with ≥2 samples within 200d vs 69 long-gap. Long-gap subjects concentrate in Q4-Q5 (high P(resp), mostly rising).
+- **Multipoint serovar** (10_trajectories_multipoint_serovar.png): 57 subjects with ≥3 points and ≥2 by day 180, faceted by quintile, colored by bldculres (Typhi/Paratyphi) with LOESS. Paratyphi distributed across all quintiles — Vi trajectory shape doesn't distinguish serovars. LOESS trends show rise-then-decline in Q4-Q5 for both serovars.
+
+### Step 29: Unsupervised trajectory shape clustering (mixture_eda/11_trajectory_shape_clustering.py)
+
+Independent of the mixture model, clustered trajectory shapes using:
+1. Linear interpolation onto common time grid (days 5-180)
+2. Mean-center each subject (remove level)
+3. L2-normalize (unit shape vectors)
+4. Pairwise cosine similarity on overlapping grid points
+5. Ward hierarchical clustering
+
+Applied to 58 subjects with ≥3 points and ≥2 within 200 days.
+
+**k=3 clusters (ordered by mean P(resp)):**
+
+| Cluster | Name | n | Mean P(resp) | Typhi | Paratyphi |
+|---|---|---|---|---|---|
+| C1 | Declining | 17 | 0.50 | 13 | 4 |
+| C2 | Mixed/flat | 22 | 0.69 | 16 | 6 |
+| C3 | Rising | 19 | 0.76 | 13 | 6 |
+
+The shape clustering and fold-change mixture model capture **partially independent information**: C1 (declining LOESS) has mean P(resp)=0.50, C3 (rising LOESS) has 0.76, but there's substantial overlap. Within each cluster, the P(resp) colormap reveals a gradient — high-P subjects have more pronounced shapes even within the same cluster.
+
+Paratyphi subjects are distributed across all three clusters. The trajectory shape decomposition, like the fold-change mixture, cannot distinguish serovars.
+
+**Key observation from the 4×3 faceted figure** (cluster × serovar, absolute + mean-centered): Both Typhi and Paratyphi show similar trajectory shapes within each cluster. The "Rising" cluster (C3) shows clear acute-boost humps in both serovars — consistent with Vi boosting from unconfirmed Typhi exposure in the Paratyphi group.
+
 ---
 
 ## Infrastructure notes
