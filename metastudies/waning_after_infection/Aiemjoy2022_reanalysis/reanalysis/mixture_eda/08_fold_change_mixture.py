@@ -37,15 +37,26 @@ OUT_DIR = Path("metastudies/waning_after_infection/Aiemjoy2022_reanalysis/reanal
 
 
 def load_fold_change_data():
-    """Load longitudinal Vi IgG data and compute fold changes."""
+    """Load longitudinal Vi IgG data and compute fold changes.
+
+    Uses first two observations (consecutive visits) rather than first-to-last.
+    This captures the acute-phase response more cleanly: the first two visits
+    are closest to infection and most informative about boosting, rather than
+    conflating initial boost with long-term waning in 3-4 point subjects.
+    """
     long = pd.read_csv(DATA_DIR / "vi_igg_long.csv")
     records = []
     for sid, grp in long[long["has_longitudinal"]].groupby("index_id"):
         grp = grp.sort_values("days_since_fever_onset")
         t0, eu0 = grp.iloc[0]["days_since_fever_onset"], grp.iloc[0]["vi_igg_eu"]
-        t1, eu1 = grp.iloc[-1]["days_since_fever_onset"], grp.iloc[-1]["vi_igg_eu"]
+        t1, eu1 = grp.iloc[1]["days_since_fever_onset"], grp.iloc[1]["vi_igg_eu"]
         dt = t1 - t0
         if dt <= 0 or eu0 <= 0 or eu1 <= 0:
+            continue
+        log2_fc = np.log2(eu1 / eu0)
+        # Filter indx387: 291→0.6 EU in 95 days (500× decline), almost
+        # certainly a lab error. No Vi IgG biological process does this.
+        if abs(log2_fc) > 6:
             continue
         records.append({
             "index_id": sid,
