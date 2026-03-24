@@ -220,14 +220,14 @@ def main():
             if row_idx == 1:
                 ax.set_xlabel("Days")
 
-    sm_cb = cm.ScalarMappable(norm=presp_norm, cmap=presp_cmap)
-    sm_cb.set_array([])
-    fig.colorbar(sm_cb, ax=axes, location="right", shrink=0.5, pad=0.04, label="P(resp)")
-
     fig.suptitle(f"Sub-cluster analysis (k={k}, n={n})\n"
                  f"Ordered: Typhi-declining → Paratyphi → Typhi-rising",
                  fontsize=12, fontweight="bold")
-    fig.tight_layout()
+    fig.tight_layout(rect=[0, 0, 0.93, 0.95])
+    cbar_ax = fig.add_axes([0.94, 0.25, 0.015, 0.5])
+    sm_cb = cm.ScalarMappable(norm=presp_norm, cmap=presp_cmap)
+    sm_cb.set_array([])
+    fig.colorbar(sm_cb, cax=cbar_ax, label="P(resp)")
     fig.savefig(OUT_DIR / "12b_subclusters.png", dpi=150, bbox_inches="tight")
     plt.close()
     print(f"\nSaved 12b_subclusters.png")

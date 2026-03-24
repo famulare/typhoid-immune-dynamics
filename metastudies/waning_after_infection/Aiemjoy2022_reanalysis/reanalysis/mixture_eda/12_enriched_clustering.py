@@ -341,14 +341,15 @@ def main():
             if row_idx == 3:
                 ax.set_xlabel("Days since fever onset")
 
-    sm_cb = cm.ScalarMappable(norm=presp_norm, cmap=presp_cmap)
-    sm_cb.set_array([])
-    fig.colorbar(sm_cb, ax=axes, location="right", shrink=0.4, pad=0.06, label="P(responder)")
-
     fig.suptitle(f"Enriched clusters × serovar (n={n}, k={k_primary})\n"
                  f"Colored by P(resp), black = LOESS",
                  fontsize=13, fontweight="bold")
-    fig.tight_layout()
+    fig.tight_layout(rect=[0, 0, 0.92, 0.95])
+    # Place colorbar in the right margin, outside the subplot grid
+    cbar_ax = fig.add_axes([0.93, 0.25, 0.015, 0.5])
+    sm_cb = cm.ScalarMappable(norm=presp_norm, cmap=presp_cmap)
+    sm_cb.set_array([])
+    fig.colorbar(sm_cb, cax=cbar_ax, label="P(responder)")
     fig.savefig(OUT_DIR / "12_enriched_cluster_trajectories.png", dpi=150, bbox_inches="tight")
     plt.close()
     print("Saved 12_enriched_cluster_trajectories.png")
