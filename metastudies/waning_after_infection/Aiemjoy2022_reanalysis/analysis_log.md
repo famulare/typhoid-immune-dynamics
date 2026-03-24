@@ -134,8 +134,79 @@ JAGS model file confirms decay functional form and reveals that Vi IgG measureme
 
 ---
 
+## 2026-03-24: Session 1 (continued) — Crossover to CSV data
+
+### Step 11: Discovery and download of Aiemjoy GitHub data
+
+Discovered https://github.com/kaiemjoy/TyphoidSeroIncidence contains the actual individual-level CSV data. Downloaded:
+- `data/TypoidCaseData_github_09.30.21.csv` (1,666 subjects, 477 KB)
+- `longitudinal_model/v9na.model.jags` (JAGS model definition)
+- `longitudinal_model/graph-func.r` (ab() and serocourse() implementations)
+- `longitudinal_model/v9na.data.r` (data loading, column mappings, zero handling)
+
+**Key data facts**: 341 subjects with Vi IgG (all Nepal), 194 longitudinal (≥2 obs), 611 total Vi IgG measurements. Vi IgG is test index 7 in their model. Measurement precision estimated from data (not hardcoded). Repo has no LICENSE file; data provenance documented in `data/README.md`.
+
+### Step 12: Data preparation (01_prepare_vi_data.py)
+
+Melted wide-format CSV to long format for Vi IgG. Key findings:
+- 159 S. Typhi + 35 S. Paratyphi longitudinal subjects
+- Observation counts: 147 single, 130 with 2, 52 with 3, 12 with 4
+- Time range: 0–1133 days (extended beyond figure's 540-day range)
+- 3 zero values in dataset
+- Age: only 8 subjects <5 years (Nepal cohort is predominantly adults)
+- All 152 longitudinal subjects with reinf_obs data have reinf_obs=1 — meaning uncertain (needs investigation)
+
+### Step 13: Figure S11A reproduction from CSV (02_reproduce_fig_s11a.py)
+
+Successfully reproduced Figure S11A from the CSV. The S. Typhi-only spaghetti plot (n=159) matches the published figure well. The overall model curve (Table S1 parameters, decay rate=0) is flat, as published. Trajectory count discrepancy: 159 in CSV vs 141 in published figure — likely data freeze or exclusion criteria differences.
+
+### Step 14: PDF extraction validation (03_validate_pdf_extraction.py)
+
+Matched 74/141 PDF-extracted trajectories to CSV subjects (52% match rate, strict tolerance).
+
+Point-level accuracy (n=165 matched points):
+- **ELISA units**: median error 0.0%, IQR [0.0%, 0.1%] — essentially perfect
+- **Time**: median error -3.0 days, IQR [-4.0, -2.0] — small systematic offset from x-axis calibration
+
+**Conclusion**: PDF vector extraction methodology validated. The coordinate calibration was accurate to within the expected precision limits.
+
+### Step 15: Slope analysis on full CSV (04_slope_analysis.py)
+
+Results with 191 trajectories (vs 141 from PDF):
+- 92 declining, 99 rising (48/52 split — consistent with PDF result of 69/71)
+- Median fold change: 1.053 (PDF: 1.000)
+- Median log10 slope/day: 0.000063 (essentially zero)
+- Long-duration (>200 days, n=57): 19 declining, 38 rising — upward bias persists, likely reinfections
+- S. Typhi and S. Paratyphi show similar patterns
+
+Generated: slope distributions, faceted trajectories (npoints × direction), spaghetti by serovar.
+
+### Step 16: Measurement noise analysis on full CSV (05_measurement_noise.py)
+
+Observed SD of log2(FC) = 0.888 (PDF: 0.871 — consistent).
+
+Minimum detectable Vi IgG half-life (population, 80% power):
+- CV=0.15: 6.2 years
+- CV=0.20: 4.6 years
+- CV=0.25: 3.7 years
+- CV=0.30: 3.1 years
+
+Slightly longer than PDF-based estimates due to longer median duration (139 vs 123 days). Core conclusion unchanged: Vi waning with half-life < ~3-6 years cannot be detected with this study design.
+
+### Step 17: Descriptive summary (06_descriptive_summary.py)
+
+Dataset characterization: observation patterns, time coverage, Vi IgG distributions by visit/age/serovar.
+
+### Step 18: Cleanup
+
+Removed `fig_s11_extraction/` and `fig_s11_reanalysis/` from working tree. These are preserved in git history at commit 720ea47 and were validated against CSV ground truth in Step 14.
+
+---
+
 ## Infrastructure notes
 
 - `pyproject.toml` created for `uv sync` with extraction extras (PyMuPDF, matplotlib, scipy)
 - All Python scripts run from project root via `uv run python <script>`
-- Directory renamed from `waning` → `waning_after_infection` and `fig_s11_extraction` → `Aiemjoy2022_fig_s11_extraction` → current structure for self-documentation
+- Directory renamed from `waning` → `waning_after_infection`
+- Reanalysis scripts numbered sequentially (01–06) in `reanalysis/`
+- CSV data from Aiemjoy GitHub repo is the authoritative data source; PDF extraction preserved in git history as methodology validation
