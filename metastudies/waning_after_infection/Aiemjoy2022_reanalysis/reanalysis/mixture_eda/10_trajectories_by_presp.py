@@ -173,5 +173,94 @@ def main():
     print("Saved 10_trajectories_acute_vs_long.png")
 
 
+    # =====================================================================
+    # Figure 3: 3-4 point subjects only, stratified by first-two-point gap
+    # Rows: first two points within 180d vs not
+    # Color: P(resp) quintile
+    # Shape: circle vs star (Aiemjoy reinf algo)
+    # =====================================================================
+
+    # Get observation count per subject from the full long data
+    nobs = long[long["has_longitudinal"]].groupby("index_id").size()
+    multipoint_ids = set(nobs[nobs >= 3].index)
+
+    # First-two-point gap for these subjects
+    gap_map = {}
+    for sid in multipoint_ids:
+        grp = long[long["index_id"] == sid].sort_values("days_since_fever_onset")
+        gap_map[sid] = grp.iloc[1]["days_since_fever_onset"] - grp.iloc[0]["days_since_fever_onset"]
+
+    df_mp = df[df["index_id"].isin(multipoint_ids)].copy()
+    df_mp["first_gap"] = df_mp["index_id"].map(gap_map)
+    df_mp["gap_le_180"] = df_mp["first_gap"] <= 180
+    df_mp["n_obs"] = df_mp["index_id"].map(nobs)
+
+    print(f"\n3-4 point subjects in fold-change data: {len(df_mp)}")
+    print(f"  First-two gap ≤180d: {df_mp['gap_le_180'].sum()}")
+    print(f"  First-two gap >180d: {(~df_mp['gap_le_180']).sum()}")
+
+    # Quintile colors
+    quintile_cmap = plt.cm.viridis
+    q_colors = {q: quintile_cmap(q / 5.0) for q in range(1, 6)}
+
+    row_defs = [("First two points ≤180d apart", True),
+                ("First two points >180d apart", False)]
+    fig, axes = plt.subplots(2, 1, figsize=(14, 10), sharex=True, sharey=True)
+
+    for row_idx, (row_label, is_short_gap) in enumerate(row_defs):
+        ax = axes[row_idx]
+        sub = df_mp[df_mp["gap_le_180"] == is_short_gap]
+
+        for _, r in sub.iterrows():
+            sid = r["index_id"]
+            grp = long[long["index_id"] == sid].sort_values("days_since_fever_onset")
+            qi = r["p_resp_quintile"]
+            color = q_colors[qi]
+            is_reinf = r["reinf_algo"]
+
+            ax.plot(grp["days_since_fever_onset"], grp["vi_igg_eu"],
+                    color=color, linewidth=1.0, alpha=0.6)
+            marker = "*" if is_reinf else "o"
+            size = 80 if is_reinf else 20
+            ax.scatter(grp["days_since_fever_onset"], grp["vi_igg_eu"],
+                       color=color, marker=marker, s=size,
+                       zorder=5 if is_reinf else 4,
+                       alpha=0.9 if is_reinf else 0.6,
+                       edgecolors="black", linewidths=0.4 if is_reinf else 0.2)
+
+        ax.set_yscale("log")
+        ax.set_ylim(10, 5000)
+        ax.set_xlim(-10, 1200)
+        ax.grid(True, alpha=0.3)
+        ax.set_ylabel("Vi IgG (EU)")
+
+        n_by_q = sub["p_resp_quintile"].value_counts().sort_index()
+        q_str = ", ".join([f"Q{q}:{n_by_q.get(q, 0)}" for q in range(1, 6)])
+        ax.set_title(f"{row_label} (n={len(sub)}, {q_str})", fontsize=10)
+
+    axes[1].set_xlabel("Days since fever onset")
+
+    # Legend: quintile colors + marker shapes
+    legend_elements = []
+    for q in range(1, 6):
+        bounds = quintile_bounds.loc[q]
+        legend_elements.append(
+            Line2D([0], [0], color=q_colors[q], lw=2,
+                   label=f"Q{q}: P∈[{bounds['min']:.2f},{bounds['max']:.2f}]"))
+    legend_elements.append(Line2D([0], [0], marker="o", color="gray", lw=0,
+                                   markersize=6, label="No reinf flag"))
+    legend_elements.append(Line2D([0], [0], marker="*", color="gray", lw=0,
+                                   markersize=12, label="Aiemjoy reinf algo"))
+    axes[0].legend(handles=legend_elements, fontsize=7, loc="upper right", ncol=2)
+
+    fig.suptitle("3-4 point Vi IgG trajectories: first-two-point gap × P(resp) quintile\n"
+                 "(color=quintile, ★=Aiemjoy reinfection algo)",
+                 fontsize=13, fontweight="bold")
+    fig.tight_layout()
+    fig.savefig(OUT_DIR / "10_trajectories_multipoint.png", dpi=150, bbox_inches="tight")
+    plt.close()
+    print("Saved 10_trajectories_multipoint.png")
+
+
 if __name__ == "__main__":
     main()
