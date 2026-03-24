@@ -1,11 +1,29 @@
 """
 08: Fold-change mixture model analysis for Vi IgG.
 
-Three models of increasing complexity fitted to log2(fold change) data:
-  Step 1: Two-Gaussian mixture (EM algorithm)
+Four models of increasing complexity fitted to log2(fold change) data:
+  Step 1: Two-Gaussian mixture (MLE)
   Step 2: Gaussian + Skew-Normal mixture (MLE)
-  Step 3: Gaussian + time-dependent Normal mixture regression
-          (waning linear in log2(duration) — power-law decay)
+  Step 3: Gaussian + time-dependent Normal — log2(Δt) covariate, signal only
+  Step 4: Teunis power-law mixture — log2(t1/t0) covariate, both components
+
+All models enforce: sigma2 = sqrt(sigma1^2 + sigma_bio^2)
+  — the signal component inherits measurement noise and adds biological variance.
+
+Step 4 physics:
+  For Teunis power-law decay y(τ) = y_peak·(1+β·τ)^(-α), with τ = t - t_peak.
+  We tested the full form with β estimated, but β diverges to ∞ — the data
+  can't separate β from α. In the large-β limit, (1+β·τ)^(-α) → (β·τ)^(-α)
+  ∝ τ^(-α), so the fold change reduces to:
+      FC = (τ₁/τ₀)^(-α)
+      log2(FC) = -α · log2(τ₁/τ₀)
+  where τ = max(t - t_peak, 1 day).
+
+  We use this power-law form directly with:
+    - t_peak = 15 days (from HlyE IgG, see comment in code)
+    - τ floored at 1 day for pre-peak observations
+    - FC = 1 at τ₁ = τ₀ automatic (no intercept needed for noise component)
+    - α is the Teunis power-law waning exponent
 """
 
 import pandas as pd
@@ -34,6 +52,9 @@ def load_fold_change_data():
             "log2_fc": np.log2(eu1 / eu0),
             "duration_days": dt,
             "log2_duration": np.log2(dt),
+            "t_start": t0,
+            "t_end": t1,
+            "log2_time_ratio": np.log2(t1 / t0),  # Teunis power-law covariate
             "eu_start": eu0,
         })
     return pd.DataFrame(records)
@@ -46,79 +67,98 @@ def sigma_log2_to_cv(sigma_log2):
     return np.sqrt(np.exp(sigma_ln**2) - 1)
 
 
+def compute_sigma2(sigma1, sigma_bio):
+    """Signal SD = sqrt(measurement^2 + biological^2)."""
+    return np.sqrt(sigma1**2 + sigma_bio**2)
+
+
+def compute_posteriors(x, pi_noise, pdf_noise, pdf_signal):
+    """Compute posterior P(noise) for each observation."""
+    mixture = pi_noise * pdf_noise + (1 - pi_noise) * pdf_signal
+    mixture = np.maximum(mixture, 1e-300)
+    return (pi_noise * pdf_noise) / mixture, mixture
+
+
+def compute_ic(ll, n_params, n):
+    """AIC and BIC."""
+    return 2 * n_params - 2 * ll, n_params * np.log(n) - 2 * ll
+
+
 # =========================================================================
-# Step 1: Two-Gaussian mixture via EM
+# Step 1: Two-Gaussian mixture (MLE)
 # =========================================================================
 
-def fit_two_gaussian(x, n_init=10, max_iter=200, tol=1e-8):
-    """Fit 2-component Gaussian mixture via EM algorithm."""
-    n = len(x)
+def neg_ll_two_gauss(theta, x):
+    mu1, log_sigma1, mu2, log_sigma_bio, logit_pi = theta
+    sigma1 = np.exp(log_sigma1)
+    sigma_bio = np.exp(log_sigma_bio)
+    sigma2 = compute_sigma2(sigma1, sigma_bio)
+    pi_noise = 1 / (1 + np.exp(-logit_pi))
+
+    pdf_n = stats.norm.pdf(x, mu1, sigma1)
+    pdf_s = stats.norm.pdf(x, mu2, sigma2)
+    mixture = pi_noise * pdf_n + (1 - pi_noise) * pdf_s
+    mixture = np.maximum(mixture, 1e-300)
+    return -np.sum(np.log(mixture))
+
+
+def fit_two_gaussian(x):
+    """Fit 2-component Gaussian mixture via MLE with sigma2 = sqrt(sigma1^2 + sigma_bio^2)."""
+    # Multi-start optimization
     best_ll = -np.inf
-    best_params = None
-
+    best_result = None
     rng = np.random.default_rng(42)
 
-    for init in range(n_init):
-        # Initialize: random split
-        if init == 0:
-            # First init: split at median
-            mask = x < np.median(x)
-        else:
-            mask = rng.random(n) < rng.uniform(0.3, 0.7)
+    for _ in range(20):
+        mu1_init = rng.normal(np.median(x) - 0.3, 0.3)
+        mu2_init = rng.normal(np.median(x) + 0.5, 0.5)
+        x0 = [mu1_init, np.log(0.4), mu2_init, np.log(0.8), 0.0]
 
-        mu = np.array([x[mask].mean(), x[~mask].mean()])
-        sigma = np.array([x[mask].std(), x[~mask].std()])
-        sigma = np.maximum(sigma, 0.1)
-        pi = np.array([mask.mean(), 1 - mask.mean()])
+        result = optimize.minimize(
+            neg_ll_two_gauss, x0, args=(x,),
+            method="Nelder-Mead", options={"maxiter": 50000, "xatol": 1e-8, "fatol": 1e-8},
+        )
+        if -result.fun > best_ll:
+            best_ll = -result.fun
+            best_result = result
 
-        for _ in range(max_iter):
-            # E-step
-            log_resp = np.zeros((n, 2))
-            for k in range(2):
-                log_resp[:, k] = np.log(pi[k] + 1e-300) + stats.norm.logpdf(x, mu[k], sigma[k])
-            log_resp -= np.max(log_resp, axis=1, keepdims=True)
-            resp = np.exp(log_resp)
-            resp /= resp.sum(axis=1, keepdims=True)
+    mu1, log_sigma1, mu2, log_sigma_bio, logit_pi = best_result.x
+    sigma1 = np.exp(log_sigma1)
+    sigma_bio = np.exp(log_sigma_bio)
+    sigma2 = compute_sigma2(sigma1, sigma_bio)
+    pi_noise = 1 / (1 + np.exp(-logit_pi))
 
-            # M-step
-            nk = resp.sum(axis=0)
-            pi_new = nk / n
-            mu_new = (resp * x[:, None]).sum(axis=0) / nk
-            sigma_new = np.sqrt((resp * (x[:, None] - mu_new)**2).sum(axis=0) / nk)
-            sigma_new = np.maximum(sigma_new, 1e-6)
-
-            if np.max(np.abs(mu_new - mu)) < tol and np.max(np.abs(sigma_new - sigma)) < tol:
-                mu, sigma, pi = mu_new, sigma_new, pi_new
-                break
-            mu, sigma, pi = mu_new, sigma_new, pi_new
-
-        # Log-likelihood
-        ll = np.sum(np.log(pi[0] * stats.norm.pdf(x, mu[0], sigma[0]) +
-                           pi[1] * stats.norm.pdf(x, mu[1], sigma[1]) + 1e-300))
-        if ll > best_ll:
-            best_ll = ll
-            best_params = (mu.copy(), sigma.copy(), pi.copy())
-
-    mu, sigma, pi = best_params
-    # Order: component 0 = smaller mean (noise)
-    order = np.argsort(mu)
-    mu, sigma, pi = mu[order], sigma[order], pi[order]
+    # Order: component 0 = smaller mean
+    if mu1 > mu2:
+        mu1, mu2 = mu2, mu1
+        sigma1, sigma_bio, sigma2 = sigma2, sigma_bio, sigma1  # swap roles — but this breaks the constraint
+        # Actually just swap means and pi
+        pi_noise = 1 - pi_noise
+        # Recompute with proper roles — need to re-fit with swapped init
+        # Simpler: just re-derive
+        mu1, log_sigma1, mu2, log_sigma_bio, logit_pi = best_result.x
+        sigma1 = np.exp(log_sigma1)
+        sigma_bio = np.exp(log_sigma_bio)
+        sigma2 = compute_sigma2(sigma1, sigma_bio)
+        pi_noise = 1 / (1 + np.exp(-logit_pi))
+        # Swap means and weight
+        mu1, mu2 = mu2, mu1
+        pi_noise = 1 - pi_noise
 
     n_params = 5
-    params = {
-        "mu1": mu[0], "sigma1": sigma[0], "mu2": mu[1], "sigma2": sigma[1],
-        "pi_noise": pi[0],
-        "ll": best_ll,
-        "aic": 2 * n_params - 2 * best_ll,
-        "bic": n_params * np.log(n) - 2 * best_ll,
+    aic, bic = compute_ic(best_ll, n_params, len(x))
+
+    pdf_n = stats.norm.pdf(x, mu1, sigma1)
+    pdf_s = stats.norm.pdf(x, mu2, sigma2)
+    p_noise, _ = compute_posteriors(x, pi_noise, pdf_n, pdf_s)
+
+    return {
+        "mu1": mu1, "sigma1": sigma1, "mu2": mu2,
+        "sigma_bio": sigma_bio, "sigma2": sigma2,
+        "pi_noise": pi_noise,
+        "ll": best_ll, "aic": aic, "bic": bic,
+        "p_noise": p_noise,
     }
-
-    # Posterior assignments
-    pdf0 = pi[0] * stats.norm.pdf(x, mu[0], sigma[0])
-    pdf1 = pi[1] * stats.norm.pdf(x, mu[1], sigma[1])
-    params["p_noise"] = pdf0 / (pdf0 + pdf1)
-
-    return params
 
 
 # =========================================================================
@@ -126,125 +166,208 @@ def fit_two_gaussian(x, n_init=10, max_iter=200, tol=1e-8):
 # =========================================================================
 
 def neg_ll_gauss_skewnorm(theta, x):
-    """Negative log-likelihood for Gaussian + Skew-Normal mixture."""
-    mu1, log_sigma1, xi, log_omega, alpha, logit_pi = theta
+    mu1, log_sigma1, xi, log_sigma_bio, alpha, logit_pi = theta
     sigma1 = np.exp(log_sigma1)
-    omega = np.exp(log_omega)
+    sigma_bio = np.exp(log_sigma_bio)
+    omega = compute_sigma2(sigma1, sigma_bio)
     pi_noise = 1 / (1 + np.exp(-logit_pi))
 
-    pdf_noise = stats.norm.pdf(x, mu1, sigma1)
-    pdf_signal = stats.skewnorm.pdf(x, alpha, xi, omega)
-
-    mixture = pi_noise * pdf_noise + (1 - pi_noise) * pdf_signal
+    pdf_n = stats.norm.pdf(x, mu1, sigma1)
+    pdf_s = stats.skewnorm.pdf(x, alpha, xi, omega)
+    mixture = pi_noise * pdf_n + (1 - pi_noise) * pdf_s
     mixture = np.maximum(mixture, 1e-300)
     return -np.sum(np.log(mixture))
 
 
-def fit_gauss_skewnorm(x, gauss_params):
-    """Fit Gaussian + Skew-Normal mixture via MLE, initialized from Gaussian fit."""
+def fit_gauss_skewnorm(x, p1):
     x0 = [
-        gauss_params["mu1"],
-        np.log(gauss_params["sigma1"]),
-        gauss_params["mu2"],
-        np.log(gauss_params["sigma2"]),
-        0.0,  # alpha=0 (no skew initially)
-        np.log(gauss_params["pi_noise"] / (1 - gauss_params["pi_noise"])),
+        p1["mu1"], np.log(p1["sigma1"]),
+        p1["mu2"], np.log(p1["sigma_bio"]),
+        0.0,  # alpha=0
+        np.log(p1["pi_noise"] / (1 - p1["pi_noise"])),
     ]
-
     result = optimize.minimize(
         neg_ll_gauss_skewnorm, x0, args=(x,),
         method="Nelder-Mead", options={"maxiter": 50000, "xatol": 1e-8, "fatol": 1e-8},
     )
 
-    mu1, log_sigma1, xi, log_omega, alpha, logit_pi = result.x
+    mu1, log_sigma1, xi, log_sigma_bio, alpha, logit_pi = result.x
     sigma1 = np.exp(log_sigma1)
-    omega = np.exp(log_omega)
+    sigma_bio = np.exp(log_sigma_bio)
+    omega = compute_sigma2(sigma1, sigma_bio)
     pi_noise = 1 / (1 + np.exp(-logit_pi))
-
     ll = -result.fun
-    n_params = 6
-    params = {
+    aic, bic = compute_ic(ll, 6, len(x))
+
+    pdf_n = stats.norm.pdf(x, mu1, sigma1)
+    pdf_s = stats.skewnorm.pdf(x, alpha, xi, omega)
+    p_noise, _ = compute_posteriors(x, pi_noise, pdf_n, pdf_s)
+
+    return {
         "mu1": mu1, "sigma1": sigma1,
         "xi": xi, "omega": omega, "alpha": alpha,
+        "sigma_bio": sigma_bio,
         "pi_noise": pi_noise,
-        "ll": ll,
-        "aic": 2 * n_params - 2 * ll,
-        "bic": n_params * np.log(len(x)) - 2 * ll,
-        "converged": result.success,
+        "ll": ll, "aic": aic, "bic": bic,
+        "converged": result.success, "p_noise": p_noise,
     }
-
-    pdf_noise = stats.norm.pdf(x, mu1, sigma1)
-    pdf_signal = stats.skewnorm.pdf(x, alpha, xi, omega)
-    mixture = pi_noise * pdf_noise + (1 - pi_noise) * pdf_signal
-    params["p_noise"] = (pi_noise * pdf_noise) / mixture
-
-    return params
 
 
 # =========================================================================
-# Step 3: Gaussian + time-dependent Normal (mixture regression)
+# Step 3: Gaussian + time-dependent Normal (signal only)
 # =========================================================================
 
 def neg_ll_gauss_timedep(theta, x, log2_dt):
-    """Negative log-likelihood for Gaussian + time-dependent Normal mixture.
-
-    Component 1 (noise): N(mu1, sigma1) — no time dependence
-    Component 2 (signal): N(mu2 - beta * log2(dt), sigma2) — power-law waning
-    """
-    mu1, log_sigma1, mu2, log_sigma2, beta, logit_pi = theta
+    mu1, log_sigma1, mu2, log_sigma_bio, beta, logit_pi = theta
     sigma1 = np.exp(log_sigma1)
-    sigma2 = np.exp(log_sigma2)
+    sigma_bio = np.exp(log_sigma_bio)
+    sigma2 = compute_sigma2(sigma1, sigma_bio)
     pi_noise = 1 / (1 + np.exp(-logit_pi))
 
-    pdf_noise = stats.norm.pdf(x, mu1, sigma1)
-    mu2_effective = mu2 - beta * log2_dt
-    pdf_signal = stats.norm.pdf(x, mu2_effective, sigma2)
-
-    mixture = pi_noise * pdf_noise + (1 - pi_noise) * pdf_signal
+    pdf_n = stats.norm.pdf(x, mu1, sigma1)
+    pdf_s = stats.norm.pdf(x, mu2 - beta * log2_dt, sigma2)
+    mixture = pi_noise * pdf_n + (1 - pi_noise) * pdf_s
     mixture = np.maximum(mixture, 1e-300)
     return -np.sum(np.log(mixture))
 
 
-def fit_gauss_timedep(x, log2_dt, gauss_params):
-    """Fit Gaussian + time-dependent Normal, initialized from Gaussian fit."""
+def fit_gauss_timedep(x, log2_dt, p1):
     x0 = [
-        gauss_params["mu1"],
-        np.log(gauss_params["sigma1"]),
-        gauss_params["mu2"],
-        np.log(gauss_params["sigma2"]),
-        0.0,  # beta=0 (no waning initially)
-        np.log(gauss_params["pi_noise"] / (1 - gauss_params["pi_noise"])),
+        p1["mu1"], np.log(p1["sigma1"]),
+        p1["mu2"], np.log(p1["sigma_bio"]),
+        0.0,  # beta=0
+        np.log(p1["pi_noise"] / (1 - p1["pi_noise"])),
     ]
-
     result = optimize.minimize(
         neg_ll_gauss_timedep, x0, args=(x, log2_dt),
         method="Nelder-Mead", options={"maxiter": 50000, "xatol": 1e-8, "fatol": 1e-8},
     )
 
-    mu1, log_sigma1, mu2, log_sigma2, beta, logit_pi = result.x
+    mu1, log_sigma1, mu2, log_sigma_bio, beta, logit_pi = result.x
     sigma1 = np.exp(log_sigma1)
-    sigma2 = np.exp(log_sigma2)
+    sigma_bio = np.exp(log_sigma_bio)
+    sigma2 = compute_sigma2(sigma1, sigma_bio)
     pi_noise = 1 / (1 + np.exp(-logit_pi))
-
     ll = -result.fun
-    n_params = 6
-    params = {
+    aic, bic = compute_ic(ll, 6, len(x))
+
+    pdf_n = stats.norm.pdf(x, mu1, sigma1)
+    pdf_s = stats.norm.pdf(x, mu2 - beta * log2_dt, sigma2)
+    p_noise, _ = compute_posteriors(x, pi_noise, pdf_n, pdf_s)
+
+    return {
         "mu1": mu1, "sigma1": sigma1,
-        "mu2": mu2, "sigma2": sigma2,
+        "mu2": mu2, "sigma_bio": sigma_bio, "sigma2": sigma2,
         "beta": beta, "pi_noise": pi_noise,
-        "ll": ll,
-        "aic": 2 * n_params - 2 * ll,
-        "bic": n_params * np.log(len(x)) - 2 * ll,
-        "converged": result.success,
+        "ll": ll, "aic": aic, "bic": bic,
+        "converged": result.success, "p_noise": p_noise,
     }
 
-    pdf_noise = stats.norm.pdf(x, mu1, sigma1)
-    mu2_eff = mu2 - beta * log2_dt
-    pdf_signal = stats.norm.pdf(x, mu2_eff, sigma2)
-    mixture = pi_noise * pdf_noise + (1 - pi_noise) * pdf_signal
-    params["p_noise"] = (pi_noise * pdf_noise) / mixture
 
-    return params
+# =========================================================================
+# Step 4: Teunis power-law mixture (both components, τ-ratio covariate)
+#
+# Power-law decay in the large-βτ limit: y(τ) ∝ τ^(-α)
+# Fold change: FC = (τ₁/τ₀)^(-α), log2(FC) = -α * log2(τ₁/τ₀)
+# where τ = max(t - t_peak, 1 day).
+#
+# We tested the full Teunis form (1+β·τ)^(-α) with β estimated, but
+# β diverges to ∞ — the data can't distinguish β from α in the fold-
+# change. The full form collapses to the power-law, so we use it directly.
+#
+# t_peak = 15 days post fever onset (fixed).
+#   Rationale: Aiemjoy Table S1 reports t1 (time to peak, days since fever
+#   onset) for the well-identified antigens: HlyE IgA=19.6d, HlyE IgG=15.6d,
+#   LPS IgA=11.1d, LPS IgG=5.5d. Vi IgG t1=2.9d is unreliable (model can't
+#   identify the Vi peak). HlyE IgG (15.6d) has the clearest waning signal
+#   and the best-identified parameters in the same subjects/platform. We use
+#   15d as a round number. This is days from fever onset, which is roughly
+#   coincident with or a few days after bacteremia onset.
+#
+# τ is floored at 1 day. Observations before t_peak (e.g., t=0 on fever
+# onset day) are treated as "1 day post-peak" rather than τ=0, which
+# would cause log2(τ₁/τ₀) to diverge.
+#
+# Noise component: N(-α₁ * log2(τ₁/τ₀), σ₁)
+#   - No intercept: FC = 1 when τ₁ = τ₀ (automatic)
+#   - α₁ is the power-law waning exponent for the non-boosted population
+#
+# Signal component: N(μ_bio - α₂ * log2(τ₁/τ₀), σ₂)
+#   - Free intercept μ_bio: captures net boost visible in fold change
+#   - α₂ captures waning in the boosted population (confounded by
+#     Teunis rise-then-decay kinetics, interpret with caution)
+#   - σ₂ = √(σ₁² + σ_bio²)
+#
+# 6 parameters: α₁, σ₁, μ_bio, α₂, σ_bio, π
+# (t_peak fixed at 15 days)
+# =========================================================================
+
+T_PEAK = 15.0  # days since fever onset; see rationale above
+
+
+def tau_ratio_covariate(t0, t1, tp=T_PEAK):
+    """Compute z = log2(τ₁/τ₀) where τ = max(t - tp, 1).
+
+    The 1-day floor avoids log2(0) for subjects observed at or before
+    t_peak and prevents the degenerate β→∞ solution seen with the full
+    Teunis form.
+    """
+    tau0 = np.maximum(t0 - tp, 1.0)
+    tau1 = np.maximum(t1 - tp, 1.0)
+    return np.log2(tau1 / tau0)
+
+
+def neg_ll_teunis_mixture(theta, x, z):
+    alpha1, log_sigma1, mu_bio, alpha2, log_sigma_bio, logit_pi = theta
+    sigma1 = np.exp(log_sigma1)
+    sigma_bio = np.exp(log_sigma_bio)
+    sigma2 = compute_sigma2(sigma1, sigma_bio)
+    pi_noise = 1 / (1 + np.exp(-logit_pi))
+
+    pdf_n = stats.norm.pdf(x, -alpha1 * z, sigma1)
+    pdf_s = stats.norm.pdf(x, mu_bio - alpha2 * z, sigma2)
+
+    mixture = pi_noise * pdf_n + (1 - pi_noise) * pdf_s
+    mixture = np.maximum(mixture, 1e-300)
+    return -np.sum(np.log(mixture))
+
+
+def fit_teunis_mixture(x, t0, t1, p1):
+    """Fit Teunis power-law mixture. t_peak fixed, pure τ-ratio covariate."""
+    z = tau_ratio_covariate(t0, t1)
+    x0 = [
+        0.1,          # alpha1: small positive waning exponent
+        np.log(p1["sigma1"]),
+        p1["mu2"],    # mu_bio: boost offset
+        0.1,          # alpha2
+        np.log(p1["sigma_bio"]),
+        np.log(p1["pi_noise"] / (1 - p1["pi_noise"])),
+    ]
+    result = optimize.minimize(
+        neg_ll_teunis_mixture, x0, args=(x, z),
+        method="Nelder-Mead", options={"maxiter": 100000, "xatol": 1e-8, "fatol": 1e-8},
+    )
+
+    alpha1, log_sigma1, mu_bio, alpha2, log_sigma_bio, logit_pi = result.x
+    sigma1 = np.exp(log_sigma1)
+    sigma_bio = np.exp(log_sigma_bio)
+    sigma2 = compute_sigma2(sigma1, sigma_bio)
+    pi_noise = 1 / (1 + np.exp(-logit_pi))
+    ll = -result.fun
+    aic, bic = compute_ic(ll, 6, len(x))
+
+    pdf_n = stats.norm.pdf(x, -alpha1 * z, sigma1)
+    pdf_s = stats.norm.pdf(x, mu_bio - alpha2 * z, sigma2)
+    p_noise, _ = compute_posteriors(x, pi_noise, pdf_n, pdf_s)
+
+    return {
+        "alpha1": alpha1, "sigma1": sigma1,
+        "mu_bio": mu_bio, "alpha2": alpha2,
+        "sigma_bio": sigma_bio, "sigma2": sigma2,
+        "t_peak": T_PEAK, "pi_noise": pi_noise,
+        "ll": ll, "aic": aic, "bic": bic,
+        "converged": result.success, "p_noise": p_noise,
+    }
 
 
 # =========================================================================
@@ -254,217 +377,237 @@ def fit_gauss_timedep(x, log2_dt, gauss_params):
 def plot_step1(x, p):
     xgrid = np.linspace(x.min() - 1, x.max() + 1, 500)
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
-
-    # Panel A: histogram + fit
     ax = axes[0]
     ax.hist(x, bins=30, density=True, alpha=0.4, color="gray", edgecolor="black", linewidth=0.5)
     pdf_n = p["pi_noise"] * stats.norm.pdf(xgrid, p["mu1"], p["sigma1"])
     pdf_s = (1 - p["pi_noise"]) * stats.norm.pdf(xgrid, p["mu2"], p["sigma2"])
-    ax.plot(xgrid, pdf_n, "b-", linewidth=2, label=f"Noise (π={p['pi_noise']:.2f})")
-    ax.plot(xgrid, pdf_s, "r-", linewidth=2, label=f"Signal (π={1-p['pi_noise']:.2f})")
-    ax.plot(xgrid, pdf_n + pdf_s, "k--", linewidth=1.5, label="Mixture")
-    ax.axvline(0, color="gray", linestyle=":", linewidth=0.8)
-    ax.set_xlabel("log2(fold change)")
-    ax.set_ylabel("Density")
+    ax.plot(xgrid, pdf_n, "b-", lw=2, label=f"Noise (π={p['pi_noise']:.2f})")
+    ax.plot(xgrid, pdf_s, "r-", lw=2, label=f"Signal (π={1-p['pi_noise']:.2f})")
+    ax.plot(xgrid, pdf_n + pdf_s, "k--", lw=1.5, label="Mixture")
+    ax.axvline(0, color="gray", linestyle=":", lw=0.8)
+    ax.set_xlabel("log2(fold change)"); ax.set_ylabel("Density")
     cv = sigma_log2_to_cv(p["sigma1"])
-    ax.set_title(f"Two-Gaussian mixture\n"
-                 f"Noise: μ={p['mu1']:.3f}, σ={p['sigma1']:.3f} (CV≈{cv:.2f})\n"
-                 f"Signal: μ={p['mu2']:.3f}, σ={p['sigma2']:.3f}")
-    ax.legend(fontsize=9)
-    ax.set_xlim(xgrid[0], xgrid[-1])
-
-    # Panel B: posterior assignment strip
+    ax.set_title(f"Two-Gaussian mixture\nNoise: μ₁={p['mu1']:.3f}, σ₁={p['sigma1']:.3f} (CV≈{cv:.2f})\n"
+                 f"Signal: μ₂={p['mu2']:.3f}, σ₂={p['sigma2']:.3f} (σ_bio={p['sigma_bio']:.3f})")
+    ax.legend(fontsize=9); ax.set_xlim(xgrid[0], xgrid[-1])
     ax = axes[1]
     p_resp = 1 - p["p_noise"]
-    order = np.argsort(x)
-    ax.scatter(x[order], p_resp[order], c=p_resp[order], cmap="RdYlBu_r",
-               s=20, alpha=0.7, edgecolors="black", linewidths=0.3, vmin=0, vmax=1)
-    ax.axhline(0.5, color="gray", linestyle="--", linewidth=0.8)
-    ax.set_xlabel("log2(fold change)")
-    ax.set_ylabel("P(responder)")
-    n_resp = (p_resp > 0.5).sum()
-    ax.set_title(f"Posterior component assignment\n"
-                 f"{n_resp}/{len(x)} classified as responders (P>0.5)")
+    ax.scatter(x, p_resp, c=p_resp, cmap="RdYlBu_r", s=20, alpha=0.7,
+               edgecolors="black", linewidths=0.3, vmin=0, vmax=1)
+    ax.axhline(0.5, color="gray", linestyle="--", lw=0.8)
+    ax.set_xlabel("log2(fold change)"); ax.set_ylabel("P(responder)")
+    ax.set_title(f"Posterior assignment\n{(p_resp > 0.5).sum()}/{len(x)} responders (P>0.5)")
     ax.grid(True, alpha=0.3)
-
-    fig.suptitle("Step 1: Two-Gaussian Mixture", fontsize=13, fontweight="bold")
+    fig.suptitle("Step 1: Two-Gaussian Mixture (σ₂ = √(σ₁² + σ_bio²))", fontsize=13, fontweight="bold")
     fig.tight_layout()
-    fig.savefig(OUT_DIR / "08_step1_two_gaussian.png", dpi=150, bbox_inches="tight")
-    plt.close()
+    fig.savefig(OUT_DIR / "08_step1_two_gaussian.png", dpi=150, bbox_inches="tight"); plt.close()
     print("Saved 08_step1_two_gaussian.png")
 
 
 def plot_step2(x, p1, p2):
     xgrid = np.linspace(x.min() - 1, x.max() + 1, 500)
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
-
-    # Panel A: histogram + both fits
     ax = axes[0]
     ax.hist(x, bins=30, density=True, alpha=0.4, color="gray", edgecolor="black", linewidth=0.5)
-
-    # Step 1 fit (dashed)
     mix1 = (p1["pi_noise"] * stats.norm.pdf(xgrid, p1["mu1"], p1["sigma1"]) +
             (1 - p1["pi_noise"]) * stats.norm.pdf(xgrid, p1["mu2"], p1["sigma2"]))
-    ax.plot(xgrid, mix1, "k:", linewidth=1.5, alpha=0.5, label="Step 1 (Gauss+Gauss)")
-
-    # Step 2 fit
+    ax.plot(xgrid, mix1, "k:", lw=1.5, alpha=0.5, label="Step 1")
     pdf_n = p2["pi_noise"] * stats.norm.pdf(xgrid, p2["mu1"], p2["sigma1"])
     pdf_s = (1 - p2["pi_noise"]) * stats.skewnorm.pdf(xgrid, p2["alpha"], p2["xi"], p2["omega"])
-    ax.plot(xgrid, pdf_n, "b-", linewidth=2, label=f"Noise (π={p2['pi_noise']:.2f})")
-    ax.plot(xgrid, pdf_s, "r-", linewidth=2, label=f"Signal (π={1-p2['pi_noise']:.2f})")
-    ax.plot(xgrid, pdf_n + pdf_s, "k--", linewidth=1.5, label="Mixture")
-    ax.axvline(0, color="gray", linestyle=":", linewidth=0.8)
-    ax.set_xlabel("log2(fold change)")
-    ax.set_ylabel("Density")
+    ax.plot(xgrid, pdf_n, "b-", lw=2, label=f"Noise (π={p2['pi_noise']:.2f})")
+    ax.plot(xgrid, pdf_s, "r-", lw=2, label=f"Signal (π={1-p2['pi_noise']:.2f})")
+    ax.plot(xgrid, pdf_n + pdf_s, "k--", lw=1.5, label="Mixture")
+    ax.set_xlabel("log2(fold change)"); ax.set_ylabel("Density")
     cv = sigma_log2_to_cv(p2["sigma1"])
-    ax.set_title(f"Gaussian + Skew-Normal\n"
-                 f"Noise: μ={p2['mu1']:.3f}, σ={p2['sigma1']:.3f} (CV≈{cv:.2f})\n"
-                 f"Skew-Normal: α={p2['alpha']:.2f}")
-    ax.legend(fontsize=8)
-    ax.set_xlim(xgrid[0], xgrid[-1])
-
-    # Panel B: posterior assignment comparison
+    ax.set_title(f"Gaussian + Skew-Normal\nσ₁={p2['sigma1']:.3f} (CV≈{cv:.2f}), "
+                 f"ω={p2['omega']:.3f}, α={p2['alpha']:.2f}")
+    ax.legend(fontsize=8); ax.set_xlim(xgrid[0], xgrid[-1])
     ax = axes[1]
-    p_resp_1 = 1 - p1["p_noise"]
-    p_resp_2 = 1 - p2["p_noise"]
-    ax.scatter(p_resp_1, p_resp_2, c=x, cmap="coolwarm", s=20, alpha=0.7,
+    ax.scatter(1 - p1["p_noise"], 1 - p2["p_noise"], c=x, cmap="coolwarm", s=20, alpha=0.7,
                edgecolors="black", linewidths=0.3, vmin=-2, vmax=2)
-    ax.plot([0, 1], [0, 1], "k--", linewidth=0.8)
-    ax.set_xlabel("P(responder) — Step 1")
-    ax.set_ylabel("P(responder) — Step 2")
-    ax.set_title("Assignment comparison\n(color = log2 FC)")
-    ax.set_xlim(-0.05, 1.05)
-    ax.set_ylim(-0.05, 1.05)
-    ax.grid(True, alpha=0.3)
-    delta_aic = p1["aic"] - p2["aic"]
-    ax.text(0.05, 0.95, f"ΔAIC = {delta_aic:.1f}\n({'Skew-Normal better' if delta_aic > 0 else 'Gaussian better'})",
-            transform=ax.transAxes, fontsize=9, va="top",
+    ax.plot([0, 1], [0, 1], "k--", lw=0.8)
+    ax.set_xlabel("P(responder) — Step 1"); ax.set_ylabel("P(responder) — Step 2")
+    ax.set_title("Assignment comparison (color = log2 FC)")
+    ax.set_xlim(-0.05, 1.05); ax.set_ylim(-0.05, 1.05); ax.grid(True, alpha=0.3)
+    delta = p1["aic"] - p2["aic"]
+    ax.text(0.05, 0.95, f"ΔAIC = {delta:.1f}", transform=ax.transAxes, fontsize=9, va="top",
             bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.5))
-
-    fig.suptitle("Step 2: Gaussian + Skew-Normal Mixture", fontsize=13, fontweight="bold")
+    fig.suptitle("Step 2: Gaussian + Skew-Normal (ω = √(σ₁² + σ_bio²))", fontsize=13, fontweight="bold")
     fig.tight_layout()
-    fig.savefig(OUT_DIR / "08_step2_skew_normal.png", dpi=150, bbox_inches="tight")
-    plt.close()
+    fig.savefig(OUT_DIR / "08_step2_skew_normal.png", dpi=150, bbox_inches="tight"); plt.close()
     print("Saved 08_step2_skew_normal.png")
 
 
 def plot_step3(df, p3):
     x = df["log2_fc"].values
-    log2_dt = df["log2_duration"].values
     xgrid = np.linspace(x.min() - 1, x.max() + 1, 500)
-
     fig, axes = plt.subplots(2, 2, figsize=(14, 11))
-
-    # Panel A: scatter colored by P(responder)
-    ax = axes[0, 0]
     p_resp = 1 - p3["p_noise"]
+    ax = axes[0, 0]
     sc = ax.scatter(df["duration_days"], x, c=p_resp, cmap="RdYlBu_r",
                     s=25, alpha=0.7, edgecolors="black", linewidths=0.3, vmin=0, vmax=1)
     plt.colorbar(sc, ax=ax, label="P(responder)")
     dt_grid = np.array([30, 60, 90, 180, 365, 730, 1100])
     mu2_grid = p3["mu2"] - p3["beta"] * np.log2(dt_grid)
-    ax.plot(dt_grid, mu2_grid, "r-", linewidth=2, label="Signal mean")
-    ax.fill_between(dt_grid, mu2_grid - p3["sigma2"], mu2_grid + p3["sigma2"],
-                     color="red", alpha=0.15, label="±1σ signal")
-    ax.axhline(p3["mu1"], color="blue", linestyle="--", linewidth=1, label=f"Noise mean")
-    ax.set_xlabel("Duration (days)")
-    ax.set_ylabel("log2(fold change)")
-    ax.set_xscale("log")
-    ax.set_title(f"Mixture regression: log2(FC) vs log2(duration)\n"
-                 f"β={p3['beta']:.4f} (power-law exponent)")
-    ax.legend(fontsize=7, loc="upper right")
-    ax.grid(True, alpha=0.3)
-
-    # Panel B: fitted densities at representative durations
+    ax.plot(dt_grid, mu2_grid, "r-", lw=2, label="Signal mean")
+    ax.fill_between(dt_grid, mu2_grid - p3["sigma2"], mu2_grid + p3["sigma2"], color="red", alpha=0.15)
+    ax.axhline(p3["mu1"], color="blue", linestyle="--", lw=1, label="Noise mean")
+    ax.set_xlabel("Duration (days)"); ax.set_ylabel("log2(fold change)"); ax.set_xscale("log")
+    ax.set_title(f"Signal β={p3['beta']:.4f}"); ax.legend(fontsize=7, loc="upper right"); ax.grid(True, alpha=0.3)
     ax = axes[0, 1]
     ax.hist(x, bins=30, density=True, alpha=0.3, color="gray", edgecolor="black", linewidth=0.5)
-    dt_examples = [60, 180, 365]
-    colors_dt = ["#e41a1c", "#ff7f00", "#984ea3"]
-    for dt_val, color in zip(dt_examples, colors_dt):
+    for dt_val, color in [(60, "#e41a1c"), (180, "#ff7f00"), (365, "#984ea3")]:
         mu2_eff = p3["mu2"] - p3["beta"] * np.log2(dt_val)
         pdf_n = p3["pi_noise"] * stats.norm.pdf(xgrid, p3["mu1"], p3["sigma1"])
         pdf_s = (1 - p3["pi_noise"]) * stats.norm.pdf(xgrid, mu2_eff, p3["sigma2"])
-        ax.plot(xgrid, pdf_n + pdf_s, color=color, linewidth=1.5, label=f"Δt={dt_val}d")
-    ax.set_xlabel("log2(fold change)")
-    ax.set_ylabel("Density")
-    ax.set_title("Conditional mixture density at representative durations")
-    ax.legend(fontsize=9)
-    ax.set_xlim(xgrid[0], xgrid[-1])
-
-    # Panel C: scatter colored by P(responder), x=starting EU
+        ax.plot(xgrid, pdf_n + pdf_s, color=color, lw=1.5, label=f"Δt={dt_val}d")
+    ax.set_xlabel("log2(fold change)"); ax.set_ylabel("Density")
+    ax.set_title("Conditional density"); ax.legend(fontsize=9); ax.set_xlim(xgrid[0], xgrid[-1])
     ax = axes[1, 0]
     sc = ax.scatter(df["eu_start"], x, c=p_resp, cmap="RdYlBu_r",
                     s=25, alpha=0.7, edgecolors="black", linewidths=0.3, vmin=0, vmax=1)
-    plt.colorbar(sc, ax=ax, label="P(responder)")
-    ax.set_xscale("log")
-    ax.set_xlabel("Starting Vi IgG (EU)")
-    ax.set_ylabel("log2(fold change)")
-    ax.set_title("Component assignment vs starting antibody level")
-    ax.axhline(0, color="gray", linestyle=":", linewidth=0.8)
-    ax.grid(True, alpha=0.3)
-
-    # Panel D: posterior assignment histogram
+    plt.colorbar(sc, ax=ax, label="P(responder)"); ax.set_xscale("log")
+    ax.set_xlabel("Starting Vi IgG (EU)"); ax.set_ylabel("log2(fold change)")
+    ax.set_title("Assignment vs starting antibody"); ax.axhline(0, color="gray", linestyle=":", lw=0.8); ax.grid(True, alpha=0.3)
     ax = axes[1, 1]
     ax.hist(p_resp, bins=30, color="#9133be", alpha=0.7, edgecolor="black")
-    ax.axvline(0.5, color="red", linestyle="--", linewidth=1.5)
-    ax.set_xlabel("P(responder)")
-    ax.set_ylabel("Count")
-    n_resp = (p_resp > 0.5).sum()
-    ax.set_title(f"Posterior assignment distribution\n"
-                 f"{n_resp}/{len(x)} responders (P>0.5)")
-
+    ax.axvline(0.5, color="red", linestyle="--", lw=1.5)
+    ax.set_xlabel("P(responder)"); ax.set_ylabel("Count")
+    ax.set_title(f"{(p_resp > 0.5).sum()}/{len(x)} responders (P>0.5)")
     cv = sigma_log2_to_cv(p3["sigma1"])
-    fig.suptitle(f"Step 3: Mixture Regression (n={len(x)})\n"
-                 f"Noise CV≈{cv:.2f}, Signal β={p3['beta']:.4f}, π_noise={p3['pi_noise']:.2f}",
+    fig.suptitle(f"Step 3: Signal Time-Dependent (n={len(x)})\nCV≈{cv:.2f}, σ_bio={p3['sigma_bio']:.3f}, β={p3['beta']:.4f}",
                  fontsize=13, fontweight="bold")
     fig.tight_layout()
-    fig.savefig(OUT_DIR / "08_step3_mixture_regression.png", dpi=150, bbox_inches="tight")
-    plt.close()
+    fig.savefig(OUT_DIR / "08_step3_mixture_regression.png", dpi=150, bbox_inches="tight"); plt.close()
     print("Saved 08_step3_mixture_regression.png")
 
 
-def plot_summary(x, p1, p2, p3):
-    """Compact summary comparison of all three models."""
+def plot_step4(df, p4):
+    x = df["log2_fc"].values
+    t0 = df["t_start"].values
+    t1 = df["t_end"].values
     xgrid = np.linspace(x.min() - 1, x.max() + 1, 500)
-    fig, axes = plt.subplots(1, 3, figsize=(18, 5))
+    z = tau_ratio_covariate(t0, t1)
+    fig, axes = plt.subplots(2, 2, figsize=(14, 11))
+    p_resp = 1 - p4["p_noise"]
 
-    for ax, p, label in [
-        (axes[0], p1, "Step 1: Two Gaussians"),
-        (axes[1], p2, "Step 2: Gauss + Skew-Normal"),
-    ]:
-        ax.hist(x, bins=30, density=True, alpha=0.4, color="gray", edgecolor="black", linewidth=0.5)
-        pdf_n = p["pi_noise"] * stats.norm.pdf(xgrid, p["mu1"], p["sigma1"])
-        if "alpha" in p:
-            pdf_s = (1 - p["pi_noise"]) * stats.skewnorm.pdf(xgrid, p["alpha"], p["xi"], p["omega"])
-        else:
-            pdf_s = (1 - p["pi_noise"]) * stats.norm.pdf(xgrid, p["mu2"], p["sigma2"])
-        ax.plot(xgrid, pdf_n, "b-", linewidth=2)
-        ax.plot(xgrid, pdf_s, "r-", linewidth=2)
-        ax.plot(xgrid, pdf_n + pdf_s, "k--", linewidth=1.5)
-        cv = sigma_log2_to_cv(p["sigma1"])
-        ax.set_title(f"{label}\nAIC={p['aic']:.1f}, CV≈{cv:.2f}", fontsize=10)
-        ax.set_xlabel("log2(fold change)")
-        ax.set_xlim(xgrid[0], xgrid[-1])
+    # Panel A: scatter vs Teunis covariate z
+    ax = axes[0, 0]
+    sc = ax.scatter(z, x, c=p_resp, cmap="RdYlBu_r",
+                    s=25, alpha=0.7, edgecolors="black", linewidths=0.3, vmin=0, vmax=1)
+    plt.colorbar(sc, ax=ax, label="P(responder)")
+    z_grid = np.linspace(z.min(), z.max(), 100)
+    ax.plot(z_grid, -p4["alpha1"] * z_grid, "b-", lw=2, label=f"Noise (α₁={p4['alpha1']:.3f})")
+    ax.fill_between(z_grid, -p4["alpha1"] * z_grid - p4["sigma1"],
+                     -p4["alpha1"] * z_grid + p4["sigma1"], color="blue", alpha=0.1)
+    ax.plot(z_grid, p4["mu_bio"] - p4["alpha2"] * z_grid, "r-", lw=2,
+            label=f"Signal (α₂={p4['alpha2']:.3f})")
+    ax.fill_between(z_grid, p4["mu_bio"] - p4["alpha2"] * z_grid - p4["sigma2"],
+                     p4["mu_bio"] - p4["alpha2"] * z_grid + p4["sigma2"], color="red", alpha=0.1)
+    ax.set_xlabel(f"Teunis covariate z = log2(τ₁/τ₀)  [tp={p4['t_peak']:.0f}d, τ=max(t-tp, 1)]")
+    ax.set_ylabel("log2(fold change)")
+    ax.set_title("Teunis power-law mixture"); ax.legend(fontsize=8); ax.grid(True, alpha=0.3)
 
-    # Step 3: show at median duration
-    ax = axes[2]
-    ax.hist(x, bins=30, density=True, alpha=0.4, color="gray", edgecolor="black", linewidth=0.5)
-    for dt_val, color, ls in [(60, "#e41a1c", "-"), (180, "#ff7f00", "-"), (365, "#984ea3", "-")]:
-        mu2_eff = p3["mu2"] - p3["beta"] * np.log2(dt_val)
-        pdf_n = p3["pi_noise"] * stats.norm.pdf(xgrid, p3["mu1"], p3["sigma1"])
-        pdf_s = (1 - p3["pi_noise"]) * stats.norm.pdf(xgrid, mu2_eff, p3["sigma2"])
-        ax.plot(xgrid, pdf_n + pdf_s, color=color, linewidth=1.5, label=f"Δt={dt_val}d")
-    cv3 = sigma_log2_to_cv(p3["sigma1"])
-    ax.set_title(f"Step 3: Mixture Regression\nAIC={p3['aic']:.1f}, CV≈{cv3:.2f}, β={p3['beta']:.4f}",
-                 fontsize=10)
-    ax.set_xlabel("log2(fold change)")
-    ax.legend(fontsize=8)
-    ax.set_xlim(xgrid[0], xgrid[-1])
+    # Panel B: scatter vs duration (for comparison)
+    ax = axes[0, 1]
+    sc = ax.scatter(df["duration_days"], x, c=p_resp, cmap="RdYlBu_r",
+                    s=25, alpha=0.7, edgecolors="black", linewidths=0.3, vmin=0, vmax=1)
+    plt.colorbar(sc, ax=ax, label="P(responder)")
+    ax.set_xlabel("Duration Δt (days)"); ax.set_ylabel("log2(fold change)"); ax.set_xscale("log")
+    ax.set_title("Same assignments vs duration"); ax.axhline(0, color="gray", linestyle=":", lw=0.8)
+    ax.grid(True, alpha=0.3)
 
-    fig.suptitle(f"Model comparison (n={len(x)})", fontsize=13, fontweight="bold")
+    # Panel C: component densities at a representative (t0, t1)
+    ax = axes[1, 0]
+    ax.hist(x, bins=30, density=True, alpha=0.3, color="gray", edgecolor="black", linewidth=0.5)
+    examples = [(14, 100), (14, 365), (30, 365)]
+    colors_ex = ["#e41a1c", "#ff7f00", "#984ea3"]
+    for (t0_ex, t1_ex), color in zip(examples, colors_ex):
+        z_ex = tau_ratio_covariate(t0_ex, t1_ex)
+        mu_n = -p4["alpha1"] * z_ex
+        mu_s = p4["mu_bio"] - p4["alpha2"] * z_ex
+        pdf_n = p4["pi_noise"] * stats.norm.pdf(xgrid, mu_n, p4["sigma1"])
+        pdf_s = (1 - p4["pi_noise"]) * stats.norm.pdf(xgrid, mu_s, p4["sigma2"])
+        ax.plot(xgrid, pdf_n + pdf_s, color=color, lw=1.5, label=f"t₀={t0_ex}→t₁={t1_ex}d")
+    ax.set_xlabel("log2(fold change)"); ax.set_ylabel("Density")
+    ax.set_title("Conditional density at representative (t₀, t₁)")
+    ax.legend(fontsize=8); ax.set_xlim(xgrid[0], xgrid[-1])
+
+    # Panel D: assignment vs starting EU
+    ax = axes[1, 1]
+    sc = ax.scatter(df["eu_start"], x, c=p_resp, cmap="RdYlBu_r",
+                    s=25, alpha=0.7, edgecolors="black", linewidths=0.3, vmin=0, vmax=1)
+    plt.colorbar(sc, ax=ax, label="P(responder)"); ax.set_xscale("log")
+    ax.set_xlabel("Starting Vi IgG (EU)"); ax.set_ylabel("log2(fold change)")
+    ax.set_title("Assignment vs starting antibody"); ax.axhline(0, color="gray", linestyle=":", lw=0.8)
+    ax.grid(True, alpha=0.3)
+
+    cv = sigma_log2_to_cv(p4["sigma1"])
+    fig.suptitle(f"Step 4: Teunis Power-Law Mixture (n={len(x)}, tp={p4['t_peak']:.0f}d)\n"
+                 f"CV≈{cv:.2f}, α₁={p4['alpha1']:.3f} (waning), "
+                 f"α₂={p4['alpha2']:.3f}, μ_bio={p4['mu_bio']:.3f}",
+                 fontsize=12, fontweight="bold")
     fig.tight_layout()
-    fig.savefig(OUT_DIR / "08_model_comparison.png", dpi=150, bbox_inches="tight")
-    plt.close()
+    fig.savefig(OUT_DIR / "08_step4_teunis_mixture.png", dpi=150, bbox_inches="tight"); plt.close()
+    print("Saved 08_step4_teunis_mixture.png")
+
+
+def plot_summary(x, p1, p2, p3, p4, df):
+    xgrid = np.linspace(x.min() - 1, x.max() + 1, 500)
+    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+
+    # Step 1
+    ax = axes[0, 0]
+    ax.hist(x, bins=30, density=True, alpha=0.4, color="gray", edgecolor="black", linewidth=0.5)
+    pdf_n = p1["pi_noise"] * stats.norm.pdf(xgrid, p1["mu1"], p1["sigma1"])
+    pdf_s = (1 - p1["pi_noise"]) * stats.norm.pdf(xgrid, p1["mu2"], p1["sigma2"])
+    ax.plot(xgrid, pdf_n, "b-", lw=2); ax.plot(xgrid, pdf_s, "r-", lw=2)
+    ax.plot(xgrid, pdf_n + pdf_s, "k--", lw=1.5)
+    cv1 = sigma_log2_to_cv(p1["sigma1"])
+    ax.set_title(f"Step 1: Two Gaussians\nAIC={p1['aic']:.1f}, CV≈{cv1:.2f}, σ_bio={p1['sigma_bio']:.3f}")
+    ax.set_xlabel("log2(FC)"); ax.set_xlim(xgrid[0], xgrid[-1])
+
+    # Step 2
+    ax = axes[0, 1]
+    ax.hist(x, bins=30, density=True, alpha=0.4, color="gray", edgecolor="black", linewidth=0.5)
+    pdf_n = p2["pi_noise"] * stats.norm.pdf(xgrid, p2["mu1"], p2["sigma1"])
+    pdf_s = (1 - p2["pi_noise"]) * stats.skewnorm.pdf(xgrid, p2["alpha"], p2["xi"], p2["omega"])
+    ax.plot(xgrid, pdf_n, "b-", lw=2); ax.plot(xgrid, pdf_s, "r-", lw=2)
+    ax.plot(xgrid, pdf_n + pdf_s, "k--", lw=1.5)
+    cv2 = sigma_log2_to_cv(p2["sigma1"])
+    ax.set_title(f"Step 2: Gauss + Skew-Normal\nAIC={p2['aic']:.1f}, CV≈{cv2:.2f}, α={p2['alpha']:.2f}")
+    ax.set_xlabel("log2(FC)"); ax.set_xlim(xgrid[0], xgrid[-1])
+
+    # Step 3 at Δt=180d
+    ax = axes[1, 0]
+    ax.hist(x, bins=30, density=True, alpha=0.4, color="gray", edgecolor="black", linewidth=0.5)
+    mu2_eff = p3["mu2"] - p3["beta"] * np.log2(180)
+    pdf_n = p3["pi_noise"] * stats.norm.pdf(xgrid, p3["mu1"], p3["sigma1"])
+    pdf_s = (1 - p3["pi_noise"]) * stats.norm.pdf(xgrid, mu2_eff, p3["sigma2"])
+    ax.plot(xgrid, pdf_n, "b-", lw=2); ax.plot(xgrid, pdf_s, "r-", lw=2)
+    ax.plot(xgrid, pdf_n + pdf_s, "k--", lw=1.5)
+    cv3 = sigma_log2_to_cv(p3["sigma1"])
+    ax.set_title(f"Step 3: Signal time-dep (Δt=180d)\nAIC={p3['aic']:.1f}, CV≈{cv3:.2f}, β={p3['beta']:.4f}")
+    ax.set_xlabel("log2(FC)"); ax.set_xlim(xgrid[0], xgrid[-1])
+
+    # Step 4 at representative (t0=14, t1=180)
+    ax = axes[1, 1]
+    ax.hist(x, bins=30, density=True, alpha=0.4, color="gray", edgecolor="black", linewidth=0.5)
+    z_repr = tau_ratio_covariate(14, 180)
+    mu_n = -p4["alpha1"] * z_repr
+    mu_s = p4["mu_bio"] - p4["alpha2"] * z_repr
+    pdf_n = p4["pi_noise"] * stats.norm.pdf(xgrid, mu_n, p4["sigma1"])
+    pdf_s = (1 - p4["pi_noise"]) * stats.norm.pdf(xgrid, mu_s, p4["sigma2"])
+    ax.plot(xgrid, pdf_n, "b-", lw=2); ax.plot(xgrid, pdf_s, "r-", lw=2)
+    ax.plot(xgrid, pdf_n + pdf_s, "k--", lw=1.5)
+    cv4 = sigma_log2_to_cv(p4["sigma1"])
+    ax.set_title(f"Step 4: Teunis (t₀=14→t₁=180d)\nAIC={p4['aic']:.1f}, CV≈{cv4:.2f}, "
+                 f"α₁={p4['alpha1']:.3f}, α₂={p4['alpha2']:.3f}")
+    ax.set_xlabel("log2(FC)"); ax.set_xlim(xgrid[0], xgrid[-1])
+
+    fig.suptitle(f"Model comparison (n={len(x)}, all with σ₂ = √(σ₁² + σ_bio²))", fontsize=13, fontweight="bold")
+    fig.tight_layout()
+    fig.savefig(OUT_DIR / "08_model_comparison.png", dpi=150, bbox_inches="tight"); plt.close()
     print("Saved 08_model_comparison.png")
 
 
@@ -476,88 +619,97 @@ def main():
     df = load_fold_change_data()
     x = df["log2_fc"].values
     log2_dt = df["log2_duration"].values
+    t0 = df["t_start"].values
+    t1 = df["t_end"].values
 
     print(f"Loaded {len(df)} fold-change observations")
     print(f"  log2(FC): median={np.median(x):.3f}, SD={np.std(x):.3f}")
     print(f"  Duration: median={np.median(df['duration_days']):.0f} days, "
           f"range {df['duration_days'].min():.0f}-{df['duration_days'].max():.0f}")
+    print(f"  t_start: median={np.median(t0):.0f}, range {t0.min():.0f}-{t0.max():.0f}")
 
-    # =================================================================
-    # Step 1: Two-Gaussian mixture
-    # =================================================================
+    # Step 1
     print("\n" + "=" * 60)
     print("STEP 1: Two-Gaussian mixture")
     print("=" * 60)
     p1 = fit_two_gaussian(x)
     cv1 = sigma_log2_to_cv(p1["sigma1"])
-    print(f"  Noise:  μ={p1['mu1']:.4f}, σ={p1['sigma1']:.4f}, π={p1['pi_noise']:.3f}")
+    print(f"  Noise:  μ₁={p1['mu1']:.4f}, σ₁={p1['sigma1']:.4f}, π={p1['pi_noise']:.3f}")
     print(f"          Implied assay CV = {cv1:.3f}")
-    print(f"  Signal: μ={p1['mu2']:.4f}, σ={p1['sigma2']:.4f}, π={1-p1['pi_noise']:.3f}")
+    print(f"  Signal: μ₂={p1['mu2']:.4f}, σ₂={p1['sigma2']:.4f}, σ_bio={p1['sigma_bio']:.4f}")
     print(f"  LL={p1['ll']:.2f}, AIC={p1['aic']:.2f}, BIC={p1['bic']:.2f}")
     plot_step1(x, p1)
 
-    # =================================================================
-    # Step 2: Gaussian + Skew-Normal
-    # =================================================================
+    # Step 2
     print("\n" + "=" * 60)
     print("STEP 2: Gaussian + Skew-Normal")
     print("=" * 60)
     p2 = fit_gauss_skewnorm(x, p1)
     cv2 = sigma_log2_to_cv(p2["sigma1"])
-    print(f"  Noise:  μ={p2['mu1']:.4f}, σ={p2['sigma1']:.4f}, π={p2['pi_noise']:.3f}")
+    print(f"  Noise:  μ₁={p2['mu1']:.4f}, σ₁={p2['sigma1']:.4f}, π={p2['pi_noise']:.3f}")
     print(f"          Implied assay CV = {cv2:.3f}")
-    print(f"  Signal: ξ={p2['xi']:.4f}, ω={p2['omega']:.4f}, α={p2['alpha']:.4f}")
-    sn_mean = p2["xi"] + p2["omega"] * np.sqrt(2 / np.pi) * p2["alpha"] / np.sqrt(1 + p2["alpha"]**2)
-    print(f"          Skew-normal mean = {sn_mean:.4f}")
+    print(f"  Signal: ξ={p2['xi']:.4f}, ω={p2['omega']:.4f}, α={p2['alpha']:.4f}, σ_bio={p2['sigma_bio']:.4f}")
     print(f"  LL={p2['ll']:.2f}, AIC={p2['aic']:.2f}, BIC={p2['bic']:.2f}")
-    print(f"  Converged: {p2['converged']}")
-    delta_aic = p1["aic"] - p2["aic"]
-    print(f"  ΔAIC vs Step 1: {delta_aic:.2f} ({'Step 2 better' if delta_aic > 0 else 'Step 1 better'})")
+    print(f"  ΔAIC vs Step 1: {p1['aic'] - p2['aic']:.2f}")
     plot_step2(x, p1, p2)
 
-    # =================================================================
-    # Step 3: Gaussian + time-dependent Normal
-    # =================================================================
+    # Step 3
     print("\n" + "=" * 60)
-    print("STEP 3: Gaussian + time-dependent Normal (power-law waning)")
+    print("STEP 3: Signal time-dependent (log2 Δt)")
     print("=" * 60)
     p3 = fit_gauss_timedep(x, log2_dt, p1)
     cv3 = sigma_log2_to_cv(p3["sigma1"])
-    print(f"  Noise:  μ={p3['mu1']:.4f}, σ={p3['sigma1']:.4f}, π={p3['pi_noise']:.3f}")
+    print(f"  Noise:  μ₁={p3['mu1']:.4f}, σ₁={p3['sigma1']:.4f}, π={p3['pi_noise']:.3f}")
     print(f"          Implied assay CV = {cv3:.3f}")
-    print(f"  Signal: μ₂={p3['mu2']:.4f}, σ₂={p3['sigma2']:.4f}, β={p3['beta']:.4f}")
-    print(f"          β is slope of log2(FC) vs log2(days): power-law exponent")
-    for dt_val in [60, 180, 365]:
-        mu2_eff = p3["mu2"] - p3["beta"] * np.log2(dt_val)
-        print(f"          Signal mean at Δt={dt_val}d: {mu2_eff:.4f} log2(FC) = {2**mu2_eff:.3f}× FC")
+    print(f"  Signal: μ₂={p3['mu2']:.4f}, σ₂={p3['sigma2']:.4f}, β={p3['beta']:.4f}, σ_bio={p3['sigma_bio']:.4f}")
     print(f"  LL={p3['ll']:.2f}, AIC={p3['aic']:.2f}, BIC={p3['bic']:.2f}")
-    print(f"  Converged: {p3['converged']}")
-    delta_aic_31 = p1["aic"] - p3["aic"]
-    delta_aic_32 = p2["aic"] - p3["aic"]
-    print(f"  ΔAIC vs Step 1: {delta_aic_31:.2f}")
-    print(f"  ΔAIC vs Step 2: {delta_aic_32:.2f}")
+    print(f"  ΔAIC vs Step 1: {p1['aic'] - p3['aic']:.2f}")
     plot_step3(df, p3)
 
-    # =================================================================
-    # Model comparison
-    # =================================================================
+    # Step 4
     print("\n" + "=" * 60)
-    print("MODEL COMPARISON")
+    print("STEP 4: Teunis power-law mixture (τ-ratio covariate)")
+    print(f"  t_peak = {T_PEAK:.0f}d (fixed, from HlyE IgG in Aiemjoy Table S1)")
+    print(f"  Noise:  N(-α₁·z, σ₁)        where z = log2(τ₁/τ₀)")
+    print(f"  Signal: N(μ_bio - α₂·z, σ₂)  and τ = max(t - t_peak, 1)")
     print("=" * 60)
-    print(f"{'Model':<35} {'LL':>8} {'AIC':>8} {'BIC':>8} {'CV_est':>7}")
-    print("-" * 70)
-    for name, p, cv in [
-        ("1. Two Gaussians", p1, cv1),
-        ("2. Gaussian + Skew-Normal", p2, cv2),
-        ("3. Gaussian + time-dep Normal", p3, cv3),
-    ]:
-        print(f"{name:<35} {p['ll']:>8.2f} {p['aic']:>8.2f} {p['bic']:>8.2f} {cv:>7.3f}")
+    p4 = fit_teunis_mixture(x, t0, t1, p1)
+    cv4 = sigma_log2_to_cv(p4["sigma1"])
+    print(f"  Noise:  α₁={p4['alpha1']:.4f}, σ₁={p4['sigma1']:.4f}, π={p4['pi_noise']:.3f}")
+    print(f"          Implied assay CV = {cv4:.3f}")
+    print(f"          α₁ is the Teunis power-law waning exponent")
+    for t0_ex, t1_ex in [(14, 100), (14, 365), (30, 365)]:
+        z_ex = tau_ratio_covariate(t0_ex, t1_ex)
+        mu_n = -p4["alpha1"] * z_ex
+        print(f"          Noise mean at t₀={t0_ex}→t₁={t1_ex}d (z={z_ex:.2f}): {mu_n:.4f} = {2**mu_n:.3f}× FC")
+    print(f"  Signal: μ_bio={p4['mu_bio']:.4f}, α₂={p4['alpha2']:.4f}, σ₂={p4['sigma2']:.4f}, σ_bio={p4['sigma_bio']:.4f}")
+    for t0_ex, t1_ex in [(14, 100), (14, 365), (30, 365)]:
+        z_ex = tau_ratio_covariate(t0_ex, t1_ex)
+        mu_s = p4["mu_bio"] - p4["alpha2"] * z_ex
+        print(f"          Signal mean at t₀={t0_ex}→t₁={t1_ex}d: {mu_s:.4f} = {2**mu_s:.3f}× FC")
+    print(f"  LL={p4['ll']:.2f}, AIC={p4['aic']:.2f}, BIC={p4['bic']:.2f}")
+    print(f"  Converged: {p4['converged']}")
+    print(f"  ΔAIC vs Step 1: {p1['aic'] - p4['aic']:.2f} ({'Step 4 better' if p1['aic'] > p4['aic'] else 'Step 1 better'})")
+    plot_step4(df, p4)
 
-    # =================================================================
-    # Component assignments summary (best model)
-    # =================================================================
-    best = min([(p1, "Step 1"), (p2, "Step 2"), (p3, "Step 3")], key=lambda x: x[0]["aic"])
-    best_p, best_name = best
+    # Model comparison
+    print("\n" + "=" * 60)
+    print("MODEL COMPARISON (all with σ₂ = √(σ₁² + σ_bio²))")
+    print("=" * 60)
+    print(f"{'Model':<40} {'k':>3} {'LL':>8} {'AIC':>8} {'BIC':>8} {'CV':>6} {'σ_bio':>6}")
+    print("-" * 83)
+    for name, p, cv, k in [
+        ("1. Two Gaussians", p1, cv1, 5),
+        ("2. Gauss + Skew-Normal", p2, cv2, 6),
+        ("3. Signal time-dep (log2 Δt)", p3, cv3, 6),
+        ("4. Teunis power-law (τ-ratio)", p4, cv4, 6),
+    ]:
+        print(f"{name:<40} {k:>3} {p['ll']:>8.2f} {p['aic']:>8.2f} {p['bic']:>8.2f} "
+              f"{cv:>6.3f} {p['sigma_bio']:>6.3f}")
+
+    # Component assignments (best AIC)
+    all_models = [(p1, "Step 1"), (p2, "Step 2"), (p3, "Step 3"), (p4, "Step 4")]
+    best_p, best_name = min(all_models, key=lambda x: x[0]["aic"])
     print(f"\n{'='*60}")
     print(f"COMPONENT ASSIGNMENTS ({best_name}, P(responder) > 0.5)")
     print(f"{'='*60}")
@@ -566,16 +718,16 @@ def main():
     noise = df[df["p_responder"] <= 0.5]
     print(f"  Responders: {len(responders)}/{len(df)} ({100*len(responders)/len(df):.0f}%)")
     if len(responders) > 0:
-        print(f"    Median FC: {2**responders['log2_fc'].median():.3f}")
-        print(f"    Median duration: {responders['duration_days'].median():.0f} days")
-        print(f"    Median starting EU: {responders['eu_start'].median():.1f}")
+        print(f"    Median FC: {2**responders['log2_fc'].median():.3f}, "
+              f"duration: {responders['duration_days'].median():.0f}d, "
+              f"starting EU: {responders['eu_start'].median():.1f}")
     print(f"  Noise: {len(noise)}/{len(df)} ({100*len(noise)/len(df):.0f}%)")
     if len(noise) > 0:
-        print(f"    Median FC: {2**noise['log2_fc'].median():.3f}")
-        print(f"    Median duration: {noise['duration_days'].median():.0f} days")
-        print(f"    Median starting EU: {noise['eu_start'].median():.1f}")
+        print(f"    Median FC: {2**noise['log2_fc'].median():.3f}, "
+              f"duration: {noise['duration_days'].median():.0f}d, "
+              f"starting EU: {noise['eu_start'].median():.1f}")
 
-    plot_summary(x, p1, p2, p3)
+    plot_summary(x, p1, p2, p3, p4, df)
 
 
 if __name__ == "__main__":

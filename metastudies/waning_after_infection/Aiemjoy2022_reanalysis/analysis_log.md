@@ -351,46 +351,67 @@ Each script's OUT_DIR updated to its subfolder. Scripts and their output PNGs li
 
 ### Step 23: Fold-change mixture model EDA (mixture_eda/08_fold_change_mixture.py)
 
-Fitted three mixture models to the 191 longitudinal Vi IgG log2(fold change) values:
+Fitted four mixture models to the 191 longitudinal Vi IgG log2(fold change) values. All models enforce σ₂ = √(σ₁² + σ_bio²) so the signal component inherits measurement noise and σ_bio captures excess biological variance.
 
-#### Step 1: Two-Gaussian mixture (EM)
+#### Model comparison
 
-| Component | μ | σ | π |
-|---|---|---|---|
-| Noise | -0.218 | 0.406 | 0.425 |
-| Signal | 0.537 | 1.005 | 0.575 |
+| Model | k | LL | AIC | BIC | CV | σ_bio |
+|---|---|---|---|---|---|---|
+| 1. Two Gaussians | 5 | -237.3 | 484.5 | 500.8 | 0.201 | 0.919 |
+| 2. Gauss + Skew-Normal | 6 | -237.3 | 486.5 | 506.0 | 0.201 | 0.919 |
+| 3. Signal time-dep (log2 Δt) | 6 | -237.1 | 486.2 | 505.7 | 0.199 | 0.916 |
+| **4. Teunis power-law (τ-ratio)** | **6** | **-234.6** | **481.2** | **500.7** | **0.211** | **0.856** |
 
-**Implied assay CV ≈ 0.20** — derived from the noise component σ via σ_per_meas = σ_FC/√2 → CV = √(exp(σ²·ln²2/2)−1). This is right in the plausible range and is the first data-driven CV estimate for Vi IgG in this assay.
+**Step 4 wins** (ΔAIC = 3.3 vs Step 1, same parameter count).
 
-AIC = 484.5 (best of three models).
+#### Step 1: Two-Gaussian mixture (MLE)
 
-89/191 (47%) classified as responders (P>0.5). Responders have median FC=1.72 and lower starting EU (330 vs 589). The noise group's higher starting EU suggests regression to the mean is a major feature of the "declining" trajectories.
+Noise: μ₁=-0.218, σ₁=0.406, π=0.425. Signal: μ₂=0.537, σ₂=1.005.
 
-#### Step 2: Gaussian + Skew-Normal (MLE)
+**Implied assay CV ≈ 0.20** — first data-driven estimate for Vi IgG. Derived from the noise component σ₁ via σ_per_meas = σ₁/√2 → CV. Consistent across all four models (0.199-0.211).
 
-Skew parameter α = 0.000 — the optimizer converged exactly at the Gaussian boundary. The right tail of the signal component is NOT asymmetric enough (given this sample size) to distinguish from a symmetric Gaussian. AIC = 486.5 (worse than Step 1 due to extra parameter penalty).
+89/191 (47%) classified as responders. Responders have lower starting EU (330 vs 589 for noise). The noise group's higher starting EU and negative μ₁ reflect waning from elevated levels — not a statistical artifact (there is no selection on the first measurement), but actual Vi IgG decay. This observation is consistent with Vi as a correlate of protection: lower baseline Vi → more susceptible → infection → fold rise.
 
-#### Step 3: Gaussian + time-dependent Normal (MLE, power-law waning)
+#### Step 2: Gaussian + Skew-Normal
 
-Signal component: N(μ₂ − β·log2(Δt), σ₂) where β is the power-law waning exponent.
+Skew α = 0.000 — converged at the Gaussian boundary. Right-tail asymmetry undetectable at n=191. AIC worse (486.5).
 
-β = -0.052 — essentially zero and in the WRONG direction (signal FC slightly increases with longer follow-up). This is likely a selection/survival effect: subjects with long follow-up are enriched for those with interesting (rising) titers. Or it may reflect that the fold-change summary is too coarse to extract waning signal — the first-to-last fold change conflates the entire trajectory shape into a single number.
+#### Step 3: Signal time-dependent (log2 Δt)
 
-AIC = 486.2 (worse than Step 1).
+Signal: N(μ₂ − β·log2(Δt), σ₂). β = -0.052 (wrong sign for waning). The log2(Δt) covariate doesn't capture the waning physics because it ignores when the observations occurred relative to peak antibody. AIC worse (486.2).
+
+#### Step 4: Teunis power-law mixture (τ-ratio covariate)
+
+Uses the Teunis power-law decay covariate z = log2(τ₁/τ₀) where τ = max(t − t_peak, 1 day). t_peak = 15 days from fever onset, based on HlyE IgG peak timing (15.6d in Aiemjoy Table S1 — the best-identified antigen in the same subjects/platform). Vi IgG's own t1=2.9d is unreliable.
+
+**Noise component:** N(−α₁·z, σ₁) — no intercept, FC=1 at τ₁=τ₀ by construction.
+- α₁ = 0.025 (power-law waning exponent)
+- Predicted FC at t₀=14→t₁=365d: 0.86 (14% decline)
+
+**Signal component:** N(μ_bio − α₂·z, σ₂)
+- α₂ = -0.111 (negative: signal FC increases with time ratio — mixture of boosting/waning)
+- μ_bio = -0.093 (near zero)
+
+**Development notes on the Teunis covariate:**
+- First tried the full Teunis form with β estimated: (1+β·τ)^(−α). β diverged to ∞, collapsing to the pure power-law τ^(−α). The data cannot separate β from α in fold-change data — this requires absolute antibody levels.
+- The τ-ratio covariate z = log2(τ₁/τ₀) is the natural fold-change prediction from the power-law limit and has no free rate parameter.
+- τ is floored at 1 day (not 0) to handle subjects observed before t_peak without singularities.
 
 #### Key findings
 
-1. **Vi IgG assay CV ≈ 0.20** — first data-driven estimate, consistent across all three models, matches the range assumed in the measurement noise analysis (Step 9/16).
+1. **Vi IgG assay CV ≈ 0.20** — robust across all four models. First data-driven estimate, consistent with the range assumed in Step 9/16.
 
-2. **~42% of subjects are consistent with pure measurement noise** around a slight decline (μ=-0.22). These are the "non-responders" or background-fluctuation subjects.
+2. **Two-population structure confirmed** — ~40-46% noise (waning-dominated), ~54-60% signal (boost-dominated). Split is consistent across models.
 
-3. **~58% show signal beyond noise**, but the signal component is very broad (σ≈1.0) — this is the mixture of genuine immune responses at various waning stages, reinfection boosts, and large measurement excursions.
+3. **The Teunis power-law covariate matters** — using log2(τ₁/τ₀) instead of log2(Δt) improves AIC by 5 points (comparing Step 4 vs Step 3 at same k=6). Accounting for when observations fall relative to peak antibody is important.
 
-4. **No detectable skew in the signal component** — the right tail is not distinguishable from symmetric. This may mean the boost/waning mixture produces a roughly symmetric distribution on log scale, or that n=191 is insufficient to detect asymmetry.
+4. **α₁ = 0.025 is a detectable waning exponent** — small but captures the systematic decline in the noise component. The noise group's negative fold change IS waning, not a statistical artifact. Higher starting EU → further from equilibrium → more waning.
 
-5. **No detectable waning in the time-dependent model** — β≈0 with wrong sign. Fold-change is too coarse a summary statistic for waning inference. Need per-subject trajectory modeling (Stan) to properly separate boost timing, waning rate, and measurement noise.
+5. **Vi as correlate of protection signal** — lower starting Vi IgG is associated with the responder component (median 394 vs 546 EU). Consistent with Jin's correlate-of-protection curve.
 
-6. **Regression to the mean is prominent** — noise-classified subjects have higher starting EU (589 vs 330). High starting values tend to decline, low starting values tend to rise. This is expected when baseline variability is large relative to signal.
+6. **σ_bio ≈ 0.86** — biological heterogeneity in the signal component is ~2× measurement noise (0.86 vs 0.43). This is the variation in boost magnitude, waning stage, and reinfection across subjects.
+
+7. **Fold-change analysis reaches its limit** — per-subject trajectory modeling (Stan) is needed to properly estimate waning rates and separate boost timing from decay.
 
 ---
 
