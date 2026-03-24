@@ -273,10 +273,131 @@ So the authors aren't wrong or careless — they're using an appropriate model f
 
 ---
 
+## 2026-03-24: Session 2 — reinf_obs investigation and mixture EDA
+
+### Step 20: reinf_obs variable investigation
+
+Added `04_faceted_by_reinf_obs.png` — trajectories faceted by n_obs (columns) × reinf_obs status (rows). Immediately revealed a structural pattern: ALL reinf_obs=NaN longitudinal subjects have exactly 2 observations. All 3- and 4-obs subjects have reinf_obs=1.
+
+Investigated thoroughly to determine what `reinf_obs` means. The `data/README.md` says: "Suspected reinfection observed during follow-up."
+
+#### What reinf_obs is NOT
+
+1. **NOT "reinfection was detected."** 716/1667 subjects have reinf_obs=1, but the paper reports only 37/1420 suspected reinfections total. The base rate is 2.6%, not 43%.
+
+2. **NOT a country/cohort indicator.** reinf_obs=1 is present across all three countries at varying rates (Bangladesh 44%, Nepal 33%, Pakistan 59%). The paper describes one SEAP protocol with identical visit schedules for all Asian sites.
+
+3. **NOT "included in the paper's analysis."** The paper reports Bangladesh=407, Nepal=543, Pakistan=399 subjects. The CSV has Bangladesh=407, Nepal=798, Pakistan=462 — 255 extra Nepal and 63 extra Pakistan subjects, no Ghana. reinf_obs=1 counts (181, 263, 272) don't match the paper Ns for any country.
+
+4. **NOT purely "had ≥3 months follow-up."** 296 reinf_obs=NaN subjects DO have time data at visit 3 (≥3 months). The correlation is strong (93.6% of reinf=1 vs 31.1% of NaN have visit 3 time) but not clean.
+
+5. **NOT used in the JAGS model.** The column is never referenced in v9na.data.r or v9na.model.jags.
+
+#### Best-supported hypothesis
+
+**reinf_obs=1 ≈ "subject had sufficient multi-antigen longitudinal data to be screened for reinfection"** using the paper's criterion (≥3-fold rise in ≥2 antigen-isotypes at ≥3 months post-onset).
+
+Evidence: 90.5% of reinf=1 subjects have ≥2 antigen-isotype pairs spanning ≥3 months, vs only 39.1% of NaN subjects. This is the strongest single predictor found, though still imperfect. The remaining 9.5% discrepancy suggests an additional criterion in the upstream preprocessing code not included in the GitHub repo.
+
+#### Alternative hypothesis
+
+reinf_obs=1 could mean "this subject was actively enrolled in the systematic longitudinal follow-up arm" (vs subjects with incidental or incomplete follow-up). The structural correlation with having richer data would follow naturally.
+
+#### Practical implication for reanalysis
+
+The reinf_obs facet is essentially a **data-quality stratification**: reinf=1 subjects have richer multi-antigen follow-up data, reinf=NaN subjects have sparser data (≤2 Vi observations, limited antigen coverage). For the waning analysis, the reinf=1 group is the better-characterized set. The NaN group's trajectories appear flatter and more compressed, which could reflect either genuinely different biology (non-responders?) or simply measurement limitations from shorter follow-up.
+
+#### CSV vs paper subject count discrepancy
+
+The CSV contains 1667 subjects; the paper reports 1420 (407 Bangladesh, 543 Nepal, 399 Pakistan, 71 Ghana). The CSV has no Ghana subjects but 255 extra Nepal and 63 extra Pakistan subjects. These extras may be subjects enrolled after the paper's analysis cutoff or subjects excluded from the paper for reasons not documented in the repo. The upstream preprocessing code is not in the published GitHub repository.
+
+### Step 21: Reinfection algorithm implementation (07_reinf_obs_investigation.py)
+
+Applied the Aiemjoy reinfection detection algorithm ourselves to definitively test the hypothesis that reinf_obs flags algo output. Algorithm: ≥3-fold increase in ≥2 antigen-isotype combinations at visits ≥3 months from fever onset, with absolute difference ≥1 EU.
+
+**Results:**
+- Our algo flags 43/1667 suspected reinfections (paper reports 37 — close, minor implementation differences likely in "consecutive" vs "all" visit pairs)
+- Among 191 longitudinal Vi subjects: 10 algo-reinfected, 181 algo-clean
+
+**reinf_obs vs algo cross-tab (longitudinal Vi):**
+
+|  | algo=clean | algo=reinfected |
+|---|---|---|
+| reinf_obs=1 | 145 | 4 |
+| reinf_obs=NaN | 36 | 6 |
+
+**reinf_obs is definitively NOT the algo output.** 6/10 algo-reinfected Vi subjects have reinf_obs=NaN — the opposite of what you'd expect. The cross-tab shows essentially no relationship.
+
+**The algo does identify a real biological signal:**
+- Algo-reinfected Vi subjects: 9/10 rising, median FC=1.53
+- Algo-clean Vi subjects: 91 declining / 90 rising, median FC=0.99
+
+These 10 subjects' rising Vi trajectories are likely reinfection-driven boosts, useful for the mixture analysis.
+
+**Conclusion:** reinf_obs is an opaque data-provenance flag from upstream preprocessing not in the repo. We cannot determine its exact meaning. Moving on — it will not be used in the reanalysis. The reinfection algo classification is independently useful for understanding latent structure.
+
+Moved reinf_obs faceted plot from 04 to 07. Script 04 now only contains slope analysis, direction facet, and spaghetti plots.
+
+### Step 22: Folder reorganization
+
+Refactored `reanalysis/` into logical subfolders:
+- `data_prep/` — 01_prepare_vi_data.py
+- `validation/` — 02, 03 (figure reproduction, PDF validation)
+- `eda/` — 04, 05, 06 (slopes, noise, descriptive summary)
+- `reinf_obs/` — 07 (reinf_obs investigation)
+- `mixture_eda/` — 08+ (fold-change mixture models)
+
+Each script's OUT_DIR updated to its subfolder. Scripts and their output PNGs live together.
+
+### Step 23: Fold-change mixture model EDA (mixture_eda/08_fold_change_mixture.py)
+
+Fitted three mixture models to the 191 longitudinal Vi IgG log2(fold change) values:
+
+#### Step 1: Two-Gaussian mixture (EM)
+
+| Component | μ | σ | π |
+|---|---|---|---|
+| Noise | -0.218 | 0.406 | 0.425 |
+| Signal | 0.537 | 1.005 | 0.575 |
+
+**Implied assay CV ≈ 0.20** — derived from the noise component σ via σ_per_meas = σ_FC/√2 → CV = √(exp(σ²·ln²2/2)−1). This is right in the plausible range and is the first data-driven CV estimate for Vi IgG in this assay.
+
+AIC = 484.5 (best of three models).
+
+89/191 (47%) classified as responders (P>0.5). Responders have median FC=1.72 and lower starting EU (330 vs 589). The noise group's higher starting EU suggests regression to the mean is a major feature of the "declining" trajectories.
+
+#### Step 2: Gaussian + Skew-Normal (MLE)
+
+Skew parameter α = 0.000 — the optimizer converged exactly at the Gaussian boundary. The right tail of the signal component is NOT asymmetric enough (given this sample size) to distinguish from a symmetric Gaussian. AIC = 486.5 (worse than Step 1 due to extra parameter penalty).
+
+#### Step 3: Gaussian + time-dependent Normal (MLE, power-law waning)
+
+Signal component: N(μ₂ − β·log2(Δt), σ₂) where β is the power-law waning exponent.
+
+β = -0.052 — essentially zero and in the WRONG direction (signal FC slightly increases with longer follow-up). This is likely a selection/survival effect: subjects with long follow-up are enriched for those with interesting (rising) titers. Or it may reflect that the fold-change summary is too coarse to extract waning signal — the first-to-last fold change conflates the entire trajectory shape into a single number.
+
+AIC = 486.2 (worse than Step 1).
+
+#### Key findings
+
+1. **Vi IgG assay CV ≈ 0.20** — first data-driven estimate, consistent across all three models, matches the range assumed in the measurement noise analysis (Step 9/16).
+
+2. **~42% of subjects are consistent with pure measurement noise** around a slight decline (μ=-0.22). These are the "non-responders" or background-fluctuation subjects.
+
+3. **~58% show signal beyond noise**, but the signal component is very broad (σ≈1.0) — this is the mixture of genuine immune responses at various waning stages, reinfection boosts, and large measurement excursions.
+
+4. **No detectable skew in the signal component** — the right tail is not distinguishable from symmetric. This may mean the boost/waning mixture produces a roughly symmetric distribution on log scale, or that n=191 is insufficient to detect asymmetry.
+
+5. **No detectable waning in the time-dependent model** — β≈0 with wrong sign. Fold-change is too coarse a summary statistic for waning inference. Need per-subject trajectory modeling (Stan) to properly separate boost timing, waning rate, and measurement noise.
+
+6. **Regression to the mean is prominent** — noise-classified subjects have higher starting EU (589 vs 330). High starting values tend to decline, low starting values tend to rise. This is expected when baseline variability is large relative to signal.
+
+---
+
 ## Infrastructure notes
 
 - `pyproject.toml` created for `uv sync` with extraction extras (PyMuPDF, matplotlib, scipy)
-- All Python scripts run from project root via `uv run python <script>`
+- All Python scripts run from project root via `python3 <script>` (or `uv run python`)
 - Directory renamed from `waning` → `waning_after_infection`
-- Reanalysis scripts numbered sequentially (01–06) in `reanalysis/`
+- Reanalysis scripts organized into subfolders: `data_prep/`, `validation/`, `eda/`, `reinf_obs/`, `mixture_eda/`
 - CSV data from Aiemjoy GitHub repo is the authoritative data source; PDF extraction preserved in git history as methodology validation

@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 
 DATA_DIR = Path("metastudies/waning_after_infection/Aiemjoy2022_reanalysis/data")
-OUT_DIR = Path("metastudies/waning_after_infection/Aiemjoy2022_reanalysis/reanalysis")
+OUT_DIR = Path("metastudies/waning_after_infection/Aiemjoy2022_reanalysis/reanalysis/eda")
 
 
 def main():

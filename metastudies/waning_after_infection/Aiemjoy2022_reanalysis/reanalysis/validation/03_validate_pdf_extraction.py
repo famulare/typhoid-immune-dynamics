@@ -11,7 +11,7 @@ from pathlib import Path
 
 DATA_DIR = Path("metastudies/waning_after_infection/Aiemjoy2022_reanalysis/data")
 EXTRACTION_DIR = Path("metastudies/waning_after_infection/Aiemjoy2022_reanalysis/fig_s11_extraction")
-OUT_DIR = Path("metastudies/waning_after_infection/Aiemjoy2022_reanalysis/reanalysis")
+OUT_DIR = Path("metastudies/waning_after_infection/Aiemjoy2022_reanalysis/reanalysis/validation")
 
 
 def main():

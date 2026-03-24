@@ -12,7 +12,7 @@ from scipy import stats
 from pathlib import Path
 
 DATA_DIR = Path("metastudies/waning_after_infection/Aiemjoy2022_reanalysis/data")
-OUT_DIR = Path("metastudies/waning_after_infection/Aiemjoy2022_reanalysis/reanalysis")
+OUT_DIR = Path("metastudies/waning_after_infection/Aiemjoy2022_reanalysis/reanalysis/eda")
 
 CV_VALUES = [0.15, 0.20, 0.25, 0.30]
 N_SIM = 10000
