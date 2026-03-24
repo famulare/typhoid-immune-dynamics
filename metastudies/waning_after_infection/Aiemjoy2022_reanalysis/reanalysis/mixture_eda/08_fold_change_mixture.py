@@ -811,43 +811,40 @@ def plot_step5(df, p5):
 def plot_summary(x, p1, p2, p3, p4, p5, df):
     xgrid = np.linspace(x.min() - 1, x.max() + 1, 500)
     fig, axes = plt.subplots(2, 3, figsize=(18, 10))
+    bins = 30
+
+    def hist_bg(ax):
+        ax.hist(x, bins=bins, density=True, alpha=0.4, color="gray",
+                edgecolor="black", linewidth=0.5)
+        ax.set_xlabel("log2(FC)"); ax.set_xlim(xgrid[0], xgrid[-1])
 
     # Step 1
-    ax = axes[0, 0]
-    ax.hist(x, bins=30, density=True, alpha=0.4, color="gray", edgecolor="black", linewidth=0.5)
+    ax = axes[0, 0]; hist_bg(ax)
     pdf_n = p1["pi_noise"] * stats.norm.pdf(xgrid, p1["mu1"], p1["sigma1"])
     pdf_s = (1 - p1["pi_noise"]) * stats.norm.pdf(xgrid, p1["mu2"], p1["sigma2"])
     ax.plot(xgrid, pdf_n, "b-", lw=2); ax.plot(xgrid, pdf_s, "r-", lw=2)
     ax.plot(xgrid, pdf_n + pdf_s, "k--", lw=1.5)
-    cv1 = sigma_log2_to_cv(p1["sigma1"])
-    ax.set_title(f"Step 1: Two Gaussians\nAIC={p1['aic']:.1f}, CV≈{cv1:.2f}")
-    ax.set_xlabel("log2(FC)"); ax.set_xlim(xgrid[0], xgrid[-1])
+    ax.set_title(f"Step 1: Two Gaussians\nAIC={p1['aic']:.1f}, CV≈{sigma_log2_to_cv(p1['sigma1']):.2f}")
 
     # Step 2
-    ax = axes[0, 1]
-    ax.hist(x, bins=30, density=True, alpha=0.4, color="gray", edgecolor="black", linewidth=0.5)
+    ax = axes[0, 1]; hist_bg(ax)
     pdf_n = p2["pi_noise"] * stats.norm.pdf(xgrid, p2["mu1"], p2["sigma1"])
     pdf_s = (1 - p2["pi_noise"]) * stats.skewnorm.pdf(xgrid, p2["alpha"], p2["xi"], p2["omega"])
     ax.plot(xgrid, pdf_n, "b-", lw=2); ax.plot(xgrid, pdf_s, "r-", lw=2)
     ax.plot(xgrid, pdf_n + pdf_s, "k--", lw=1.5)
-    cv2 = sigma_log2_to_cv(p2["sigma1"])
     ax.set_title(f"Step 2: Gauss + Skew-Normal\nAIC={p2['aic']:.1f}, α={p2['alpha']:.2f}")
-    ax.set_xlabel("log2(FC)"); ax.set_xlim(xgrid[0], xgrid[-1])
 
     # Step 3 at Δt=180d
-    ax = axes[0, 2]
-    ax.hist(x, bins=30, density=True, alpha=0.4, color="gray", edgecolor="black", linewidth=0.5)
+    ax = axes[0, 2]; hist_bg(ax)
     mu2_eff = p3["mu2"] - p3["beta"] * np.log2(180)
     pdf_n = p3["pi_noise"] * stats.norm.pdf(xgrid, p3["mu1"], p3["sigma1"])
     pdf_s = (1 - p3["pi_noise"]) * stats.norm.pdf(xgrid, mu2_eff, p3["sigma2"])
     ax.plot(xgrid, pdf_n, "b-", lw=2); ax.plot(xgrid, pdf_s, "r-", lw=2)
     ax.plot(xgrid, pdf_n + pdf_s, "k--", lw=1.5)
     ax.set_title(f"Step 3: Signal time-dep\nAIC={p3['aic']:.1f}, β={p3['beta']:.4f}")
-    ax.set_xlabel("log2(FC)"); ax.set_xlim(xgrid[0], xgrid[-1])
 
     # Step 4 at representative (t0=14, t1=180)
-    ax = axes[1, 0]
-    ax.hist(x, bins=30, density=True, alpha=0.4, color="gray", edgecolor="black", linewidth=0.5)
+    ax = axes[1, 0]; hist_bg(ax)
     z_repr = tau_ratio_covariate(14, 180)
     mu_n = -p4["alpha1"] * z_repr
     pdf_n = p4["pi_noise"] * stats.norm.pdf(xgrid, mu_n, p4["sigma1"])
@@ -855,38 +852,41 @@ def plot_summary(x, p1, p2, p3, p4, p5, df):
         xgrid + p4["alpha2"] * z_repr, p4["mu_bio"], p4["sigma1"], p4["sigma_bio"])
     ax.plot(xgrid, pdf_n, "b-", lw=2); ax.plot(xgrid, pdf_s, "r-", lw=2)
     ax.plot(xgrid, pdf_n + pdf_s, "k--", lw=1.5)
-    cv4 = sigma_log2_to_cv(p4["sigma1"])
-    ax.set_title(f"Step 4: Teunis τ-ratio\nAIC={p4['aic']:.1f}, CV≈{cv4:.2f}")
-    ax.set_xlabel("log2(FC)"); ax.set_xlim(xgrid[0], xgrid[-1])
+    ax.set_title(f"Step 4: Teunis τ-ratio\nAIC={p4['aic']:.1f}, CV≈{sigma_log2_to_cv(p4['sigma1']):.2f}")
 
-    # Step 5: fold-rise curve + data colored by P(resp)
-    ax = axes[1, 1]
+    # Step 5: MC-marginalized over empirical (eu_start, z) distribution
+    ax = axes[1, 1]; hist_bg(ax)
     eu = df["eu_start"].values
-    p_resp5 = 1 - p5["p_noise"]
+    z_all = tau_ratio_covariate(df["t_start"].values, df["t_end"].values)
+    # For each xgrid point, average the per-subject PDF over all subjects
+    pdf_n5 = np.zeros_like(xgrid)
+    pdf_s5 = np.zeros_like(xgrid)
+    for i in range(len(df)):
+        pdf_n5 += p5["pi_noise"] * stats.norm.pdf(xgrid, -p5["alpha1"] * z_all[i], p5["sigma1"])
+        b0_mean_i = fold_rise_log2(eu[i], p5["mu_0"], p5["log10_cop_max"])
+        pdf_s5 += (1 - p5["pi_noise"]) * truncnorm_conv_pdf(
+            xgrid + p5["alpha2"] * z_all[i], b0_mean_i, p5["sigma1"], p5["sigma_bio"])
+    pdf_n5 /= len(df)
+    pdf_s5 /= len(df)
+    ax.plot(xgrid, pdf_n5, "b-", lw=2); ax.plot(xgrid, pdf_s5, "r-", lw=2)
+    ax.plot(xgrid, pdf_n5 + pdf_s5, "k--", lw=1.5)
+    cv5 = sigma_log2_to_cv(p5["sigma1"])
+    ax.set_title(f"Step 5: Fold-rise (marginalized)\nAIC={p5['aic']:.1f}, μ₀={p5['mu_0']:.2f}, "
+                 f"CoP_max={p5['cop_max']:.0f}")
+
+    # Step 5 detail: fold-rise curve
+    ax = axes[1, 2]
     eu_grid = np.logspace(0, 4, 200)
     fr_grid = fold_rise_log2(eu_grid, p5["mu_0"], p5["log10_cop_max"])
-    ax.plot(eu_grid, 2**fr_grid, "r-", linewidth=2, label=f"Fold-rise (μ₀={p5['mu_0']:.2f})")
+    ax.plot(eu_grid, 2**fr_grid, "r-", linewidth=2, label=f"μ₀={p5['mu_0']:.2f}")
+    p_resp5 = 1 - p5["p_noise"]
     sc = ax.scatter(eu, 2**x, c=p_resp5, cmap="RdYlBu_r", s=20, alpha=0.6,
                     edgecolors="black", linewidths=0.3, vmin=0, vmax=1)
     ax.set_xscale("log"); ax.set_yscale("log")
     ax.axhline(1, color="gray", linestyle=":", lw=0.8)
-    cv5 = sigma_log2_to_cv(p5["sigma1"])
-    ax.set_title(f"Step 5: Fold-rise-informed\nAIC={p5['aic']:.1f}, μ₀={p5['mu_0']:.2f}, "
-                 f"CoP_max={p5['cop_max']:.0f}")
     ax.set_xlabel("Starting EU"); ax.set_ylabel("Fold change")
+    ax.set_title(f"Step 5: Fold-rise model\nCoP_max={p5['cop_max']:.0f} EU")
     ax.legend(fontsize=8)
-
-    # Step 5: P(resp) vs starting EU
-    ax = axes[1, 2]
-    sc = ax.scatter(eu, p_resp5, c=x, cmap="coolwarm", s=20, alpha=0.6,
-                    edgecolors="black", linewidths=0.3, vmin=-2, vmax=2)
-    plt.colorbar(sc, ax=ax, label="log2(FC)")
-    ax.axhline(0.5, color="gray", linestyle="--", lw=0.8)
-    ax.set_xscale("log")
-    ax.set_xlabel("Starting EU"); ax.set_ylabel("P(responder)")
-    n_resp = (p_resp5 > 0.5).sum()
-    ax.set_title(f"Step 5: P(resp) vs titer\n{n_resp}/{len(x)} responders")
-    ax.grid(True, alpha=0.3)
 
     fig.suptitle(f"Model comparison (n={len(x)}, all with σ₂ = √(σ₁² + σ_bio²))", fontsize=13, fontweight="bold")
     fig.tight_layout()
