@@ -354,18 +354,30 @@ def truncnorm_conv_pdf(x, mu, sigma1, sigma_bio):
     return stats.norm.pdf(x, mu, sigma2) * stats.norm.cdf(m / v) / trunc_norm
 
 
+def neg_ll_teunis_untrunc(theta, x, z):
+    """Untruncated Gaussian signal — the working model (Step 4a)."""
+    alpha1, log_sigma1, mu_bio, alpha2, log_sigma_bio, logit_pi = theta
+    sigma1 = np.exp(log_sigma1)
+    sigma_bio = np.exp(log_sigma_bio)
+    sigma2 = compute_sigma2(sigma1, sigma_bio)
+    pi_noise = 1 / (1 + np.exp(-logit_pi))
+
+    pdf_n = stats.norm.pdf(x, -alpha1 * z, sigma1)
+    pdf_s = stats.norm.pdf(x, mu_bio - alpha2 * z, sigma2)
+
+    mixture = pi_noise * pdf_n + (1 - pi_noise) * pdf_s
+    mixture = np.maximum(mixture, 1e-300)
+    return -np.sum(np.log(mixture))
+
+
 def neg_ll_teunis_mixture(theta, x, z):
+    """Truncated signal — experimental (Step 4b)."""
     alpha1, log_sigma1, mu_bio, alpha2, log_sigma_bio, logit_pi = theta
     sigma1 = np.exp(log_sigma1)
     sigma_bio = np.exp(log_sigma_bio)
     pi_noise = 1 / (1 + np.exp(-logit_pi))
 
-    # Noise: Gaussian, no truncation
     pdf_n = stats.norm.pdf(x, -alpha1 * z, sigma1)
-    # Signal: truncated boost at t_peak, then waned.
-    # B0 ~ TruncNorm(mu_bio, sigma_bio, lower=0) is the initial boost (always ≥0).
-    # Observed: x = B0 - alpha2*z + epsilon, so B0+epsilon = x + alpha2*z.
-    # Evaluate the truncated convolution at the "de-waned" fold change.
     pdf_s = truncnorm_conv_pdf(x + alpha2 * z, mu_bio, sigma1, sigma_bio)
 
     mixture = pi_noise * pdf_n + (1 - pi_noise) * pdf_s
@@ -373,8 +385,47 @@ def neg_ll_teunis_mixture(theta, x, z):
     return -np.sum(np.log(mixture))
 
 
+def fit_teunis_untrunc(x, t0, t1, p1):
+    """Fit untruncated Teunis mixture — the WORKING MODEL (Step 4a).
+
+    Both components Gaussian, τ-ratio covariate, σ₂ = √(σ₁² + σ_bio²).
+    """
+    z = tau_ratio_covariate(t0, t1)
+    x0 = [
+        0.025, np.log(p1["sigma1"]),
+        p1["mu2"], -0.1,
+        np.log(p1["sigma_bio"]),
+        np.log(p1["pi_noise"] / (1 - p1["pi_noise"])),
+    ]
+    result = optimize.minimize(
+        neg_ll_teunis_untrunc, x0, args=(x, z),
+        method="Nelder-Mead", options={"maxiter": 100000, "xatol": 1e-8, "fatol": 1e-8},
+    )
+
+    alpha1, log_sigma1, mu_bio, alpha2, log_sigma_bio, logit_pi = result.x
+    sigma1 = np.exp(log_sigma1)
+    sigma_bio = np.exp(log_sigma_bio)
+    sigma2 = compute_sigma2(sigma1, sigma_bio)
+    pi_noise = 1 / (1 + np.exp(-logit_pi))
+    ll = -result.fun
+    aic, bic = compute_ic(ll, 6, len(x))
+
+    pdf_n = stats.norm.pdf(x, -alpha1 * z, sigma1)
+    pdf_s = stats.norm.pdf(x, mu_bio - alpha2 * z, sigma2)
+    p_noise, _ = compute_posteriors(x, pi_noise, pdf_n, pdf_s)
+
+    return {
+        "alpha1": alpha1, "sigma1": sigma1,
+        "mu_bio": mu_bio, "alpha2": alpha2,
+        "sigma_bio": sigma_bio, "sigma2": sigma2,
+        "t_peak": T_PEAK, "pi_noise": pi_noise,
+        "ll": ll, "aic": aic, "bic": bic,
+        "converged": result.success, "p_noise": p_noise,
+    }
+
+
 def fit_teunis_mixture(x, t0, t1, p1):
-    """Fit Teunis power-law mixture. t_peak fixed, pure τ-ratio covariate.
+    """Fit truncated Teunis mixture — experimental (Step 4b).
 
     Multi-start optimization to avoid local minima — the truncated signal
     component creates a more complex likelihood surface than the Gaussian version.
