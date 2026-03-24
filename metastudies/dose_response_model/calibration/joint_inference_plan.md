@@ -141,13 +141,16 @@ $$
 P_{\text{maryland,fev}}^{\text{obs}}(D) = P_{\text{fev}}(D/\delta, \text{CoP}) \cdot \phi(D/\delta, \text{CoP})
 $$
 
-where $\phi \in (0, 1]$ is the fraction of true fever cases (by the Oxford definition) that also meet the Maryland definition. From the Jin 2017 sensitivity analysis of Oxford controls:
+where $\phi \in (0, 1]$ is the fraction of true fever cases (by the Oxford definition) that also meet the Maryland definition. From fever threshold analyses in Oxford controls:
 
-| Threshold | Rate in controls | Ratio to composite TD |
-|---|---|---|
-| ≥38.0°C (Oxford) | 55% | 0.71 |
-| ≥39.0°C | 29% | 0.38 |
-| ≥39.4°C (Maryland-equivalent) | ~25% est. | ~0.32 est. |
+| Threshold | Source | Rate in controls | Ratio to study composite TD |
+|---|---|---|---|
+| ≥38.0°C | Jin (17/31, TD=77%) | 55% | 0.71 |
+| ≥38.5°C | Jin (14/31, TD=77%) | 45% | 0.58 |
+| ≥39.0°C | Darton (9/30, TD=67%) | 30% | 0.45 |
+| ≥39.4°C (Maryland-equivalent) | Extrapolated | ~22-25% est. | ~0.3-0.37 est. |
+
+**Note**: The ≥39.0°C threshold is from Darton 2016 placebo (not Jin 2017; Jin only reports ≥37.5, ≥38.0, ≥38.5). The ratio to composite TD differs by study because Darton has a lower composite TD rate (67% vs 77%). The studies give consistent rates at matched thresholds (≥38.0°C: 55% vs 60%; ≥38.5°C: 45% vs 43%), supporting interpolation across studies.
 
 However, $\phi$ is likely dose-dependent: at high doses, infections are more severe, so a higher fraction meets the strict criterion. We parameterize:
 
@@ -280,8 +283,22 @@ Study ID: OVG2014/08. N=103 per-protocol. Dose: 1-5×10⁴ CFU.
 | J-I-ViPS | Vi-PS | 35 | 21 | 0.60 |
 
 **Additional fever thresholds (controls only)**: Used to inform φ.
+- ≥37.5°C: 20/31 = 65%
 - ≥38.0°C: 17/31 = 55%
-- ≥39.0°C: 9/31 = 29%
+- ≥38.5°C: 14/31 = 45%
+- (Jin does NOT report ≥39.0°C; use Darton 2016 placebo for that threshold: 9/30 = 30%)
+
+**Alternative diagnostic criteria (Supplementary Table S1, controls only)**: Provide additional validation targets.
+- Fever ≥37.5°C + bacteraemia (any order): 18/31 = 58%
+- Fever ≥38.0°C + bacteraemia (any order): 16/31 = 52%
+- Fever ≥38.0°C with *subsequent* bacteraemia: 13/31 = 42% — best field-trial analog
+
+**Pre-vaccination anti-Vi GMTs (Supplementary Table S2)**: Control 7.7, Vi-TT 5.6, Vi-PS 6.3 EU/mL (all NS). Confirms groups balanced at baseline. Control Day 28 GMT = 8.0 (no drift).
+
+**Anti-Vi IgG by diagnosis status (Supplementary Table S2)**:
+- Vi-TT: Diagnosed GMT 522, Undiagnosed 586 (p=0.84, NS). Within-group anti-Vi does NOT predict outcome → group-GMT approximation adequate.
+- Vi-PS: Diagnosed GMT 73, Undiagnosed 207 (p=0.007). Within-group anti-Vi DOES predict outcome → group-GMT approximation introduces Jensen's inequality bias; integration over CoP distribution warranted.
+- Control: Diagnosed 7.1, Undiagnosed 12.0 (p=0.19, NS).
 
 **Anti-Vi IgG → TD**: OR = 0.37 (0.15-0.88), p<0.0001. Enters as regression constraint on γ_fev.
 
@@ -473,6 +490,8 @@ $$
 where $g(\cdot)$ is the CoP mapping from the titer model. This applies to:
 - Jin 2017 Vi-TT (GMT = 563 EU/mL), Vi-PS (GMT = 141 EU/mL)
 
+**Empirical evidence on the group-GMT approximation (Jin Supplementary Table S2)**: The adequacy of the group-GMT approximation differs by vaccine group. Vi-TT diagnosed vs undiagnosed GMT = 522 vs 586 (p=0.84): within-group anti-Vi variation does NOT predict outcome, so the group-GMT approximation is empirically justified. Vi-PS diagnosed vs undiagnosed GMT = 73 vs 207 (p=0.007): within-group variation DOES predict outcome, so the group-GMT approximation introduces Jensen's inequality bias for this group. For Vi-PS, integrating over the within-group CoP distribution is warranted. Individual-level anti-Vi data are not tabulated in Jin (only group GMTs and CI), but the Darton S1 individual-level data provides an empirical CoP distribution that can inform the integration for both studies.
+
 **Darton vaccine arms are EXCLUDED from γ estimation via anti-Vi CoP.** Neither M01ZH09 nor Ty21a raised anti-Vi IgG (Darton p.13). Ty21a genetically lacks the Vi capsule gene. M01ZH09 is derived from Vi-expressing Ty2 (ΔaroC ΔssaV) but a single oral dose does not generate measurable anti-Vi IgG; its protection is primarily through anti-LPS. Both vaccines operate through non-Vi mechanisms and cannot be mapped to CoP via anti-Vi GMT. They are retained in Section 11 for **validation** (does the model correctly predict their attack rates are between placebo and Vi-vaccinated?) but do not enter the γ likelihood.
 
 **The Darton anti-Vi regression — upgraded with individual-level data**: The published HR = 0.29 per log₁₀ anti-Vi can now be replaced by direct individual-level modeling. The S1 Dataset provides pre-challenge anti-Vi IgG for all 91 per-protocol subjects. This enables:
@@ -657,7 +676,7 @@ Before fitting, simulate from the prior to verify:
 | Parameter | Primary data source | Why well-identified |
 |-----------|-------------------|---------------------|
 | $N_{50,\text{fev&#124;inf}}$ | Waddington multi-dose + pooled 10⁴ data | Near N50 at 10³ bicarb; 5+ data groups |
-| $\phi$ | Jin fever threshold analysis | Direct measurement of definition gap |
+| $\phi$ | Jin + Darton fever threshold analyses | Direct measurement of definition gap (Jin: ≥38.0, ≥38.5; Darton: ≥39.0) |
 | $\pi_{\text{susc}}$ | Gilman + Levine H-antibody stratification | Direct measurement of immunity prevalence |
 
 ### 8.2 Moderately Identified Parameters
@@ -753,6 +772,8 @@ For each observation in the data:
 | Gilman H-antibody contrast (24% vs 61%) | Captured by mixture | Tests CoP_imm identification |
 | Hornick Table 2 conditional (57%) | Consistent with infection/fever curve ratio | Tests two-curve coherence |
 | Oxford vaccine VE (~55%) | From predicted CoP shift | Tests γ extrapolation |
+| Jin Vi-TT VE at fever+subsequent bacteraemia (~87%) | Predicted from differential γ_inf vs γ_fev\|inf | Tests whether cascade model captures stronger VE at stricter endpoints |
+| Jin control fever+subsequent bacteraemia (42%) | Predicted from P_inf × P_fev\|inf at ~10⁴ | Tests cascade model internal consistency (Table S1 data not in likelihood) |
 | Levine trial-to-trial variability | Within overdispersion bounds | Tests σ_study |
 | **Gibani rechallenge subgroups (HOLD-OUT)** | **Model should predict prior-disease → higher rechallenge risk** | **Critical test of γ interpretation** |
 

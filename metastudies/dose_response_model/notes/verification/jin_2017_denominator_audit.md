@@ -277,11 +277,11 @@ Based on references in the main text:
 
 ### Is the appendix available?
 
-The appendix PDF was NOT found in the input_papers directory. Only the main paper PDF is present. The appendix would need to be obtained from the Lancet supplementary materials online (doi: 10.1016/S0140-6736(17)32149-9).
+**UPDATE 2026-03-19:** The supplementary appendix (11 pages) has been obtained and is available at `input_papers/Jin et al._2017_...mmc1.pdf`. Full data from Tables S1-S4, Figures S1-S3, and inclusion/exclusion criteria have been extracted into Jin_2017.md.
 
-### Would the appendix help?
+### Appendix verification of estimated numerators
 
-Unlikely to provide full-cohort bacteraemia data that differs from what can be reconstructed. The key insight (Section 4) is that full-cohort bacteraemia is logically derivable: any bacteraemic participant is automatically diagnosed, so the full-cohort numerator equals the diagnosed-subset numerator. No supplementary data is needed for this reconstruction.
+The audit (below) estimated fever-preceding-bacteraemia numerators from VE values as ~13/31, ~2/37, ~5/35. Supplement Table S1 confirms: **13/31, 2/37, 7/35**. The Vi-PS estimate was incorrect (~5 vs actual 7). All other estimates were correct. The extract now uses the verified supplement values.
 
 ---
 
@@ -311,9 +311,7 @@ Unlikely to provide full-cohort bacteraemia data that differs from what can be r
 | Reconstructed full-cohort bacteraemia | 24/31 | 13/37 | 11/35 | Infection (systemic) | Yes, but nearly redundant with composite for Control/Vi-TT |
 | Fever >= 38.0C (any duration) | 17/31 | 6/37 | 11/35 | Disease (clinical) | Yes -- approximates field definitions |
 | Stool culture positive (all participants) | 22/31 | 22/37 | 21/35 | Infection (mucosal) | Conditionally -- useful as colonization endpoint, poor VE discriminator |
-| Fever >= 38.0C preceding bacteraemia (post-hoc) | ~13/31* | ~2/37* | ~5/35* | Disease (field approximation) | Yes -- best field-trial analog; numerators need verification from appendix |
-
-*Numerators for fever-preceding-bacteraemia estimated from VE values but should be verified against appendix p.1.
+| Fever >= 38.0C preceding bacteraemia (post-hoc) | 13/31 | 2/37 | 7/35 | Disease (field approximation) | Yes -- best field-trial analog; **verified from Supplementary Table S1 (2026-03-19)** |
 
 ---
 

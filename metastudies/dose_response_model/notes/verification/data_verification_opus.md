@@ -220,7 +220,7 @@ No -- there are meaningful differences:
 - Hornick 1970 Part 2 re-challenge data ("illness rate was now about 25 per cent" but exact N not given).
 - Levine 1976 vaccine arms (fresh vaccine: 5/30 = 17%, 3/26 = 12%; lyophilized: 16/49 = 33%, 3/17 = 18%).
 - Gibani 2020 SPT-ST cross-challenge data (7/10 = 70%).
-- Jin 2017 fever threshold sensitivity data for controls (>=37.5: 20/31 = 65%; >=38.0: 17/31 = 55%; >=38.5: 14/31 = 45%). The plan uses >=38.0 and >=39.0 but not >=38.5.
+- Jin 2017 fever threshold sensitivity data for controls (>=37.5: 20/31 = 65%; >=38.0: 17/31 = 55%; >=38.5: 14/31 = 45%). **Note**: Jin does NOT report >=39.0°C; the >=39.0°C data (9/30 = 30%) is from Darton 2016 placebo Table 2. This was previously misattributed to Jin in the plan (corrected 2026-03-19).
 - Darton 2016 fever threshold sensitivity data for all arms.
 - Gilman 1977 shedding data for Trial 2 controls (8/21 late shedding = 38%).
 

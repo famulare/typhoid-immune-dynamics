@@ -17,7 +17,7 @@ We thank Reviewer 2 for a thorough and constructive review. The review identifie
 
 $$\phi(D_{\text{eff}}) = 1 - (1 - \phi_{\min}) \cdot e^{-D_{\text{eff}} / D_{\phi}}$$
 
-where $\phi_{\min}$ is the baseline definition sensitivity at low effective doses and $D_{\phi}$ is the effective dose at which $\phi$ approaches 1. This adds 1 parameter (2 total for the definition model: $\phi_{\min}$ and $D_{\phi}$), but the Jin 2017 multi-threshold data directly constrains both: the decline from 77% (composite) to 29% (≥39°C) at a single dose pins $\phi_{\min}$, while the known convergence at high doses pins $D_{\phi}$.
+where $\phi_{\min}$ is the baseline definition sensitivity at low effective doses and $D_{\phi}$ is the effective dose at which $\phi$ approaches 1. This adds 1 parameter (2 total for the definition model: $\phi_{\min}$ and $D_{\phi}$), but the Oxford multi-threshold data directly constrains both: the decline from 77% (composite) to ~30% (≥39°C, from Darton placebo) pins $\phi_{\min}$, while the known convergence at high doses pins $D_{\phi}$.
 
 However, we note that even with dose-dependent phi, the three-way confound remains at the level of the Maryland ID50 position. **We will add** to Section 8.3 an explicit discussion of the phi-delta-CoP_imm surface, and we will present the 2D grid sensitivity analysis (phi_min × delta) as recommended.
 

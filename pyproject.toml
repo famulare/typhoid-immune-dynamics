@@ -1,0 +1,25 @@
+[project]
+name = "typhoid-immune-dynamics"
+version = "0.1.0"
+description = "Typhoid immune dynamics modeling and analysis"
+requires-python = ">=3.12"
+dependencies = [
+    # Documentation site
+    "mkdocs>=1.6",
+    "mkdocs-material>=9.6",
+    "mkdocs-awesome-nav>=3.0",
+    "mkdocs-git-committers-plugin-2>=2.5",
+    "mkdocs-git-revision-date-localized-plugin>=1.4",
+    "mkdocs-open-in-new-tab>=1.0",
+    "mkdocs-rss-plugin>=1.17",
+    # Data analysis
+    "numpy",
+    "pandas",
+]
+
+[project.optional-dependencies]
+extraction = [
+    "PyMuPDF>=1.24",
+    "matplotlib",
+    "scipy",
+]

@@ -1,0 +1,444 @@
+[
+  {
+    "text": "13 ",
+    "bbox": [
+      565.9999389648438,
+      721.8187255859375,
+      578.52001953125,
+      732.977294921875
+    ],
+    "font": "TimesNewRomanPSMT",
+    "size": 10.079999923706055,
+    "color": 0,
+    "origin": [
+      565.9999389648438,
+      730.7999877929688
+    ],
+    "flags": 4
+  },
+  {
+    "text": "Appendix to: Estimating typhoid incidence from community-based serosurveys: a multicohort study ",
+    "bbox": [
+      36.0,
+      733.3387451171875,
+      436.7767028808594,
+      744.497314453125
+    ],
+    "font": "TimesNewRomanPS-ItalicMT",
+    "size": 10.079999923706055,
+    "color": 0,
+    "origin": [
+      36.0,
+      742.3200073242188
+    ],
+    "flags": 6
+  },
+  {
+    "text": " ",
+    "bbox": [
+      36.0,
+      744.8587646484375,
+      38.52000045776367,
+      756.017333984375
+    ],
+    "font": "TimesNewRomanPSMT",
+    "size": 10.079999923706055,
+    "color": 0,
+    "origin": [
+      36.0,
+      753.8400268554688
+    ],
+    "flags": 4
+  },
+  {
+    "text": "13 ",
+    "bbox": [
+      565.9199829101562,
+      721.8187255859375,
+      578.4398803710938,
+      732.977294921875
+    ],
+    "font": "TimesNewRomanPSMT",
+    "size": 10.079999923706055,
+    "color": 0,
+    "origin": [
+      565.9199829101562,
+      730.7999877929688
+    ],
+    "flags": 4
+  },
+  {
+    "text": "Fig. S11. Kinetics and age-dependent anti-Vi IgG antibody responses for Vi IgG.",
+    "bbox": [
+      36.0,
+      36.3480224609375,
+      447.3648681640625,
+      49.632022857666016
+    ],
+    "font": "TimesNewRomanPS-BoldMT",
+    "size": 12.0,
+    "color": 0,
+    "origin": [
+      36.0,
+      47.04002380371094
+    ],
+    "flags": 20
+  },
+  {
+    "text": " Data are from the two ",
+    "bbox": [
+      447.3633728027344,
+      36.3480224609375,
+      558.6464233398438,
+      49.632022857666016
+    ],
+    "font": "TimesNewRomanPSMT",
+    "size": 12.0,
+    "color": 0,
+    "origin": [
+      447.3633728027344,
+      47.04002380371094
+    ],
+    "flags": 4
+  },
+  {
+    "text": "study communities in Nepal. (A) Anti-Vi IgG responses following fever onset among culture-confirmed ",
+    "bbox": [
+      36.0,
+      50.02801513671875,
+      539.2127075195312,
+      63.312015533447266
+    ],
+    "font": "TimesNewRomanPSMT",
+    "size": 12.0,
+    "color": 0,
+    "origin": [
+      36.0,
+      60.72001647949219
+    ],
+    "flags": 4
+  },
+  {
+    "text": "S.",
+    "bbox": [
+      539.2149658203125,
+      50.02801513671875,
+      548.2149658203125,
+      63.312015533447266
+    ],
+    "font": "TimesNewRomanPS-ItalicMT",
+    "size": 12.0,
+    "color": 0,
+    "origin": [
+      539.2149658203125,
+      60.72001647949219
+    ],
+    "flags": 6
+  },
+  {
+    "text": " ",
+    "bbox": [
+      548.2149658203125,
+      50.02801513671875,
+      551.2149658203125,
+      63.312015533447266
+    ],
+    "font": "TimesNewRomanPSMT",
+    "size": 12.0,
+    "color": 0,
+    "origin": [
+      548.2149658203125,
+      60.72001647949219
+    ],
+    "flags": 4
+  },
+  {
+    "text": "Typhi cases. (B) Anti-Vi IgG responses by age from the cross-sectional population-based serosurveys in two ",
+    "bbox": [
+      36.0,
+      63.94801330566406,
+      561.2098999023438,
+      77.23201751708984
+    ],
+    "font": "TimesNewRomanPSMT",
+    "size": 12.0,
+    "color": 0,
+    "origin": [
+      36.0,
+      74.6400146484375
+    ],
+    "flags": 4
+  },
+  {
+    "text": "communities. (C) Ratio of antibody responses among culture-confirmed typhoid cases at 1 month following ",
+    "bbox": [
+      36.0,
+      77.62802124023438,
+      556.8920288085938,
+      90.91202545166016
+    ],
+    "font": "TimesNewRomanPSMT",
+    "size": 12.0,
+    "color": 0,
+    "origin": [
+      36.0,
+      88.32002258300781
+    ],
+    "flags": 4
+  },
+  {
+    "text": "fever onset, compared with the mean of the population-based serosurvey participants. ",
+    "bbox": [
+      36.0,
+      91.78801727294922,
+      449.5312805175781,
+      105.072021484375
+    ],
+    "font": "TimesNewRomanPSMT",
+    "size": 12.0,
+    "color": 0,
+    "origin": [
+      36.0,
+      102.48001861572266
+    ],
+    "flags": 4
+  },
+  {
+    "text": " ",
+    "bbox": [
+      36.0,
+      114.37873840332031,
+      38.52000045776367,
+      125.53729248046875
+    ],
+    "font": "TimesNewRomanPS-BoldMT",
+    "size": 10.079999923706055,
+    "color": 0,
+    "origin": [
+      36.0,
+      123.36001586914062
+    ],
+    "flags": 20
+  },
+  {
+    "text": " ",
+    "bbox": [
+      504.0,
+      465.9787292480469,
+      506.5199890136719,
+      477.1372985839844
+    ],
+    "font": "TimesNewRomanPS-BoldMT",
+    "size": 10.079999923706055,
+    "color": 0,
+    "origin": [
+      504.0,
+      474.96002197265625
+    ],
+    "flags": 20
+  },
+  {
+    "text": " ",
+    "bbox": [
+      36.0,
+      484.4587097167969,
+      38.52000045776367,
+      495.6172790527344
+    ],
+    "font": "TimesNewRomanPS-BoldMT",
+    "size": 10.079999923706055,
+    "color": 0,
+    "origin": [
+      36.0,
+      493.44000244140625
+    ],
+    "flags": 20
+  },
+  {
+    "text": " ",
+    "bbox": [
+      36.0,
+      504.8586730957031,
+      38.52000045776367,
+      516.0172729492188
+    ],
+    "font": "TimesNewRomanPS-BoldMT",
+    "size": 10.079999923706055,
+    "color": 0,
+    "origin": [
+      36.0,
+      513.8399658203125
+    ],
+    "flags": 20
+  },
+  {
+    "text": " ",
+    "bbox": [
+      36.0,
+      525.2587280273438,
+      38.52000045776367,
+      536.4172973632812
+    ],
+    "font": "TimesNewRomanPS-BoldMT",
+    "size": 10.079999923706055,
+    "color": 0,
+    "origin": [
+      36.0,
+      534.239990234375
+    ],
+    "flags": 20
+  },
+  {
+    "text": " ",
+    "bbox": [
+      36.0,
+      545.8987426757812,
+      38.52000045776367,
+      557.0573120117188
+    ],
+    "font": "TimesNewRomanPS-BoldMT",
+    "size": 10.079999923706055,
+    "color": 0,
+    "origin": [
+      36.0,
+      554.8800048828125
+    ],
+    "flags": 20
+  },
+  {
+    "text": " ",
+    "bbox": [
+      36.0,
+      566.2987670898438,
+      38.52000045776367,
+      577.4573364257812
+    ],
+    "font": "TimesNewRomanPS-BoldMT",
+    "size": 10.079999923706055,
+    "color": 0,
+    "origin": [
+      36.0,
+      575.280029296875
+    ],
+    "flags": 20
+  },
+  {
+    "text": " ",
+    "bbox": [
+      36.0,
+      586.9387817382812,
+      38.52000045776367,
+      598.0973510742188
+    ],
+    "font": "TimesNewRomanPS-BoldMT",
+    "size": 10.079999923706055,
+    "color": 0,
+    "origin": [
+      36.0,
+      595.9200439453125
+    ],
+    "flags": 20
+  },
+  {
+    "text": " ",
+    "bbox": [
+      36.0,
+      607.3387451171875,
+      38.52000045776367,
+      618.497314453125
+    ],
+    "font": "TimesNewRomanPS-BoldMT",
+    "size": 10.079999923706055,
+    "color": 0,
+    "origin": [
+      36.0,
+      616.3200073242188
+    ],
+    "flags": 20
+  },
+  {
+    "text": " ",
+    "bbox": [
+      36.0,
+      627.978759765625,
+      38.52000045776367,
+      639.1373291015625
+    ],
+    "font": "TimesNewRomanPS-BoldMT",
+    "size": 10.079999923706055,
+    "color": 0,
+    "origin": [
+      36.0,
+      636.9600219726562
+    ],
+    "flags": 20
+  },
+  {
+    "text": " ",
+    "bbox": [
+      36.0,
+      648.3787231445312,
+      38.52000045776367,
+      659.5372924804688
+    ],
+    "font": "TimesNewRomanPS-BoldMT",
+    "size": 10.079999923706055,
+    "color": 0,
+    "origin": [
+      36.0,
+      657.3599853515625
+    ],
+    "flags": 20
+  },
+  {
+    "text": " ",
+    "bbox": [
+      36.0,
+      668.7787475585938,
+      38.52000045776367,
+      679.9373168945312
+    ],
+    "font": "TimesNewRomanPS-BoldMT",
+    "size": 10.079999923706055,
+    "color": 0,
+    "origin": [
+      36.0,
+      677.760009765625
+    ],
+    "flags": 20
+  },
+  {
+    "text": " ",
+    "bbox": [
+      36.0,
+      689.4187622070312,
+      38.52000045776367,
+      700.5773315429688
+    ],
+    "font": "TimesNewRomanPS-BoldMT",
+    "size": 10.079999923706055,
+    "color": 0,
+    "origin": [
+      36.0,
+      698.4000244140625
+    ],
+    "flags": 20
+  },
+  {
+    "text": " ",
+    "bbox": [
+      36.0,
+      709.8187866210938,
+      38.52000045776367,
+      720.9773559570312
+    ],
+    "font": "TimesNewRomanPS-BoldMT",
+    "size": 10.079999923706055,
+    "color": 0,
+    "origin": [
+      36.0,
+      718.800048828125
+    ],
+    "flags": 20
+  }
+]

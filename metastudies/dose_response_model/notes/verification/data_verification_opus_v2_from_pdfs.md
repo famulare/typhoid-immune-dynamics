@@ -224,7 +224,7 @@ The 2-person discrepancy (32 in Table 1 vs 30 Quailes in Table 2) could mean:
 | Quantitative bacteremia (CFU/mL) | Darton Table 2, Jin Table 2 | Bacterial load as continuous outcome |
 | Time-to-event (hours to TD) | All Oxford studies | Survival analysis approach |
 | Darton sensitivity analysis (multiple fever thresholds) | Darton Table 2 | Constrain phi (Oxford-Maryland fever threshold mapping) |
-| Jin fever thresholds (>=38.0, >=38.5, >=39.0) in controls | Jin Table 2 | Same as above -- the plan lists these in 4.1.3 but doesn't include them in Section 11 |
+| Jin fever thresholds (>=38.0, >=38.5) in controls | Jin Table 2 | Same as above -- the plan lists these in 4.1.3 but doesn't include them in Section 11. **Note**: Jin does NOT report >=39.0°C; that threshold (9/30 = 30%) comes from Darton 2016 placebo Table 2. Misattribution corrected 2026-03-19. |
 | Gibani 2020 rechallenge subgroup (prior disease yes/no) | Gibani Table 3 | Listed in Section 4.1.4 but not in Section 11 as formal observations |
 | Hornick rechallenge data (~25% illness rate) | Hornick 1970 Part 2 p.742 | Gamma estimation |
 | Stool shedding in Levine Trials 2-4 | Levine Table 2 | Additional infection observations |
