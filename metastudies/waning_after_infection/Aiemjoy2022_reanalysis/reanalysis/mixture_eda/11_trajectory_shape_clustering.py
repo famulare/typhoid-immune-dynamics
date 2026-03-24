@@ -246,5 +246,161 @@ def main():
     print("\nSaved 11_shape_clustering.png")
 
 
+    # =====================================================================
+    # Figure 2: 2×3 faceted trajectories by cluster (like script 10 style)
+    # Top: absolute titers with LOESS. Bottom: mean-centered with LOESS.
+    # =====================================================================
+    from statsmodels.nonparametric.smoothers_lowess import lowess as sm_lowess
+
+    fig, axes = plt.subplots(2, k_primary, figsize=(6 * k_primary, 10),
+                             sharex=True)
+
+    for col, c in enumerate(range(1, k_primary + 1)):
+        c_sids = [s for s in sids if cluster_map_ordered[s] == c]
+        c_presps = [subject_info[s]["p_resp"] for s in c_sids
+                    if not np.isnan(subject_info[s]["p_resp"])]
+        mean_presp = np.mean(c_presps) if c_presps else np.nan
+        n_typhi = sum(1 for s in c_sids if subject_info[s]["serovar"] == "typhi")
+        n_para = len(c_sids) - n_typhi
+
+        # Collect all points for LOESS
+        all_t, all_y, all_y_centered = [], [], []
+        subj_means = {}
+
+        for sid in c_sids:
+            grp = longi[longi["index_id"] == sid].sort_values("days_since_fever_onset")
+            t = grp["days_since_fever_onset"].values
+            y = np.log10(np.maximum(grp["vi_igg_eu"].values, 1))
+            subj_means[sid] = y.mean()
+            all_t.extend(t)
+            all_y.extend(y)
+            all_y_centered.extend(y - y.mean())
+
+        all_t = np.array(all_t)
+        all_y = np.array(all_y)
+        all_y_centered = np.array(all_y_centered)
+
+        # --- Row 0: absolute titers ---
+        ax = axes[0, col]
+        for sid in c_sids:
+            grp = longi[longi["index_id"] == sid].sort_values("days_since_fever_onset")
+            sv_color = "#9133be" if subject_info[sid]["serovar"] == "typhi" else "#2ca02c"
+            ax.plot(grp["days_since_fever_onset"], grp["vi_igg_eu"],
+                    color=sv_color, linewidth=0.8, alpha=0.5)
+            ax.scatter(grp["days_since_fever_onset"], grp["vi_igg_eu"],
+                       color=sv_color, s=15, alpha=0.5, edgecolors="black", linewidths=0.2)
+
+        # LOESS on absolute log10
+        if len(all_t) >= 6:
+            smooth = sm_lowess(all_y, all_t, frac=0.6, return_sorted=True)
+            ax.plot(smooth[:, 0], 10**smooth[:, 1], color=cluster_colors[c],
+                    linewidth=3, alpha=0.9, zorder=10)
+
+        ax.set_yscale("log"); ax.set_ylim(10, 5000); ax.set_xlim(-10, 400)
+        ax.grid(True, alpha=0.3)
+        ax.set_title(f"C{c}: {cluster_names[c]}\n"
+                     f"n={len(c_sids)} ({n_typhi}T, {n_para}P), "
+                     f"mean P(resp)={mean_presp:.2f}",
+                     fontsize=10)
+        if col == 0:
+            ax.set_ylabel("Vi IgG (EU)")
+
+        # --- Row 1: mean-centered ---
+        ax = axes[1, col]
+        for sid in c_sids:
+            grp = longi[longi["index_id"] == sid].sort_values("days_since_fever_onset")
+            y = np.log10(np.maximum(grp["vi_igg_eu"].values, 1))
+            y_c = y - subj_means[sid]
+            sv_color = "#9133be" if subject_info[sid]["serovar"] == "typhi" else "#2ca02c"
+            ax.plot(grp["days_since_fever_onset"].values, y_c,
+                    color=sv_color, linewidth=0.8, alpha=0.5)
+            ax.scatter(grp["days_since_fever_onset"].values, y_c,
+                       color=sv_color, s=15, alpha=0.5, edgecolors="black", linewidths=0.2)
+
+        # LOESS on mean-centered
+        if len(all_t) >= 6:
+            smooth = sm_lowess(all_y_centered, all_t, frac=0.6, return_sorted=True)
+            ax.plot(smooth[:, 0], smooth[:, 1], color=cluster_colors[c],
+                    linewidth=3, alpha=0.9, zorder=10)
+
+        ax.axhline(0, color="gray", linestyle=":", linewidth=0.8)
+        ax.set_xlim(-10, 400); ax.grid(True, alpha=0.3)
+        ax.set_xlabel("Days since fever onset")
+        if col == 0:
+            ax.set_ylabel("log10(EU) − subject mean")
+
+    legend_els = [
+        Line2D([0], [0], color="#9133be", lw=1.5, label="S. Typhi"),
+        Line2D([0], [0], color="#2ca02c", lw=1.5, label="S. Paratyphi A"),
+        Line2D([0], [0], color="gray", lw=3, label="LOESS (cluster)"),
+    ]
+    axes[0, -1].legend(handles=legend_els, fontsize=8, loc="upper right")
+
+    fig.suptitle(f"Trajectory shape clusters (n={n}, k={k_primary})\n"
+                 f"Top: absolute titers | Bottom: mean-centered",
+                 fontsize=13, fontweight="bold")
+    fig.tight_layout()
+    fig.savefig(OUT_DIR / "11_cluster_trajectories.png", dpi=150, bbox_inches="tight")
+    plt.close()
+    print("Saved 11_cluster_trajectories.png")
+
+    # =====================================================================
+    # Figure 3: Cluster membership vs P(resp)
+    # Stacked bar / proportion plot showing cluster composition at each
+    # P(resp) level, and P(resp) distribution colored by cluster
+    # =====================================================================
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+
+    # Panel A: P(resp) histogram colored by cluster
+    ax = axes[0]
+    presp_by_cluster = {}
+    for c in range(1, k_primary + 1):
+        c_sids = [s for s in sids if cluster_map_ordered[s] == c]
+        presp_by_cluster[c] = [subject_info[s]["p_resp"] for s in c_sids
+                               if not np.isnan(subject_info[s]["p_resp"])]
+    bins = np.linspace(0, 1, 16)
+    bottom = np.zeros(len(bins) - 1)
+    for c in range(1, k_primary + 1):
+        counts, _ = np.histogram(presp_by_cluster[c], bins=bins)
+        ax.bar(bins[:-1] + (bins[1] - bins[0]) / 2, counts, width=bins[1] - bins[0],
+               bottom=bottom, color=cluster_colors[c], alpha=0.8,
+               edgecolor="black", linewidth=0.3, label=f"C{c}: {cluster_names[c]}")
+        bottom += counts
+    ax.set_xlabel("P(responder)")
+    ax.set_ylabel("Count")
+    ax.set_title("P(resp) distribution by shape cluster")
+    ax.legend(fontsize=9)
+    ax.axvline(0.5, color="gray", linestyle="--", linewidth=0.8)
+
+    # Panel B: Cluster proportion vs P(resp) bin
+    ax = axes[1]
+    bin_centers = bins[:-1] + (bins[1] - bins[0]) / 2
+    totals = np.zeros(len(bins) - 1)
+    counts_by_c = {}
+    for c in range(1, k_primary + 1):
+        counts_by_c[c], _ = np.histogram(presp_by_cluster[c], bins=bins)
+        totals += counts_by_c[c]
+    bottom = np.zeros(len(bins) - 1)
+    for c in range(1, k_primary + 1):
+        fracs = np.where(totals > 0, counts_by_c[c] / totals, 0)
+        ax.bar(bin_centers, fracs, width=bins[1] - bins[0], bottom=bottom,
+               color=cluster_colors[c], alpha=0.8, edgecolor="black", linewidth=0.3,
+               label=f"C{c}: {cluster_names[c]}")
+        bottom += fracs
+    ax.set_xlabel("P(responder)")
+    ax.set_ylabel("Cluster proportion")
+    ax.set_title("Shape cluster composition vs P(resp)")
+    ax.legend(fontsize=9)
+    ax.axvline(0.5, color="gray", linestyle="--", linewidth=0.8)
+    ax.set_ylim(0, 1)
+
+    fig.suptitle(f"Shape cluster membership vs mixture P(resp) (n={n})",
+                 fontsize=13, fontweight="bold")
+    fig.tight_layout()
+    fig.savefig(OUT_DIR / "11_cluster_vs_presp.png", dpi=150, bbox_inches="tight")
+    plt.close()
+    print("Saved 11_cluster_vs_presp.png")
+
+
 if __name__ == "__main__":
     main()
