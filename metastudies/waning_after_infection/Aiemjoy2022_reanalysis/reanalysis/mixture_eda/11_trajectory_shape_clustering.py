@@ -151,7 +151,7 @@ def main():
     cluster_map_ordered = dict(zip(sids, cluster_labels_ordered))
 
     cluster_colors = {1: "#2166ac", 2: "#f4a582", 3: "#b2182b"}
-    cluster_names = {1: "Low P(resp)", 2: "Medium", 3: "High P(resp)"}
+    cluster_names = {1: "Declining", 2: "Mixed/flat", 3: "Rising"}
 
     # Print cluster summary
     print(f"\nCluster summary (k={k_primary}, ordered by mean P(resp)):")
@@ -217,7 +217,7 @@ def main():
     ax.set_ylabel("Vi IgG (EU)")
     ax.set_title("Absolute trajectories by cluster")
 
-    # Panel D: P(resp) by cluster + serovar breakdown
+    # Panel D: P(resp) by cluster — individual points + mean
     ax = axes[1, 1]
     for c in range(1, k_primary + 1):
         c_sids = [s for s in sids if cluster_map_ordered[s] == c]
@@ -230,10 +230,16 @@ def main():
             marker = "o" if sv == "typhi" else "s"
             ax.scatter(c + j, p, color=cluster_colors[c], marker=marker,
                        s=30, alpha=0.7, edgecolors="black", linewidths=0.3)
+        # Mean P(resp) per cluster
+        mean_p = np.mean(presps)
+        ax.plot([c - 0.25, c + 0.25], [mean_p, mean_p], color="black",
+                linewidth=2.5, zorder=10)
+        ax.text(c + 0.28, mean_p, f"{mean_p:.2f}", fontsize=9, va="center",
+                fontweight="bold")
     ax.set_xticks(range(1, k_primary + 1))
     ax.set_xticklabels([f"C{c}\n{cluster_names[c]}" for c in range(1, k_primary + 1)])
     ax.set_ylabel("P(responder) — Step 1 mixture")
-    ax.set_title("P(resp) distribution by shape cluster\n(○=Typhi, □=Paratyphi)")
+    ax.set_title("P(resp) by shape cluster (— = mean)\n(○=Typhi, □=Paratyphi)")
     ax.axhline(0.5, color="gray", linestyle="--", linewidth=0.8)
     ax.grid(True, alpha=0.3, axis="y")
 
@@ -247,97 +253,114 @@ def main():
 
 
     # =====================================================================
-    # Figure 2: 2×3 faceted trajectories by cluster (like script 10 style)
-    # Top: absolute titers with LOESS. Bottom: mean-centered with LOESS.
+    # Figure 2: 4×3 faceted trajectories by cluster × serovar
+    # Rows: typhi absolute, typhi centered, paratyphi absolute, para centered
+    # Colored by P(resp). LOESS per panel. Filter outlier (indx387).
     # =====================================================================
     from statsmodels.nonparametric.smoothers_lowess import lowess as sm_lowess
+    import matplotlib.cm as cm
 
-    fig, axes = plt.subplots(2, k_primary, figsize=(6 * k_primary, 10),
+    # P(resp) colormap
+    presp_cmap = cm.RdYlBu_r
+    presp_norm = plt.Normalize(vmin=0.2, vmax=1.0)
+
+    # Filter obvious outlier (indx387: collapses to ~0 EU)
+    outlier_ids = {"indx387"}
+
+    row_defs = [
+        ("S. Typhi — absolute", "typhi", "absolute"),
+        ("S. Typhi — mean-centered", "typhi", "centered"),
+        ("S. Paratyphi A — absolute", "paratyphi", "absolute"),
+        ("S. Paratyphi A — mean-centered", "paratyphi", "centered"),
+    ]
+
+    fig, axes = plt.subplots(4, k_primary, figsize=(6 * k_primary, 18),
                              sharex=True)
 
+    # Precompute subject means
+    subj_means = {}
+    for sid in sids:
+        grp = longi[longi["index_id"] == sid]
+        subj_means[sid] = np.log10(np.maximum(grp["vi_igg_eu"].values, 1)).mean()
+
     for col, c in enumerate(range(1, k_primary + 1)):
-        c_sids = [s for s in sids if cluster_map_ordered[s] == c]
-        c_presps = [subject_info[s]["p_resp"] for s in c_sids
-                    if not np.isnan(subject_info[s]["p_resp"])]
-        mean_presp = np.mean(c_presps) if c_presps else np.nan
-        n_typhi = sum(1 for s in c_sids if subject_info[s]["serovar"] == "typhi")
-        n_para = len(c_sids) - n_typhi
+        c_sids = [s for s in sids if cluster_map_ordered[s] == c and s not in outlier_ids]
 
-        # Collect all points for LOESS
-        all_t, all_y, all_y_centered = [], [], []
-        subj_means = {}
+        for row_idx, (row_label, sv_filter, mode) in enumerate(row_defs):
+            ax = axes[row_idx, col]
+            sv_sids = [s for s in c_sids if subject_info[s]["serovar"] == sv_filter]
 
-        for sid in c_sids:
-            grp = longi[longi["index_id"] == sid].sort_values("days_since_fever_onset")
-            t = grp["days_since_fever_onset"].values
-            y = np.log10(np.maximum(grp["vi_igg_eu"].values, 1))
-            subj_means[sid] = y.mean()
-            all_t.extend(t)
-            all_y.extend(y)
-            all_y_centered.extend(y - y.mean())
+            # Collect for LOESS
+            all_t, all_y = [], []
 
-        all_t = np.array(all_t)
-        all_y = np.array(all_y)
-        all_y_centered = np.array(all_y_centered)
+            for sid in sv_sids:
+                grp = longi[longi["index_id"] == sid].sort_values("days_since_fever_onset")
+                t = grp["days_since_fever_onset"].values
+                y_log = np.log10(np.maximum(grp["vi_igg_eu"].values, 1))
+                p_r = subject_info[sid]["p_resp"]
+                color = presp_cmap(presp_norm(p_r))
 
-        # --- Row 0: absolute titers ---
-        ax = axes[0, col]
-        for sid in c_sids:
-            grp = longi[longi["index_id"] == sid].sort_values("days_since_fever_onset")
-            sv_color = "#9133be" if subject_info[sid]["serovar"] == "typhi" else "#2ca02c"
-            ax.plot(grp["days_since_fever_onset"], grp["vi_igg_eu"],
-                    color=sv_color, linewidth=0.8, alpha=0.5)
-            ax.scatter(grp["days_since_fever_onset"], grp["vi_igg_eu"],
-                       color=sv_color, s=15, alpha=0.5, edgecolors="black", linewidths=0.2)
+                if mode == "absolute":
+                    y_plot = grp["vi_igg_eu"].values
+                    y_for_loess = y_log
+                else:
+                    y_plot = y_log - subj_means[sid]
+                    y_for_loess = y_plot
 
-        # LOESS on absolute log10
-        if len(all_t) >= 6:
-            smooth = sm_lowess(all_y, all_t, frac=0.6, return_sorted=True)
-            ax.plot(smooth[:, 0], 10**smooth[:, 1], color=cluster_colors[c],
-                    linewidth=3, alpha=0.9, zorder=10)
+                all_t.extend(t)
+                all_y.extend(y_for_loess)
 
-        ax.set_yscale("log"); ax.set_ylim(10, 5000); ax.set_xlim(-10, 400)
-        ax.grid(True, alpha=0.3)
-        ax.set_title(f"C{c}: {cluster_names[c]}\n"
-                     f"n={len(c_sids)} ({n_typhi}T, {n_para}P), "
-                     f"mean P(resp)={mean_presp:.2f}",
-                     fontsize=10)
-        if col == 0:
-            ax.set_ylabel("Vi IgG (EU)")
+                if mode == "absolute":
+                    ax.plot(t, y_plot, color=color, linewidth=0.8, alpha=0.6)
+                    ax.scatter(t, y_plot, color=color, s=15, alpha=0.6,
+                               edgecolors="black", linewidths=0.2)
+                else:
+                    ax.plot(t, y_plot, color=color, linewidth=0.8, alpha=0.6)
+                    ax.scatter(t, y_plot, color=color, s=15, alpha=0.6,
+                               edgecolors="black", linewidths=0.2)
 
-        # --- Row 1: mean-centered ---
-        ax = axes[1, col]
-        for sid in c_sids:
-            grp = longi[longi["index_id"] == sid].sort_values("days_since_fever_onset")
-            y = np.log10(np.maximum(grp["vi_igg_eu"].values, 1))
-            y_c = y - subj_means[sid]
-            sv_color = "#9133be" if subject_info[sid]["serovar"] == "typhi" else "#2ca02c"
-            ax.plot(grp["days_since_fever_onset"].values, y_c,
-                    color=sv_color, linewidth=0.8, alpha=0.5)
-            ax.scatter(grp["days_since_fever_onset"].values, y_c,
-                       color=sv_color, s=15, alpha=0.5, edgecolors="black", linewidths=0.2)
+            # LOESS
+            all_t = np.array(all_t)
+            all_y = np.array(all_y)
+            if len(all_t) >= 6:
+                smooth = sm_lowess(all_y, all_t, frac=0.6, return_sorted=True)
+                if mode == "absolute":
+                    ax.plot(smooth[:, 0], 10**smooth[:, 1], color="black",
+                            linewidth=3, alpha=0.9, zorder=10)
+                else:
+                    ax.plot(smooth[:, 0], smooth[:, 1], color="black",
+                            linewidth=3, alpha=0.9, zorder=10)
 
-        # LOESS on mean-centered
-        if len(all_t) >= 6:
-            smooth = sm_lowess(all_y_centered, all_t, frac=0.6, return_sorted=True)
-            ax.plot(smooth[:, 0], smooth[:, 1], color=cluster_colors[c],
-                    linewidth=3, alpha=0.9, zorder=10)
+            ax.set_xlim(-10, 400); ax.grid(True, alpha=0.3)
+            if mode == "absolute":
+                ax.set_yscale("log"); ax.set_ylim(10, 5000)
+            else:
+                ax.axhline(0, color="gray", linestyle=":", linewidth=0.8)
 
-        ax.axhline(0, color="gray", linestyle=":", linewidth=0.8)
-        ax.set_xlim(-10, 400); ax.grid(True, alpha=0.3)
-        ax.set_xlabel("Days since fever onset")
-        if col == 0:
-            ax.set_ylabel("log10(EU) − subject mean")
+            if row_idx == 0:
+                n_sv = len(sv_sids)
+                ax.set_title(f"C{c}: {cluster_names[c]} (n={len(c_sids)})\n"
+                             f"{sv_filter}: n={n_sv}", fontsize=10)
+            elif row_idx == 2:
+                n_sv = len(sv_sids)
+                ax.set_title(f"{sv_filter}: n={n_sv}", fontsize=10)
 
-    legend_els = [
-        Line2D([0], [0], color="#9133be", lw=1.5, label="S. Typhi"),
-        Line2D([0], [0], color="#2ca02c", lw=1.5, label="S. Paratyphi A"),
-        Line2D([0], [0], color="gray", lw=3, label="LOESS (cluster)"),
-    ]
-    axes[0, -1].legend(handles=legend_els, fontsize=8, loc="upper right")
+            if col == 0:
+                if mode == "absolute":
+                    ax.set_ylabel(f"{row_label}\nVi IgG (EU)")
+                else:
+                    ax.set_ylabel(f"{row_label}\nlog10 − subj mean")
+            if row_idx == 3:
+                ax.set_xlabel("Days since fever onset")
 
-    fig.suptitle(f"Trajectory shape clusters (n={n}, k={k_primary})\n"
-                 f"Top: absolute titers | Bottom: mean-centered",
+    # Colorbar
+    sm_cb = cm.ScalarMappable(norm=presp_norm, cmap=presp_cmap)
+    sm_cb.set_array([])
+    cbar = fig.colorbar(sm_cb, ax=axes, location="right", shrink=0.5, pad=0.02)
+    cbar.set_label("P(responder)")
+
+    fig.suptitle(f"Trajectory shape clusters × serovar (n={n}, k={k_primary})\n"
+                 f"Colored by P(resp), black = LOESS",
                  fontsize=13, fontweight="bold")
     fig.tight_layout()
     fig.savefig(OUT_DIR / "11_cluster_trajectories.png", dpi=150, bbox_inches="tight")
