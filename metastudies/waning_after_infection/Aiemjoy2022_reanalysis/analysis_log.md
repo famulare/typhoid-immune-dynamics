@@ -545,6 +545,36 @@ Despite the ΔAIC=65, Step 5's parameter estimates are biased and should not be 
 
 Step 5 is retained as a proof-of-concept that the fold-rise model structure explains the eu_start→FC correlation mechanistically. Its parameters (μ₀, CoP_max) should be re-estimated in the Stan individual-level trajectory model where a proper observation model handles measurement timing and error-in-covariates.
 
+### Step 27: Switch to first-two-point fold changes
+
+Changed `load_fold_change_data()` to use the first two consecutive observations (iloc[0] vs iloc[1]) rather than first-to-last (iloc[0] vs iloc[-1]). Rationale: the first two visits are closest to the acute phase and most informative about boosting. Using first-to-last for 3-4 point subjects conflated the initial boost with long-term waning.
+
+Also filtered indx387 (291→0.6 EU in 95 days, a 500× decline) as an obvious lab error. Threshold: |log2(FC)| > 6 (64×).
+
+Updated model comparison with first-two-point data (n=191):
+
+| Model | k | AIC | CV |
+|---|---|---|---|
+| **1. Two Gaussians** | **5** | **481.1** | **0.163** |
+| 2. Skew-Normal | 6 | 483.1 | 0.163 |
+| 3. Signal time-dep | 6 | 482.9 | 0.163 |
+| 4. Teunis τ-ratio | 6 | 487.6 | 0.355 |
+| 5. Fold-rise | 7 | 411.8 | 0.320 |
+
+Key changes from first-to-last:
+- **CV drops from 0.20 to 0.16** — shorter time gaps have less waning-induced variance contaminating the noise estimate. This is arguably a better CV estimate.
+- **Step 4 (τ-ratio) is now worse than Step 1** — the time dependence matters less with shorter, more uniform first-to-second gaps (median 84d vs wider spread with first-to-last).
+- **Step 1 is now the working model** among non-covariate approaches.
+- Step 5 fold-rise still dominates (ΔAIC=69) but same error-in-covariates caveats apply.
+
+**Updated working model decision:** Step 1 (two-Gaussian) with first-two-point data. CV ≈ 0.16, μ_noise = -0.17 (slight waning), ~35% noise / 65% signal split.
+
+### Step 28: Trajectory quintile plot (10_trajectories_by_presp.py)
+
+Faceted Vi IgG trajectories by P(responder) quintile from the working model. Lines colored by FC direction (red=declining, green=rising), star markers for subjects flagged by the Aiemjoy multi-antigen reinfection algorithm.
+
+Clear gradient from Q1 (waning-dominated: high starting titers, mostly declining) to Q5 (boost-dominated: lower starting titers, mostly rising). Reinfection algo stars are concentrated in the extreme quintiles (Q1 and Q5), as expected — extreme fold changes trigger both the mixture model and the threshold rule.
+
 ---
 
 ## Infrastructure notes
