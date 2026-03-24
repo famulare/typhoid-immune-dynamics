@@ -203,6 +203,32 @@ Removed `fig_s11_extraction/` and `fig_s11_reanalysis/` from working tree. These
 
 ---
 
+### Step 19: JAGS model formal extraction (their_code/model_extraction.md)
+
+Full reverse-engineering of the Aiemjoy/Teunis JAGS model following the scientific model extraction template. 420 lines covering: mathematical specification, all priors with exact hyperparameters, observation model, hierarchical structure, evidence flow analysis, and red flags.
+
+Key findings from model analysis:
+
+**(1) CV / residual precision:** `prec.logy[7]` (Vi IgG) is a single scalar capturing ALL unexplained log-scale variance — assay noise + biological fluctuation + model misspecification. The prior is Gamma(4,1), implying prior mean SD(log y) = 0.5. The posterior will be wider than pure assay CV because the single-trajectory model cannot fit mixtures of responders and non-responders.
+
+**(2) Reinfection:** No reinfection model in JAGS. The `reinf_obs` column (716 subjects =1, 951 =NA across full dataset) is never referenced in the model code. Any exclusion happened upstream in code not in the repo. Reinfection events during follow-up will misfit as abnormally high residuals, inflating `prec.logy[7]` estimates.
+
+**(3) Latent structure:** Single multivariate normal per test (5D, full covariance via Wishart df=20). No mixture model, no latent classes. Cannot separate "genuine acute-phase responder with subsequent waning" from "endemic background fluctuation." The α–shape tradeoff is weakly identified with typical 1-year follow-up.
+
+**(4) Evidence flow for Vi IgG:** 611 observations, 341 subjects, 5 parameters per subject. Individual subjects severely underdetermined (2-4 obs for 5 params). Population estimates dominated by hierarchical prior + the few subjects with ≥3 points. All 7 tests use identical hyperparameters despite fundamentally different biology. Tests are fully independent — no cross-test borrowing.
+
+**Why the model gives "no waning" for Vi (not a bug, but a structural limitation):**
+The model is well-designed for its purpose (population-average kinetics for seroincidence estimation). But for asking "does Vi wane?", the single MVN population structure averages over genuine responders and endemic-background subjects, producing a wide posterior centered near zero change. The model literally cannot distinguish "no waning" from "waning buried in noise from a mixed population." This is not carelessness — it's a model designed for a different question.
+
+Additional findings:
+- y1 = y0 + exp(par[2]) guarantees y1 > y0 (peak above baseline)
+- shape = exp(par[5]) + 1 guarantees shape > 1 (faster-than-exponential initial decay)
+- The inner term of the power-function stays positive when shape > 1 (no negativity bug)
+- Ghost subject (nsubj+1) at days 5/30/90 with NA data: prior predictive device, zero impact on inference
+- Zero replacement (0 → 0.01 before log) is pragmatic but arbitrary; 3 Vi IgG zeros affected
+
+---
+
 ## Infrastructure notes
 
 - `pyproject.toml` created for `uv sync` with extraction extras (PyMuPDF, matplotlib, scipy)
