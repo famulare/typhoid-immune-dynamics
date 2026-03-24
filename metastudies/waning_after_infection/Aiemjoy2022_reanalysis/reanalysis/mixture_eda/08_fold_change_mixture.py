@@ -292,11 +292,15 @@ def fit_gauss_timedep(x, log2_dt, p1):
 #   - No intercept: FC = 1 when τ₁ = τ₀ (automatic)
 #   - α₁ is the power-law waning exponent for the non-boosted population
 #
-# Signal component: N(μ_bio - α₂ * log2(τ₁/τ₀), σ₂)
-#   - Free intercept μ_bio: captures net boost visible in fold change
-#   - α₂ captures waning in the boosted population (confounded by
-#     Teunis rise-then-decay kinetics, interpret with caution)
-#   - σ₂ = √(σ₁² + σ_bio²)
+# Signal component: B₀ ~ TruncNorm(μ_bio, σ_bio, lower=0), then waned + noise
+#   - B₀ is the initial boost at t_peak (always ≥ 0 on log2 scale)
+#   - Observed: X = B₀ - α₂·z + ε, where ε ~ N(0, σ₁)
+#   - So (X + α₂·z) ~ TruncNorm(μ_bio, σ_bio, ≥0) ⊛ N(0, σ₁)
+#   - The truncation is on the INITIAL BOOST, not the observed FC.
+#     Subjects who boosted then waned past baseline (FC < 1) are allowed.
+#   - Closed-form: evaluate truncnorm_conv_pdf at (x + α₂·z) with mean μ_bio
+#   - μ_bio is the mean of the un-truncated initial boost distribution
+#   - α₂ captures waning in the boosted population
 #
 # 6 parameters: α₁, σ₁, μ_bio, α₂, σ_bio, π
 # (t_peak fixed at 15 days)
@@ -317,15 +321,52 @@ def tau_ratio_covariate(t0, t1, tp=T_PEAK):
     return np.log2(tau1 / tau0)
 
 
+def truncnorm_conv_pdf(x, mu, sigma1, sigma_bio):
+    """PDF of TruncNorm(mu, sigma_bio, lower=0) convolved with N(0, sigma1).
+
+    The biological fold change B ~ TruncNorm(mu, sigma_bio, lower=0) represents
+    a boost that is always ≥ 0 on the log2 scale (FC ≥ 1). Observation noise
+    ε ~ N(0, sigma1) is added on top: X = B + ε.
+
+    Closed form (derivation: complete the square in the convolution integral):
+      f(x) = N(x; mu, sigma2) · Φ(m/v) / (1 - Φ(-mu/sigma_bio))
+    where:
+      sigma2 = sqrt(sigma1^2 + sigma_bio^2)
+      m = (x·sigma_bio^2 + mu·sigma1^2) / sigma2^2
+      v = sigma1·sigma_bio / sigma2
+      Φ(-mu/sigma_bio) normalizes the truncated normal
+
+    Limits:
+      - When mu >> 0, truncation is irrelevant → recovers N(x; mu, sigma2)
+      - When x → -∞, Φ(m/v) → 0 → f(x) → 0 (left tail dies, gives monotonic P(resp))
+    """
+    sigma2 = compute_sigma2(sigma1, sigma_bio)
+    m = (x * sigma_bio**2 + mu * sigma1**2) / sigma2**2
+    v = sigma1 * sigma_bio / sigma2
+
+    trunc_norm = 1 - stats.norm.cdf(-mu / sigma_bio)
+    # Floor at 0.01: don't allow >99% of bio mass below 0.
+    # When mu << 0, nearly all bio mass is truncated away, making the
+    # PDF blow up. This floor prevents degenerate solutions where the
+    # optimizer pushes mu_bio → -∞ to exploit the singularity.
+    trunc_norm = np.maximum(trunc_norm, 0.01)
+
+    return stats.norm.pdf(x, mu, sigma2) * stats.norm.cdf(m / v) / trunc_norm
+
+
 def neg_ll_teunis_mixture(theta, x, z):
     alpha1, log_sigma1, mu_bio, alpha2, log_sigma_bio, logit_pi = theta
     sigma1 = np.exp(log_sigma1)
     sigma_bio = np.exp(log_sigma_bio)
-    sigma2 = compute_sigma2(sigma1, sigma_bio)
     pi_noise = 1 / (1 + np.exp(-logit_pi))
 
+    # Noise: Gaussian, no truncation
     pdf_n = stats.norm.pdf(x, -alpha1 * z, sigma1)
-    pdf_s = stats.norm.pdf(x, mu_bio - alpha2 * z, sigma2)
+    # Signal: truncated boost at t_peak, then waned.
+    # B0 ~ TruncNorm(mu_bio, sigma_bio, lower=0) is the initial boost (always ≥0).
+    # Observed: x = B0 - alpha2*z + epsilon, so B0+epsilon = x + alpha2*z.
+    # Evaluate the truncated convolution at the "de-waned" fold change.
+    pdf_s = truncnorm_conv_pdf(x + alpha2 * z, mu_bio, sigma1, sigma_bio)
 
     mixture = pi_noise * pdf_n + (1 - pi_noise) * pdf_s
     mixture = np.maximum(mixture, 1e-300)
@@ -333,20 +374,47 @@ def neg_ll_teunis_mixture(theta, x, z):
 
 
 def fit_teunis_mixture(x, t0, t1, p1):
-    """Fit Teunis power-law mixture. t_peak fixed, pure τ-ratio covariate."""
+    """Fit Teunis power-law mixture. t_peak fixed, pure τ-ratio covariate.
+
+    Multi-start optimization to avoid local minima — the truncated signal
+    component creates a more complex likelihood surface than the Gaussian version.
+    """
     z = tau_ratio_covariate(t0, t1)
-    x0 = [
-        0.1,          # alpha1: small positive waning exponent
-        np.log(p1["sigma1"]),
-        p1["mu2"],    # mu_bio: boost offset
-        0.1,          # alpha2
-        np.log(p1["sigma_bio"]),
-        np.log(p1["pi_noise"] / (1 - p1["pi_noise"])),
+    rng = np.random.default_rng(42)
+    best_ll = -np.inf
+    best_result = None
+
+    # Start from several initializations
+    inits = [
+        # From Step 1 estimates
+        [0.1, np.log(p1["sigma1"]), p1["mu2"], 0.1, np.log(p1["sigma_bio"]),
+         np.log(p1["pi_noise"] / (1 - p1["pi_noise"]))],
+        # Near untruncated Step 4 solution (the target neighborhood)
+        [0.025, np.log(0.43), -0.09, -0.11, np.log(0.86), np.log(0.38 / 0.62)],
+        # Variations around untruncated solution
+        [0.05, np.log(0.40), 0.0, -0.05, np.log(0.90), -0.3],
+        [0.02, np.log(0.45), -0.2, -0.15, np.log(0.80), -0.5],
+        [0.03, np.log(0.40), 0.2, 0.0, np.log(0.70), 0.5],
+        # Small σ_bio (truncation matters more)
+        [0.03, np.log(0.40), 0.5, -0.10, np.log(0.50), -0.3],
+        [0.03, np.log(0.40), 0.3, -0.05, np.log(0.60), 0.0],
     ]
-    result = optimize.minimize(
-        neg_ll_teunis_mixture, x0, args=(x, z),
-        method="Nelder-Mead", options={"maxiter": 100000, "xatol": 1e-8, "fatol": 1e-8},
-    )
+    # Add random perturbations
+    for _ in range(16):
+        base = inits[rng.integers(len(inits))].copy()
+        perturbed = [b + rng.normal(0, 0.3) for b in base]
+        inits.append(perturbed)
+
+    for x0 in inits:
+        result = optimize.minimize(
+            neg_ll_teunis_mixture, x0, args=(x, z),
+            method="Nelder-Mead", options={"maxiter": 100000, "xatol": 1e-8, "fatol": 1e-8},
+        )
+        if -result.fun > best_ll:
+            best_ll = -result.fun
+            best_result = result
+
+    result = best_result
 
     alpha1, log_sigma1, mu_bio, alpha2, log_sigma_bio, logit_pi = result.x
     sigma1 = np.exp(log_sigma1)
@@ -357,7 +425,7 @@ def fit_teunis_mixture(x, t0, t1, p1):
     aic, bic = compute_ic(ll, 6, len(x))
 
     pdf_n = stats.norm.pdf(x, -alpha1 * z, sigma1)
-    pdf_s = stats.norm.pdf(x, mu_bio - alpha2 * z, sigma2)
+    pdf_s = truncnorm_conv_pdf(x + alpha2 * z, mu_bio, sigma1, sigma_bio)
     p_noise, _ = compute_posteriors(x, pi_noise, pdf_n, pdf_s)
 
     return {
@@ -525,9 +593,10 @@ def plot_step4(df, p4):
     for (t0_ex, t1_ex), color in zip(examples, colors_ex):
         z_ex = tau_ratio_covariate(t0_ex, t1_ex)
         mu_n = -p4["alpha1"] * z_ex
-        mu_s = p4["mu_bio"] - p4["alpha2"] * z_ex
         pdf_n = p4["pi_noise"] * stats.norm.pdf(xgrid, mu_n, p4["sigma1"])
-        pdf_s = (1 - p4["pi_noise"]) * stats.norm.pdf(xgrid, mu_s, p4["sigma2"])
+        # Signal: truncation on initial boost, then waned by alpha2*z
+        pdf_s = (1 - p4["pi_noise"]) * truncnorm_conv_pdf(
+            xgrid + p4["alpha2"] * z_ex, p4["mu_bio"], p4["sigma1"], p4["sigma_bio"])
         ax.plot(xgrid, pdf_n + pdf_s, color=color, lw=1.5, label=f"t₀={t0_ex}→t₁={t1_ex}d")
     ax.set_xlabel("log2(fold change)"); ax.set_ylabel("Density")
     ax.set_title("Conditional density at representative (t₀, t₁)")
@@ -595,9 +664,9 @@ def plot_summary(x, p1, p2, p3, p4, df):
     ax.hist(x, bins=30, density=True, alpha=0.4, color="gray", edgecolor="black", linewidth=0.5)
     z_repr = tau_ratio_covariate(14, 180)
     mu_n = -p4["alpha1"] * z_repr
-    mu_s = p4["mu_bio"] - p4["alpha2"] * z_repr
     pdf_n = p4["pi_noise"] * stats.norm.pdf(xgrid, mu_n, p4["sigma1"])
-    pdf_s = (1 - p4["pi_noise"]) * stats.norm.pdf(xgrid, mu_s, p4["sigma2"])
+    pdf_s = (1 - p4["pi_noise"]) * truncnorm_conv_pdf(
+        xgrid + p4["alpha2"] * z_repr, p4["mu_bio"], p4["sigma1"], p4["sigma_bio"])
     ax.plot(xgrid, pdf_n, "b-", lw=2); ax.plot(xgrid, pdf_s, "r-", lw=2)
     ax.plot(xgrid, pdf_n + pdf_s, "k--", lw=1.5)
     cv4 = sigma_log2_to_cv(p4["sigma1"])

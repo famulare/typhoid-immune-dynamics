@@ -413,6 +413,86 @@ Uses the Teunis power-law decay covariate z = log2(τ₁/τ₀) where τ = max(t
 
 7. **Fold-change analysis reaches its limit** — per-subject trajectory modeling (Stan) is needed to properly estimate waning rates and separate boost timing from decay.
 
+### Step 24: Threshold rules vs mixture model (mixture_eda/09_threshold_vs_mixture.py)
+
+Compared the Step 4 mixture P(responder) to simple fold-change threshold rules. All 191 subjects are blood-culture-confirmed enteric fever: 156 S. Typhi, 35 S. Paratyphi A.
+
+#### Serovar-blind mixture assignments
+
+The mixture model assigns Typhi and Paratyphi subjects to the responder component at **identical rates** (~54% each). The model sees no serovar information — it operates on unlabeled Vi IgG fold changes. The equal assignment means the Vi IgG fold-change distributions of confirmed Typhi and Paratyphi patients are indistinguishable at the population level.
+
+#### Threshold sensitivity on confirmed infections
+
+Every Typhi subject had a confirmed infection that should in principle boost Vi IgG. Detection rates:
+
+| Method | Typhi detected (of 156) | Paratyphi "detected" (of 35) |
+|---|---|---|
+| Mixture P>0.5 | 85 (54%) | 19 (54%) |
+| Vi FC ≥ 2× | 29 (19%) | 9 (26%) |
+| Vi FC ≥ 3× | 12 (8%) | 5 (14%) |
+| Vi FC ≥ 4× | 6 (4%) | 2 (6%) |
+
+The 3× threshold catches only **8% of confirmed S. Typhi infections** via Vi IgG alone. The threshold rules are strictly nested inside the mixture classification — every subject above any threshold is also classified as a mixture responder, but 84% of mixture-responders fall below the 3× threshold. The sensitivity curve (Panel D) shows the 3× rule catches ~16% of mixture-identified responders; the threshold must drop to ~1.3× to catch 80%.
+
+#### Paratyphi subjects are NOT clean negative controls
+
+Initial framing treated Paratyphi subjects as Vi-negative controls (S. Paratyphi A doesn't express Vi antigen). However, in a high-endemic setting like Nepal, Paratyphi-confirmed subjects may have had prior or concurrent **asymptomatic or paucisymptomatic S. Typhi infections**. The equal Vi boosting rate in Typhi and Paratyphi groups could reflect genuine serologic evidence of unconfirmed Typhi exposure, not false positives. This is consistent with high rates of subclinical typhoid transmission and is relevant to the cohort incidence modeling question.
+
+#### Implications
+
+1. **Vi IgG is nearly useless as a single-antigen seroincidence marker at the individual level.** The 1.5× median boost is buried in noise. Aiemjoy's actual seroincidence method uses all 7 antigen-isotypes jointly, not Vi alone — and for good reason.
+
+2. **The mixture model captures population-level signal** (CV estimate, two-component structure, waning exponent) but **cannot identify Vi-specific boosting** at the individual level. Serovar is invisible to it.
+
+3. **Asymptomatic Typhi infections may be common** in this cohort. The equal Vi boosting rates across serovars, combined with Nepal's known typhoid endemicity, suggest ongoing Typhi exposure regardless of which serovar caused the index blood-culture-confirmed episode. This is directly relevant to the dynamic modeling question about population-level significance of natural Vi boosting.
+
+### Step 25: Truncated signal component and limits of fold-change analysis
+
+Attempted to fix the non-monotonic P(responder) in the left tail (where the broad signal component's tail exceeds the noise component, causing P(responder) to rise for very negative fold changes).
+
+#### Truncation approach
+
+The biological boost B₀ at t_peak should always be ≥ 0 on the log2(FC) scale (a genuine boost produces FC ≥ 1). So the signal component is:
+
+- B₀ ~ TruncNorm(μ_bio, σ_bio, lower=0) — initial boost, truncated at 0
+- Observed: X = B₀ − α₂·z + ε — after waning and measurement noise
+- Signal PDF: truncnorm_conv_pdf(x + α₂·z, μ_bio, σ₁, σ_bio)
+
+The convolution of TruncNorm with Normal has a closed form: N(x; μ, σ₂)·Φ(m/v) / (1−Φ(−μ/σ_bio)). The truncation is on the **initial boost at t_peak**, not on the observed fold change — subjects who boosted then waned past baseline (FC < 1) are allowed.
+
+Verified: analytical formula matches numerical convolution exactly. Left tail decays like N(0, σ₁) (measurement noise shape), as expected.
+
+#### Key finding: truncation on initial boost requires knowing the baseline
+
+The truncated model consistently fits worse than the untruncated Gaussian (AIC ~490 vs 484.5). The optimizer finds a different regime: noise component broadens (σ₁=0.71, CV≈0.36) to absorb left-tail subjects, π_noise increases to ~0.79, and the signal becomes a narrow population of clearly-boosted subjects. Constraining μ_bio ≥ 0 pushes it to the boundary at 0.
+
+**The fundamental issue:** B₀ is the boost above *baseline*, but we don't observe baseline separately from the first measurement. The first Vi IgG measurement conflates (baseline + residual boost at the time of sampling). Subjects with high starting EU (median 1225 for the most negative FC bin) could have high baseline OR high residual boost — we can't distinguish these without a pre-infection measurement or a multi-timepoint trajectory model.
+
+The strong negative correlation between starting EU and fold change (Spearman ρ = −0.62, p < 10⁻²¹) confirms this: high-start subjects decline, low-start subjects rise, and the fold-change summary cannot separate "waning from elevated baseline" from "waning from acute boost."
+
+#### Also tested: full Teunis form with β estimated
+
+Attempted (1+β·τ)^(−α) with β as a free parameter. β diverges to ∞ — the data can't separately identify β and α from fold changes alone (β requires absolute antibody levels). The pure power-law τ^(−α) is the correct limit for fold-change data.
+
+#### Conclusion: definitive wall for fold-change analysis
+
+The fold-change mixture models have extracted what they can:
+1. **CV ≈ 0.20** (robust across all models)
+2. **Two-population structure** (~40-55% noise/waning, ~45-60% signal/boosting)
+3. **α₁ ≈ 0.025** waning exponent (from the untruncated Teunis model)
+4. **Vi as correlate of protection signal** (lower starting EU → more likely responder)
+5. **Threshold rules catch only ~8% of confirmed infections** (3× rule)
+6. **Paratyphi subjects indistinguishable from Typhi** in Vi fold changes — possible evidence of widespread asymptomatic Typhi co-exposure in this endemic population
+
+To go further requires per-subject trajectory modeling (Stan) that jointly estimates:
+- Individual baseline (pre-infection level)
+- Boost magnitude and timing
+- Power-law waning rate
+- Measurement noise (informed by CV ≈ 0.20)
+- Latent class (responder vs non-responder)
+
+The fold-change EDA provides strong priors for this model: CV, the population mixture proportions, the waning exponent range, and the correlate-of-protection relationship.
+
 ---
 
 ## Infrastructure notes
