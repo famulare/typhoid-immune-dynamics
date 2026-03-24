@@ -207,20 +207,64 @@ Removed `fig_s11_extraction/` and `fig_s11_reanalysis/` from working tree. These
 
 Full reverse-engineering of the Aiemjoy/Teunis JAGS model following the scientific model extraction template. 420 lines covering: mathematical specification, all priors with exact hyperparameters, observation model, hierarchical structure, evidence flow analysis, and red flags.
 
-Key findings from model analysis:
+Key findings from model code analysis:
 
-**(1) CV / residual precision:** `prec.logy[7]` (Vi IgG) is a single scalar capturing ALL unexplained log-scale variance — assay noise + biological fluctuation + model misspecification. The prior is Gamma(4,1), implying prior mean SD(log y) = 0.5. The posterior will be wider than pure assay CV because the single-trajectory model cannot fit mixtures of responders and non-responders.
+#### (1) Estimating the CV
 
-**(2) Reinfection:** No reinfection model in JAGS. The `reinf_obs` column (716 subjects =1, 951 =NA across full dataset) is never referenced in the model code. Any exclusion happened upstream in code not in the repo. Reinfection events during follow-up will misfit as abnormally high residuals, inflating `prec.logy[7]` estimates.
+The JAGS model (line 10): `logy[subj,obs,test] ~ dnorm(mu.logy[subj,obs,test], prec.logy[test])`
 
-**(3) Latent structure:** Single multivariate normal per test (5D, full covariance via Wishart df=20). No mixture model, no latent classes. Cannot separate "genuine acute-phase responder with subsequent waning" from "endemic background fluctuation." The α–shape tradeoff is weakly identified with typical 1-year follow-up.
+`prec.logy[test]` is a **single precision parameter per antigen-isotype** (not per subject, not per lab). It's estimated from data with prior `Gamma(4.0, 1.0)` — prior mean precision = 4, implying prior SD(log y) = 0.5, which corresponds to CV ≈ 53%.
 
-**(4) Evidence flow for Vi IgG:** 611 observations, 341 subjects, 5 parameters per subject. Individual subjects severely underdetermined (2-4 obs for 5 params). Population estimates dominated by hierarchical prior + the few subjects with ≥3 points. All 7 tests use identical hyperparameters despite fundamentally different biology. Tests are fully independent — no cross-test borrowing.
+**Critically: this is NOT just the assay CV.** It captures everything the per-subject trajectory model fails to explain:
+- Assay measurement noise
+- Within-subject biological fluctuation
+- Model misspecification (the trajectory shape doesn't perfectly fit)
 
-**Why the model gives "no waning" for Vi (not a bug, but a structural limitation):**
-The model is well-designed for its purpose (population-average kinetics for seroincidence estimation). But for asking "does Vi wane?", the single MVN population structure averages over genuine responders and endemic-background subjects, producing a wide posterior centered near zero change. The model literally cannot distinguish "no waning" from "waning buried in noise from a mixed population." This is not carelessness — it's a model designed for a different question.
+So `prec.logy[7]` for Vi IgG absorbs all residual variance on the log scale. If the model poorly fits Vi trajectories (because the true dynamics are a mixture of flat and waning), the "measurement noise" estimate inflates to compensate. **This means the model conflates genuine Vi heterogeneity with measurement noise.**
 
-Additional findings:
+#### (2) Reinfection handling
+
+**There is NO reinfection model in the JAGS code.** The model assumes one infection → rise → decay per subject, period.
+
+The paper says reinfections were excluded from the data before fitting. But `v9na.data.r` doesn't do this exclusion — it loads the full CSV and sends everything to JAGS. So either:
+- The CSV already has post-reinfection observations removed (the `reinf_obs` column flags this somehow)
+- The exclusion was done in a preprocessing step not in this repo
+
+The `reinf_obs` column is suspicious: 152/194 longitudinal Vi subjects have `reinf_obs = 1`. That can't mean "reinfection was detected" (the paper reports only 37/1420 total). It more likely means "this subject was evaluable for reinfection" (followed ≥3 months). The actual post-reinfection data trimming probably happened upstream.
+
+#### (3) Latent structure / grouping
+
+**No mixture model, no latent classes.** The hierarchical structure is:
+
+`par[subj,test,1:5] ~ dmnorm(mu.par[test,], prec.par[test,,])`
+
+All subjects for a given test are drawn from a **single multivariate normal** on the 5 log-transformed parameters. The full 5×5 covariance matrix (via Wishart prior, df=20) captures continuous correlations between parameters (e.g., high-peak subjects may have different decay rates). But there is **no mechanism for discrete subpopulations**.
+
+This means: if Vi IgG trajectories are a mixture of (a) genuine responders who boost and then wane, and (b) subjects where the measured values are just endemic background fluctuation, the model averages over both. The posterior for decay rate will be wide, centered near zero, because the mixed-population average is dominated by the non-responders. The model literally **cannot distinguish "Vi doesn't wane" from "Vi wanes but most of these trajectories are noise."**
+
+Also notable: **each antigen-isotype is modeled independently.** `par[subj,test,1:5]` has separate population distributions per test. Vi IgG borrows no strength from HlyE or LPS for the same subjects. The only sharing is observation times.
+
+Age dependence: **not in the model.** The commented-out filter lines in `v9na.data.r` show they run the model separately on age-filtered subsets. No continuous age covariate.
+
+#### (4) Total evidence flow
+
+For Vi IgG (test 7):
+- 611 observations from 341 subjects feed the likelihood
+- These inform: 341 subject-level parameter vectors, 1 population mean vector (5D), 1 population precision matrix (5×5), and 1 residual precision scalar
+- The 147 single-observation subjects contribute very weakly — with only 1 point, all 5 parameters are essentially drawn from the prior
+- The 194 longitudinal subjects (2-4 points each) constrain their individual parameters, but with 2-4 points for 5 parameters per subject, each subject is underdetermined. The hierarchical prior does the heavy lifting.
+
+One cute trick: line 95-97 adds a **ghost subject** with 3 observations at days 5, 30, 90 and NA antibody values. JAGS imputes these from the posterior predictive — it's a standard trick for getting model predictions at specific time points.
+
+#### Why it's "not bad" — it's just not designed for this question
+
+The model is well-crafted for its intended purpose: estimating **population-average antibody kinetics** for seroincidence calculation. For that, you want the marginal kinetic parameters, and the single-MVN hierarchical model gives you exactly that with proper uncertainty propagation.
+
+But for asking "does Vi wane?", the model has a structural blind spot: it cannot separate the signal (genuine post-infection waning) from the noise floor (endemic background fluctuation) when the two overlap as heavily as they do for Vi. A mixture model or a model with an explicit "responder/non-responder" latent class would be better suited, but would need substantially more data per subject to identify — and with 2-4 points per subject, that's not feasible.
+
+So the authors aren't wrong or careless — they're using an appropriate model for their question (seroincidence) that happens to give a misleading answer for our question (waning).
+
+#### Additional model mechanics
 - y1 = y0 + exp(par[2]) guarantees y1 > y0 (peak above baseline)
 - shape = exp(par[5]) + 1 guarantees shape > 1 (faster-than-exponential initial decay)
 - The inner term of the power-function stays positive when shape > 1 (no negativity bug)
