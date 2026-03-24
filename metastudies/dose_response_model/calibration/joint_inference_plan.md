@@ -12,7 +12,7 @@
 We propose a joint Bayesian model that fits two dose-response curves — **infection** and **fever** — to data from all Oxford (2011-2017) and Maryland (1960s-1970s) controlled human infection studies. The model uses the modified beta-Poisson form with immunity scaling, a delivery medium offset, and latent immunity for the Maryland cohort. We work in **bicarbonate-equivalent dose units** as the reference frame, with the milk-to-bicarbonate conversion as an explicit parameter.
 
 The inference has three layers, each contributing information that the others cannot:
-1. **Oxford data** bounds N50 from above (both outcomes >50% at 10³ bicarb) and estimates immunity scaling (γ) from Vi-vaccine contrasts (Jin Vi-TT/Vi-PS). Oxford alone is **underconstrained** for α — with only 2 dose levels 1 log apart, both in the flat upper tail, the dose-response shape is not identifiable from Oxford alone.
+1. **Oxford data** bounds N50_fev from above (fever >50% at 10³ bicarb) and estimates immunity scaling (γ_fev) from Vi-vaccine contrasts (Jin Vi-TT/Vi-PS). Oxford alone is **underconstrained** for α — with only 2 dose levels 1 log apart, both in the flat upper tail, the dose-response shape is not identifiable from Oxford alone. **Oxford shedding is excluded from the infection likelihood** (see Section 2.6) because early antibiotic treatment truncates shedding detection, producing systematic downward bias that worsens at higher doses.
 2. **Maryland data** is where α gets pinned: 6 orders of magnitude of dose range (10³-10⁹) spanning the full S-curve. Maryland also uniquely identifies the infection-fever conditional (Hornick Table 2: P(fever|infected) = 57% at 10⁷) and constrains the medium offset δ.
 3. **Cross-era bridging** requires explicit assumptions about what biology is portable across 50 years (strain virulence, α, γ, functional form) and what is not (delivery medium, background immunity, outcome definitions). This is the load-bearing structure of the entire inference.
 
@@ -121,50 +121,157 @@ Where:
 - $\text{CoP}_{\text{susc}}$ = CoP of susceptible fraction (near 1, may be slightly >1)
 - $\text{CoP}_{\text{imm}}$ = CoP of immune fraction (estimated)
 
-The Gilman/Levine H-antibody data directly informs $\pi_{\text{susc}}$: roughly 50% of controls had H antibody <1:20 (susceptible) and 50% had H antibody ≥1:20 (partially immune).
+The Gilman/Levine H-antibody data directly informs $\pi_{\text{susc}}$: in Gilman, 36/53 controls (68%) had H antibody <1:20 (susceptible) and 17/53 (32%) had H antibody ≥1:20 (partially immune). Note: 53 of 64 total controls had baseline H-antibody measured.
 
 **Simplification option**: Set $\text{CoP}_{\text{susc}} = 1$ (truly naive), reducing the mixture to 2 parameters ($\pi_{\text{susc}}$, $\text{CoP}_{\text{imm}}$).
 
 ### 2.5 Outcome Definition Adjustment
 
-Maryland and Oxford use different outcome definitions:
+Maryland and Oxford use different outcome definitions, and within Maryland, different studies use different fever thresholds:
 
-| | Maryland "Disease" | Oxford "TD" |
-|---|---|---|
-| **Fever threshold** | ≥103°F (39.4°C) for 24-36h | ≥38°C for ≥12h |
-| **Alternative criterion** | None (fever only) | OR bacteremia |
-| **Stringency** | Strict | Permissive |
-
-These definitions observe different thresholds on the **same** underlying biological process. We model this as a **definition sensitivity parameter** $\phi$ that maps between the Oxford fever model and the Maryland observation:
-
-$$
-P_{\text{maryland,fev}}^{\text{obs}}(D) = P_{\text{fev}}(D/\delta, \text{CoP}) \cdot \phi(D/\delta, \text{CoP})
-$$
-
-where $\phi \in (0, 1]$ is the fraction of true fever cases (by the Oxford definition) that also meet the Maryland definition. From fever threshold analyses in Oxford controls:
-
-| Threshold | Source | Rate in controls | Ratio to study composite TD |
+| Study | Fever Definition | Treatment Trigger | Culture Required? |
 |---|---|---|---|
-| ≥38.0°C | Jin (17/31, TD=77%) | 55% | 0.71 |
-| ≥38.5°C | Jin (14/31, TD=77%) | 45% | 0.58 |
-| ≥39.0°C | Darton (9/30, TD=67%) | 30% | 0.45 |
-| ≥39.4°C (Maryland-equivalent) | Extrapolated | ~22-25% est. | ~0.3-0.37 est. |
+| **Oxford (Waddington, Darton, Jin)** | ≥38°C (100.4°F) for ≥12h | At diagnosis | No (OR bacteremia) |
+| **Hornick 1966** | ≥103°F (39.4°C) for 24-36h | ≈ definition | Implied |
+| **Gilman 1977** | Fever + culture (any threshold) | ≥103°F/1d, ≥101°F/3d, ≥100°F/5d | Yes |
+| **Levine 1976** | ≥101°F (38.3°C) + culture | ≥103°F/24h, ≥101°F/48h | Yes |
 
-**Note**: The ≥39.0°C threshold is from Darton 2016 placebo (not Jin 2017; Jin only reports ≥37.5, ≥38.0, ≥38.5). The ratio to composite TD differs by study because Darton has a lower composite TD rate (67% vs 77%). The studies give consistent rates at matched thresholds (≥38.0°C: 55% vs 60%; ≥38.5°C: 45% vs 43%), supporting interpolation across studies.
+These definitions observe different thresholds on the **same** underlying biological process: the distribution of peak fever severity given infection. We model this as a **temperature-dependent definition sensitivity function** $\phi(T)$ calibrated from the Oxford multi-threshold data.
 
-However, $\phi$ is likely dose-dependent: at high doses, infections are more severe, so a higher fraction meets the strict criterion. We parameterize:
+#### Empirical φ calibration from Oxford threshold ladder
+
+The Oxford studies report attack rates at multiple fever thresholds on the same participants, providing a direct calibration of how the observed fever rate scales with temperature cutoff:
+
+| Threshold | Waddington 10³ | Waddington 10⁴ | Jin control | Darton placebo |
+|---|---|---|---|---|
+| ≥37.5°C (99.5°F) | 11/20 = 55% | 14/20 = 70% | 20/31 = 65% | — |
+| ≥38.0°C (100.4°F) | 10/20 = 50% | 13/20 = 65% | 17/31 = 55% | — |
+| ≥38.5°C (101.3°F) | 8/20 = 40% | 11/20 = 55% | 14/31 = 45% | — |
+| ≥39.0°C (102.2°F) | — | — | — | 9/30 = 30% |
+
+Normalizing to the Oxford composite TD rate (fever ≥38°C/12h OR bacteremia) to get $\phi(T)$:
+
+| Threshold | φ (ratio to composite TD) | Notes |
+|---|---|---|
+| ≥38.0°C (Oxford reference) | 0.71-0.85 | Varies by study (Jin: 0.71; Waddington 10⁴: 1.0) |
+| ≥38.3°C (Levine ≈101°F) | **~0.60-0.75** | Interpolated between ≥38.0 and ≥38.5 |
+| ≥38.5°C (≈101.3°F) | 0.58-0.85 | Jin: 0.58; Waddington 10⁴: 0.85 |
+| ≥39.0°C (≈102.2°F) | **~0.45** | Darton placebo |
+| ≥39.4°C (Hornick ≈103°F) | **~0.30-0.37** | Extrapolated; Hornick also requires 24-36h sustained duration |
+
+**Key insight (2026-03-24)**: The same φ(T) function that bridges Oxford↔Maryland also resolves the Levine↔Hornick definition gap *without any extra parameters*. Each Maryland study simply evaluates φ at its own temperature threshold:
+
+$$P_{\text{study},j}^{\text{obs}}(D) = P_{\text{fev}}(D_{\text{eff}}, \text{CoP}_j) \cdot \phi(T_j) \cdot g_j(\text{duration})$$
+
+where:
+- $\phi(T_j)$ is the temperature-dependent definition sensitivity, calibrated from Oxford
+- $T_{\text{Hornick}} = 39.4°C$, $T_{\text{Levine}} = 38.3°C$, $T_{\text{Gilman}} \approx 38.3°C$ (Gilman uses tiered triggers but counts any fever + culture)
+- $g_j(\text{duration})$ is an additional penalty for duration requirements (Hornick requires 24-36h sustained; Levine and Gilman have tiered duration thresholds; this is ≤1 and likely ~0.7-0.9 for Hornick)
+
+**Study-specific φ values** (estimated from Oxford ladder, no free parameters):
+- **Hornick**: $\phi_H \approx 0.30 \times g(\text{24-36h duration}) \approx 0.25$
+- **Levine**: $\phi_L \approx 0.65$ (≥101°F + culture; no strict duration requirement)
+- **Gilman**: $\phi_G \approx 0.65$ (similar to Levine: fever + culture, tiered treatment triggers)
+
+**Predicted Levine/Hornick ratio**: $\phi_L / \phi_H \approx 0.65/0.25 = 2.6\times$. This predicts Levine control attack rates should be ~2.6× Hornick at the same dose and immunity level. Observed: Levine pooled controls at 10⁵ ≈ 40% vs Hornick at 10⁵ ≈ 28%, ratio ≈ 1.4×. The predicted ratio is higher than observed, suggesting either (a) Levine's culture-confirmation requirement filters out some low-fever cases, or (b) the φ extrapolation overpredicts, or (c) real between-study immunity differences partially offset the definition gap. This calibration check can be performed during model fitting.
+
+#### Dose-dependence of φ
+
+$\phi$ is likely dose-dependent: at high doses, infections are more severe, so a higher fraction meets strict criteria. We parameterize:
 
 $$
-\phi(D_{\text{eff}}) = \phi_{\min} + (1 - \phi_{\min}) \cdot \frac{P_{\text{fev}}(D_{\text{eff}}, 1)^{\beta_\phi}}{1}
+\phi(T, D_{\text{eff}}) = \phi_0(T) + (1 - \phi_0(T)) \cdot \frac{P_{\text{fev}}(D_{\text{eff}}, 1)^{\beta_\phi}}{1}
 $$
 
-where $\phi_{\min}$ is the minimum definition sensitivity (at low effective doses where infections are mild) and $\beta_\phi$ controls how quickly it approaches 1 at high doses.
+where $\phi_0(T)$ is the minimum definition sensitivity at threshold T (at low effective doses where infections are mild) and $\beta_\phi$ controls how quickly it approaches 1 at high doses.
 
 **Pragmatic recommendation (revised per Reviewer 2)**: Use dose-dependent $\phi$ as the default, since the Maryland data span a 6-log dose range while the Oxford threshold calibration comes from a single dose. A constant $\phi$ would systematically bias the fit at extreme doses, with the bias absorbed into $\alpha$ and $\delta$.
 
-**Simplification option**: Fix $\phi$ as a constant for initial exploration, but present results for $\phi_{\min} \in \{0.3, 0.5, 0.7\}$ crossed with $\delta \in \{10^3, 10^{3.5}, 10^4, 10^{4.5}\}$ to map the three-way degeneracy surface (see Section 8.3).
+**Simplification option for initial exploration**: Fix $\phi$ as study-specific constants from the Oxford ladder (Hornick: 0.25, Levine: 0.65, Gilman: 0.65). Zero extra parameters. Check residual patterns for evidence of dose-dependence.
 
-**Alternative approach**: Treat the Maryland strict-fever criterion as a **third outcome** with its own $N_{50,\text{strict-fev}}$, constrained to lie above $N_{50,\text{fev}}$ (stricter definition → higher effective threshold → higher N50). This avoids $\phi$ entirely and bridges the two eras through the infection curve (which has minimal definition differences) and the shared $\alpha$, $\gamma$ parameters. This is arguably cleaner but requires that the infection curve is well-identified in both eras.
+**Implementation note**: The Waddington alternative fever threshold data (Section 4.1.1, Table 2) provides the φ calibration at two dose levels (10³ and 10⁴). If φ values differ between these doses for the same threshold, that directly constrains $\beta_\phi$.
+
+### 2.6 Oxford Shedding Exclusion (Treatment-Truncation Bias)
+
+**Discovery (2026-03-24)**: Oxford stool shedding systematically underestimates true infection rate due to early antibiotic treatment. Participants were treated at typhoid diagnosis (median day 8-9), and ciprofloxacin rapidly clears gut colonization. Shedding that would have developed after treatment is never detected. The bias worsens at higher doses where diagnosis is faster:
+
+| Study/Dose | Shedding | Diagnosis (fever/BC) | Shedding ≥ Diagnosis? |
+|---|---|---|---|
+| Waddington 10³ | 65% | 55% | Yes |
+| Waddington 10⁴ | ~40% | 65% | **No — inverted** |
+| Darton placebo ~10⁴ | 63% | 67% | **No** |
+| Jin control ~10⁴ | 71% | 77% | **No** |
+
+At every Oxford dose ≥10⁴, measured shedding < diagnosis. This violates the biological ordering P(infection) ≥ P(fever) and would produce systematic bias in N50_inf and P(fever|infection) estimates.
+
+**Maryland shedding is unaffected.** Treatment was delayed until strict fever criteria (≥103°F/1 day, ≥101°F/3 days, ≥100°F/5 days), and shedding was measured 4-30 days post-challenge — ample time for detection before and after treatment.
+
+**Decision**: Two model tiers:
+
+**Tier 1 (primary model)**: Exclude all Oxford shedding from the infection likelihood. Oxford contributes **fever data only** plus vaccine contrasts on fever. The infection curve is identified entirely from Maryland shedding data through the δ bridge. This is conservative and avoids introducing bias. **However**, γ_inf is then unconstrained by Oxford vaccine data — only the Maryland mixture (H-antibody, not Vi) informs it. Since there are biological reasons to expect γ_inf < γ_fev (Vi immunity reduces fever severity more than colonization probability), and only the Jin Vi-vaccine shedding contrasts can distinguish them, the Tier 1 model may need to share γ = γ_inf = γ_fev, losing this biological nuance.
+
+**Tier 2 (η-correction model — RECOMMENDED)**: Restore Oxford shedding with an explicit shedding detection probability η that corrects for treatment-truncation bias. See Section 2.7.
+
+### 2.7 η-Correction for Oxford Shedding Detection (Tier 2 Model)
+
+**Rationale**: The treatment-truncation bias has a specific causal structure. Shedding is missed only if it would have *started* after antibiotic treatment. The bias is therefore:
+
+$$P(\text{detected shedding}_j) = \eta_j \cdot P_{\text{inf}}(D_j, \text{CoP}_j)$$
+
+where $\eta_j = P(\tau_{\text{shed}} < \tau_{\text{treat},j})$ is the probability that shedding onset precedes treatment in study $j$. This is NOT a free-floating nuisance parameter — it has an observable anchor.
+
+**Empirical constraint on η**: Waddington reports "Salmonella Typhi was subsequently shed by 18 of 24 (75%) of typhoid-diagnosed participants" and we established that ~100% of diagnosed participants at 10³ shed (11/11) vs ~54% at 10⁴ (7/13). Since true infection ≥ diagnosis (by definition), the diagnosed-who-shed fraction is a lower bound on η:
+
+| Study | Dose | Diagnosed who shed / Diagnosed | η lower bound | Time to treatment, median [IQR] |
+|-------|------|-------------------------------|---------------|--------------------------------|
+| Waddington | 10³ | ~11/11 (100%) | ~1.0 | 14 [8.75-14] days |
+| Waddington | 10⁴ | ~7/13 (54%) | ~0.54 | 9 [4-14] days |
+| Darton | ~10⁴ | not separately reported | ~0.63/0.67 = 0.94? | similar to Jin |
+| Jin | ~10⁴ | not separately reported | ~0.71/0.77 = 0.92? | 9.9 ± 3.35 days |
+
+**Note**: The Darton and Jin "η" estimates from shedding/diagnosis ratios are NOT the same as the Waddington diagnosed-who-shed ratio. The shedding/diagnosis ratio mixes two effects: (1) some diagnosed people don't shed before treatment (η < 1), and (2) some shedders are undiagnosed (η correction applied to denominator). The Waddington disaggregation is the cleanest anchor.
+
+**Implementation**:
+
+*Option A — Single η per dose level (simplest)*:
+
+$$y_{\text{shed},j} \sim \text{Binomial}(n_j, \, \eta(D_j) \cdot P_{\text{inf}}(D_j, \text{CoP}_j))$$
+
+Model η as dose-dependent (since higher dose → faster diagnosis → less time for shedding):
+
+$$\eta(D) = \eta_{\text{lo}} + (1 - \eta_{\text{lo}}) \cdot \exp(-\kappa \cdot D / N_{50,\text{inf}})$$
+
+where $\eta_{\text{lo}}$ is the minimum detection probability at very high doses (≈0.5 based on Waddington 10⁴) and κ controls the dose-dependence. At low doses (D << N50), η → 1 (plenty of time before diagnosis). At high doses, η → η_lo.
+
+This adds 2 parameters (η_lo, κ) but restores 8 observations (net gain of 6 degrees of freedom). This is better than dropping the observations.
+
+*Option B — Study-level constant η (simpler)*:
+
+Assign a single η per study-dose group, with a shared prior:
+
+$$\eta_j \sim \text{Beta}(a, b)$$
+
+Prior centered on ~0.75 (Waddington overall: 18/24 diagnosed shed) with moderate variance. Each study-dose group gets its own η_j drawn from this population distribution. This is a hierarchical nuisance parameter with ~3 effective parameters (hyperprior a, b + partial pooling).
+
+*Option C — Fixed η from observed ratios (simplest, no extra parameters)*:
+
+Fix η at observed shedding/diagnosis ratios per study-dose:
+- Waddington 10³: η = 1.0 (shedding > diagnosis)
+- Waddington 10⁴: η = 0.62 (bounded estimate ~8/13)
+- Darton ~10⁴: η = 0.94 (19/20 shedders per diagnosed)
+- Jin ~10⁴: η = 0.92 (22/24)
+
+This adds zero parameters but bakes in assumptions. Good for initial exploration; too rigid for final inference.
+
+**Recommendation**: Start with **Option C** (fixed η) for initial model fitting to verify the correction restores coherent results (shedding > fever after correction). Then upgrade to **Option A** (dose-dependent η) for the final model. Option B is the fallback if Option A is poorly identified.
+
+**What this restores**:
+- All 8 Oxford shedding observations (W-I-3, W-I-4, D-I-plac, J-I-ctrl, J-I-ViTT, J-I-ViPS, plus D-I-Ty21a/M01 for validation)
+- The Jin Vi-TT and Vi-PS shedding contrasts, which are the **only data** that separately constrain γ_inf from γ_fev
+- The biological prior γ_inf < γ_fev becomes testable
+- Active observations increase from 19 to 25 (Tier 2 Option A) with +2 parameters, net improvement in data-to-parameter ratio
+
+**Key insight**: The η-correction is not merely rescuing biased data — it is *modeling a real process* (time-to-shedding vs time-to-treatment) that we have partial information about. This is more principled than either dropping the data or using it uncorrected.
 
 For the **infection** outcome, the definition difference is smaller. Maryland's "infection" (Hornick Table 2: low-grade fever, serology, blood culture, or shedding >5 days) is broadly comparable to Oxford's shedding definition. We apply no definition correction for infection, but note that Maryland's broader infection criteria may yield slightly higher rates than Oxford's shedding-only ascertainment.
 
@@ -222,12 +329,12 @@ Study ID: OVG2009/10. N=40 per-protocol (20 at 10³, 20 at 10⁴). **Two dose le
 | W-F-3 | 10³ | 20 | 11 | 0.55 | TD |
 | W-F-4 | 10⁴ | 20 | 13 | 0.65 | TD |
 
-**Infection (stool shedding):**
+**Infection (stool shedding) — EXCLUDED from primary likelihood (Section 2.6: treatment-truncation bias):**
 
 | Obs ID | Dose (CFU) | n | y | p | Outcome |
 |--------|-----------|---|---|---|---------|
-| W-I-3 | 10³ | 20 | 13 | 0.65 | Shedding |
-| W-I-4 | 10⁴ | 20 | ? | ? | Shedding. Numerator needs verification — extraction claimed 10/16 but denominator was wrong. With n=20, the numerator may also differ. |
+| ~~W-I-3~~ | 10³ | 20 | 13 | 0.65 | Shedding. Excluded: treatment-truncation bias. |
+| ~~W-I-4~~ | 10⁴ | 20 | ~8 | ~0.40 | Shedding. Excluded: treatment-truncation bias. Bounded 7-14 (not directly reported in paper). |
 
 **Immunity status**: Screened naive. Baseline anti-Vi not reported per subject; Waddington notes "no statistically significant differences" in pre-challenge anti-Vi between diagnosed and not-diagnosed. Treat as CoP ≈ 1 with a note that ~29% may have had detectable anti-Vi (based on comparable Oxford cohort rates).
 
@@ -245,15 +352,15 @@ Study ID: OVG2011/02. N=91 per-protocol. Dose: median 1.82×10⁴ CFU.
 | D-F-M01 | M01ZH09 | 1.82e4 | 31 | 18 | 0.58 | VALIDATION ONLY. Did not raise anti-Vi; 19% had detectable baseline. |
 | D-F-Ty21a | Ty21a | 1.82e4 | 30 | 13 | 0.43 | VALIDATION ONLY. Lacks Vi gene; 28% had detectable baseline anti-Vi. |
 
-**Infection (shedding-only, from S1 individual-level data):**
+**Infection (shedding-only, from S1 individual-level data) — EXCLUDED from primary likelihood (Section 2.6: treatment-truncation bias):**
 
 | Obs ID | Group | n | y | p | Outcome |
 |--------|-------|---|---|---|---------|
-| D-I-plac | Placebo | 30 | 19 | 0.63 | Stool shedding (S1 extraction) |
-| D-I-M01 | M01ZH09 | 31 | 20 | 0.65 | Stool shedding (S1). VALIDATION ONLY. |
-| D-I-Ty21a | Ty21a | 30 | 18 | 0.60 | Stool shedding (S1). VALIDATION ONLY. |
+| ~~D-I-plac~~ | Placebo | 30 | 19 | 0.63 | Stool shedding (S1 extraction). Excluded: treatment-truncation bias. |
+| ~~D-I-M01~~ | M01ZH09 | 31 | 20 | 0.65 | Stool shedding (S1). Excluded. |
+| ~~D-I-Ty21a~~ | Ty21a | 30 | 18 | 0.60 | Stool shedding (S1). Excluded. |
 
-*Note: Previously only "bacteremia OR stool positive" was available from publication tables (Placebo 26/30 = 87%). The S1 individual-level data resolves the Oxford infection definition inconsistency — Darton shedding-only (63%) is now consistent with Waddington (65% at 10³) and Jin (71% at ~2×10⁴).*
+*Note: Oxford shedding rates (Waddington 65% at 10³, Darton 63%, Jin 71%) are internally consistent but systematically biased downward by early antibiotic treatment — shedding < diagnosis at all doses ≥10⁴. See Section 2.6.*
 
 **Key immunity data**: HR = 0.29 per log₁₀ anti-Vi IgG for TD (p=0.006). This enters the likelihood as a regression constraint on γ_fev (see Section 5.3).
 
@@ -274,13 +381,13 @@ Study ID: OVG2014/08. N=103 per-protocol. Dose: 1-5×10⁴ CFU.
 | J-F-ViTT | Vi-TT | ~1e4 | 37 | 13 | 0.35 | 563 EU/mL |
 | J-F-ViPS | Vi-PS | ~1e4 | 35 | 13 | 0.37 | 141 EU/mL |
 
-**Infection (shedding):**
+**Infection (shedding) — EXCLUDED from primary likelihood (Section 2.6: treatment-truncation bias):**
 
-| Obs ID | Group | n | y | p |
-|--------|-------|---|---|---|
-| J-I-ctrl | Control | 31 | 22 | 0.71 |
-| J-I-ViTT | Vi-TT | 37 | 22 | 0.59 |
-| J-I-ViPS | Vi-PS | 35 | 21 | 0.60 |
+| Obs ID | Group | n | y | p | Notes |
+|--------|-------|---|---|---|-------|
+| ~~J-I-ctrl~~ | Control | 31 | 22 | 0.71 | Excluded: shedding (71%) < diagnosis (77%). |
+| ~~J-I-ViTT~~ | Vi-TT | 37 | 22 | 0.59 | Excluded. VE ratio (0.59/0.71 = 0.83) may still inform γ_inf as sensitivity check. |
+| ~~J-I-ViPS~~ | Vi-PS | 35 | 21 | 0.60 | Excluded. VE ratio (0.60/0.71 = 0.85) available for sensitivity. |
 
 **Additional fever thresholds (controls only)**: Used to inform φ.
 - ≥37.5°C: 20/31 = 65%
@@ -380,10 +487,10 @@ Trials conducted 1973-1976, after Hornick 1970 enrollment. Different volunteers.
 
 **Fever by H-antibody stratum:**
 
-| Obs ID | H Ab status | n | y (est) | p |
-|--------|-------------|---|---------|---|
-| Gil-F-Hlo | H < 1:20 | 14 | ~9 | 0.61 |
-| Gil-F-Hhi | H ≥ 1:20 | 13 | ~3 | 0.24 |
+| Obs ID | H Ab status | n | y | p |
+|--------|-------------|---|---|---|
+| Gil-F-Hlo | H < 1:20 | 36 | 22 | 0.61 |
+| Gil-F-Hhi | H ≥ 1:20 | 17 | 4 | 0.24 |
 
 **Shedding in controls (Trials 1&3 only):**
 
@@ -499,7 +606,7 @@ where $g(\cdot)$ is the CoP mapping from the titer model. This applies to:
 - Proper integration over the within-group CoP distribution (addressing Jensen's inequality, per Reviewer 2 Minor Concern 4)
 - Direct calibration of the CoP mapping g(anti-Vi) → CoP for use in the dose-response model
 
-For the primary likelihood, the Darton placebo enters as a group-level observation (D-F-plac: 20/30, D-I-plac: 19/30) with the group's CoP distribution characterized by the individual-level anti-Vi titers from S1. The individual-level data is available in `analysis_data/darton_individual_endpoints.csv`.
+For the primary likelihood, the Darton placebo enters as a group-level **fever-only** observation (D-F-plac: 20/30) with the group's CoP distribution characterized by the individual-level anti-Vi titers from S1. D-I-plac (shedding) is excluded per Section 2.6. The individual-level data is available in `analysis_data/darton_individual_endpoints.csv`.
 
 ### 5.4 Maryland Multi-Dose Data (Hornick)
 
@@ -572,10 +679,10 @@ This joint likelihood term connects the infection and fever curves through the c
 The H-antibody-stratified attack rates enter as separate binomial observations for each stratum:
 
 $$
-y_{\text{H-lo}} \sim \text{Binomial}(14, \phi \cdot P_{\text{fev}}(10^5/\delta, \text{CoP}_{\text{susc}}))
+y_{\text{H-lo}} \sim \text{Binomial}(36, \phi \cdot P_{\text{fev}}(10^5/\delta, \text{CoP}_{\text{susc}}))
 $$
 $$
-y_{\text{H-hi}} \sim \text{Binomial}(13, \phi \cdot P_{\text{fev}}(10^5/\delta, \text{CoP}_{\text{imm}}))
+y_{\text{H-hi}} \sim \text{Binomial}(17, \phi \cdot P_{\text{fev}}(10^5/\delta, \text{CoP}_{\text{imm}}))
 $$
 
 This directly constrains the contrast between the mixture components, providing the most direct information about $\text{CoP}_{\text{imm}}$ relative to $\text{CoP}_{\text{susc}}$.
@@ -638,7 +745,7 @@ These are the load-bearing assumptions of the cross-era bridge. Each should be t
 
 | Parameter | Prior | Justification |
 |-----------|-------|---------------|
-| $\log_{10}(N_{50,\text{inf}})$ | Normal(2.5, 1.0) | Expect ~300 bicarb CFU; Oxford shedding >50% at 10³ |
+| $\log_{10}(N_{50,\text{inf}})$ | Normal(2.5, 1.0) | Expect ~300 bicarb CFU; constrained by Maryland shedding through δ bridge (Oxford shedding excluded per Section 2.6) |
 | $\log_{10}(N_{50,\text{fev}})$ | Normal(2.8, 1.0) | Expect ~600 bicarb CFU; slightly higher than infection |
 | $\alpha_{\text{inf}}$ | LogNormal(-1.5, 0.8) | Expect ~0.1-0.5; must be positive; Oxford data suggests small α |
 | $\alpha_{\text{fev}}$ | LogNormal(-1.5, 0.8) | Same reasoning as infection |
@@ -652,7 +759,7 @@ These are the load-bearing assumptions of the cross-era bridge. Each should be t
 | Parameter | Prior | Justification |
 |-----------|-------|---------------|
 | $\log_{10}(\delta)$ | Normal(3.5, 0.7) | Expect ~1000-30,000× (3-4.5 logs); biochemistry of gastric acid neutralization |
-| $\pi_{\text{susc}}$ | Beta(5, 5) | Centered at 0.5; Gilman/Levine show ~50% with H antibody <1:20 |
+| $\pi_{\text{susc}}$ | Beta(7, 4) | Centered at ~0.65; Gilman shows 36/53 (68%) with H antibody <1:20 |
 | $\text{CoP}_{\text{imm}}$ | LogNormal(1.0, 0.5) | Expect CoP ~2-5 for partially immune; must be >1 |
 | $\phi$ | Beta(5, 5) | Centered at 0.5; Oxford threshold analysis suggests ~0.3-0.7 |
 | $\sigma_{\text{study}}$ | HalfNormal(0, 0.5) | Study-level variability in effective immunity; modest |
@@ -863,21 +970,21 @@ For quick reference, every binomial observation:
 | W-F-3 | Waddington | Fever | 10³ | 20 | 11 | Naive |
 | W-F-4 | Waddington | Fever | 10⁴ | 20 | 13 | Naive. **CORRECTED**: n=20 not 16, y=13 not 10 (PDF-verified 2026-03-18). |
 | ~~W-F-5~~ | | | | | | **REMOVED**: 10⁵ arm does not exist in Waddington 2014. Extraction hallucination. |
-| W-I-3 | Waddington | Infection (shedding) | 10³ | 20 | 13 | Naive |
-| W-I-4 | Waddington | Infection (shedding) | 10⁴ | 20 | ? | Naive. **CORRECTED**: n=20 not 16. Shedding numerator needs verification (extraction claimed 10; not confirmed in PDF tables). |
+| ~~W-I-3~~ | ~~Waddington~~ | ~~Infection (shedding)~~ | ~~10³~~ | ~~20~~ | ~~13~~ | **EXCLUDED (Section 2.6)**: Treatment-truncation bias. Oxford shedding underestimates true infection. |
+| ~~W-I-4~~ | ~~Waddington~~ | ~~Infection (shedding)~~ | ~~10⁴~~ | ~~20~~ | ~~7-14~~ | **EXCLUDED (Section 2.6)**: Same bias + not directly reported. Bounded 7-14. |
 | ~~W-I-5~~ | | | | | | **REMOVED**: 10⁵ arm does not exist. |
 | D-F-plac | Darton | Fever | 1.82e4 | 30 | 20 | Mixed (40% Vi+) |
 | D-F-Ty21a | Darton | Fever | 1.82e4 | 30 | 13 | Ty21a. **VALIDATION ONLY** — lacks Vi gene; non-Vi protection mechanism. Cannot map to anti-Vi CoP. |
 | D-F-M01 | Darton | Fever | 1.82e4 | 31 | 18 | M01ZH09. **VALIDATION ONLY** — did not raise anti-Vi IgG; protection via anti-LPS. Cannot map to anti-Vi CoP. |
-| D-I-plac | Darton | Infection (shedding) | 1.82e4 | 30 | 19 | Mixed (37% Vi+). **RESOLVED from S1 data**: shedding-only = 19/30 (63.3%). Now consistent with Jin shedding (22/31 = 71%). |
-| D-I-Ty21a | Darton | Infection (shedding) | 1.82e4 | 30 | 18 | Ty21a. **VALIDATION ONLY**. Shedding from S1 = 18/30 (60%). |
-| D-I-M01 | Darton | Infection (shedding) | 1.82e4 | 31 | 20 | M01ZH09. **VALIDATION ONLY**. Shedding from S1 = 20/31 (65%). Note: n=31 PPP (excluded 1 withdrawn). |
+| ~~D-I-plac~~ | ~~Darton~~ | ~~Infection (shedding)~~ | ~~1.82e4~~ | ~~30~~ | ~~19~~ | **EXCLUDED (Section 2.6)**: Treatment-truncation bias. Shedding 63% < diagnosis 67%. |
+| ~~D-I-Ty21a~~ | ~~Darton~~ | ~~Infection (shedding)~~ | ~~1.82e4~~ | ~~30~~ | ~~18~~ | **EXCLUDED (Section 2.6)**. |
+| ~~D-I-M01~~ | ~~Darton~~ | ~~Infection (shedding)~~ | ~~1.82e4~~ | ~~31~~ | ~~20~~ | **EXCLUDED (Section 2.6)**. |
 | J-F-ctrl | Jin | Fever | ~2e4 | 31 | 24 | Mixed (38% Vi+). Dose is target range 1-5×10⁴; no median reported; ~2e4 is geometric mean of range. |
 | J-F-ViTT | Jin | Fever | ~2e4 | 37 | 13 | Vi-TT (GMT 563) |
 | J-F-ViPS | Jin | Fever | ~2e4 | 35 | 13 | Vi-PS (GMT 141) |
-| J-I-ctrl | Jin | Infection (shedding) | ~2e4 | 31 | 22 | Mixed (38% Vi+). Full-cohort stool culture. Jin bacteremia (24/24) is tautological subset of diagnosed — not usable as independent infection endpoint. |
-| J-I-ViTT | Jin | Infection (shedding) | ~2e4 | 37 | 22 | Vi-TT (GMT 563). Full-cohort stool culture. |
-| J-I-ViPS | Jin | Infection (shedding) | ~2e4 | 35 | 21 | Vi-PS (GMT 141). Full-cohort stool culture. |
+| ~~J-I-ctrl~~ | ~~Jin~~ | ~~Infection (shedding)~~ | ~~~2e4~~ | ~~31~~ | ~~22~~ | **EXCLUDED (Section 2.6)**: Shedding 71% < diagnosis 77%. VE ratios available for γ_inf sensitivity. |
+| ~~J-I-ViTT~~ | ~~Jin~~ | ~~Infection (shedding)~~ | ~~~2e4~~ | ~~37~~ | ~~22~~ | **EXCLUDED (Section 2.6)**. Shedding VE ratio = 0.59/0.71 = 0.83 for sensitivity. |
+| ~~J-I-ViPS~~ | ~~Jin~~ | ~~Infection (shedding)~~ | ~~~2e4~~ | ~~35~~ | ~~21~~ | **EXCLUDED (Section 2.6)**. Shedding VE ratio = 0.60/0.71 = 0.85 for sensitivity. |
 | G20-F-naive | Gibani | Fever | ~2.5e4 | 19 | 12 | Naive |
 
 ### Maryland (δ > 1)
@@ -896,25 +1003,26 @@ For quick reference, every binomial observation:
 | H-I-7 | Hornick | Infection | 10⁷ | 30 | 28 | Maryland mixture |
 | H-FgI-7 | Hornick | Fever\|Inf | 10⁷ | 28 | 16 | Maryland mixture |
 | ~~Gil-F-ctrl~~ | ~~Gilman~~ | ~~Fever~~ | ~~10⁵~~ | ~~64~~ | ~~31~~ | **REPLACED by stratified observations below** |
-| Gil-F-Hlo | Gilman | Fever | 10⁵ | 14 | ~9 | Susceptible stratum (H Ab <1:20) |
-| Gil-F-Hhi | Gilman | Fever | 10⁵ | 13 | ~3 | Immune stratum (H Ab ≥1:20) |
-| Gil-F-rest | Gilman | Fever | 10⁵ | ~37 | ~19 | **DERIVED** by subtraction (64-14-13=37, 31-~9-~3≈19). Not in any source. Sensitivity: fit with and without this row. |
+| Gil-F-Hlo | Gilman | Fever | 10⁵ | 36 | 22 | Susceptible stratum (H Ab <1:20). Exact counts from Table 5. |
+| Gil-F-Hhi | Gilman | Fever | 10⁵ | 17 | 4 | Immune stratum (H Ab ≥1:20). Exact counts from Table 5. |
+| Gil-F-rest | Gilman | Fever | 10⁵ | 11 | 5 | **DERIVED** by subtraction (64-36-17=11, 31-22-4=5). Controls without baseline H-antibody data. Sensitivity: fit with and without this row. |
 | Gil-I-ctrl | Gilman | Infection | 10⁵ | 43 | 26 | Maryland mixture. **NOTE**: endpoint is late shedding (4-30 days post-challenge), not any-time shedding. Trials 1&3 controls only. |
-| Lev-F-1 | Levine | Fever | 10⁵ | 26 | 13 | Maryland mixture. **WARNING**: Levine fever def = ≥101°F + culture, NOT Hornick's ≥103°F/24-36h. More permissive. |
-| Lev-F-2 | Levine | Fever | 10⁵ | 33 | 10 | Maryland mixture. Same Levine definition caveat. |
-| Lev-F-3 | Levine | Fever | 10⁵ | 22 | 12 | Maryland mixture. Same Levine definition caveat. |
-| Lev-F-4 | Levine | Fever | 10⁵ | 16 | 4 | Maryland mixture. Same Levine definition caveat. |
+| Lev-F-1 | Levine | Fever | 10⁵ | 26 | 13 | Maryland mixture. Levine def = ≥101°F + culture → φ_L ≈ 0.65 (Section 2.5). |
+| Lev-F-2 | Levine | Fever | 10⁵ | 33 | 10 | Maryland mixture. Same φ_L ≈ 0.65. |
+| Lev-F-3 | Levine | Fever | 10⁵ | 22 | 12 | Maryland mixture. Same φ_L ≈ 0.65. |
+| Lev-F-4 | Levine | Fever | 10⁵ | 16 | 4 | Maryland mixture. Same φ_L ≈ 0.65. |
 | Lev-I-1 | Levine | Infection | 10⁵ | 26 | 19 | Maryland mixture. **NOTE**: endpoint is any-time stool positive (differs from Gilman's 4-30 day definition). |
-| *Lev-I-2* | *Levine* | *Infection* | *10⁵* | *33* | *15* | *Available but not yet included. Trial 2, 1971. Any-time stool positive.* |
-| *Lev-I-3* | *Levine* | *Infection* | *10⁵* | *22* | *17* | *Available but not yet included. Trial 3, 1972. Any-time stool positive.* |
-| *Lev-I-4* | *Levine* | *Infection* | *10⁵* | *16* | *6* | *Available but not yet included. Trial 4, 1973. Any-time stool positive.* |
+| Lev-I-2 | Levine | Infection | 10⁵ | 33 | 15 | Maryland mixture. Trial 2, 1971. Any-time stool positive. Same definition caveat as Lev-I-1. |
+| Lev-I-3 | Levine | Infection | 10⁵ | 22 | 17 | Maryland mixture. Trial 3, 1972. Any-time stool positive. |
+| Lev-I-4 | Levine | Infection | 10⁵ | 16 | 6 | Maryland mixture. Trial 4, 1973. Any-time stool positive. |
 
-**Active observations (primary likelihood)**: 17 Oxford + 16 Maryland = 33 nominal. After removing struck rows (H-F-7, Gil-F-ctrl, W-F-5, W-I-5) and validation-only rows (D-F-Ty21a, D-F-M01, D-I-Ty21a, D-I-M01) = **25 active calibration observations**. Plus 4 Darton vaccine validation observations. W-I-4 shedding numerator still needs verification.
-**Available but excluded**: 4 Hornick vaccine rows (CoP unmappable), 3 Levine infection rows (not yet included).
-**Effective independent observations** (per Reviewer 2): ~28-30 after correcting for within-group infection-fever correlation.
-**Total parameters**: 6 biological + 4 nuisance + 1 overdispersion = 11 (with possible reduction by sharing α or γ).
-**Data-to-parameter ratio**: ~2.5:1. Bayesian framework with informative priors is essential at this ratio.
-**Definition warnings**: (1) Oxford infection **RESOLVED**: All three Oxford studies now use shedding-only — Darton extracted from S1 individual data (19/30 placebo = 63.3%), consistent with Waddington (65%) and Jin (71%). (2) Levine fever uses ≥101°F threshold, more permissive than Hornick's ≥103°F — pending decision on how to handle. (3) Gilman fever = fever + culture confirmation with tiered treatment triggers. (4) Darton S1 fever thresholds (T38, T39) are 1-2 subjects lower than published Table 2 — likely a minor definition difference in how the S1 encodes temperature events vs the publication's analysis.
+**Active observations (Tier 1 / primary likelihood)**: 7 Oxford fever (W-F-3, W-F-4, D-F-plac, J-F-ctrl, J-F-ViTT, J-F-ViPS, G20-F-naive) + 18 Maryland (4 Hornick fever + 2 Hornick infection/conditional + 3 Gilman fever strata + 1 Gilman infection + 4 Levine fever + 4 Levine infection) = 25 nominal. Minus 1 struck (H-F-7) and 2 validation-only (D-F-Ty21a, D-F-M01) = **22 active calibration observations**. Plus 2 Darton vaccine fever validation observations.
+**Active observations (Tier 2 / η-correction)**: Restores 6 Oxford shedding rows (W-I-3, W-I-4, D-I-plac, J-I-ctrl, J-I-ViTT, J-I-ViPS) with η correction = **28 active calibration observations** + 2 parameters (η_lo, κ) or 0 (Option C fixed η).
+**Available but excluded**: 4 Hornick vaccine rows (CoP unmappable), 8 Oxford shedding rows (Tier 1 only; restored in Tier 2).
+**Effective independent observations** (per Reviewer 2): Tier 1 ~24-26; Tier 2 ~28-30, after correcting for within-group correlation.
+**Total parameters**: Tier 1: 6 biological + 4 nuisance + 1 overdispersion = 11. Tier 2: +2 (η_lo, κ) = 13.
+**Data-to-parameter ratio**: Tier 1 ~2.0:1; Tier 2 ~2.2:1. Both require informative priors. Tier 2 is preferred for γ_inf identification.
+**Definition warnings**: (1) Oxford shedding **EXCLUDED** (Section 2.6): treatment-truncation bias makes shedding < diagnosis at all doses ≥10⁴. Oxford contributes fever only. (2) Levine/Gilman/Hornick fever definitions **RESOLVED** (Section 2.5): study-specific φ(T) values derived from Oxford threshold ladder — Hornick φ≈0.25, Levine φ≈0.65, Gilman φ≈0.65. No extra parameters needed. (3) Darton S1 fever thresholds (T38, T39) are 1-2 subjects lower than published Table 2 — likely a minor definition difference in how the S1 encodes temperature events vs the publication's analysis.
 
 ---
 
@@ -922,7 +1030,7 @@ For quick reference, every binomial observation:
 
 **~~PREREQUISITE 1~~** (**RESOLVED 2026-03-18**): The Hornick 10³ discrepancy does not exist. Independent PDF verification confirmed both Hornick 1966 Figure 2 and Hornick 1970 Table 1 show 0/14 at 10³. The extraction's 9/14 was an AI hallucination. The Hornick_1966.md extraction has been corrected.
 
-**PREREQUISITE 2**: Determine whether the Gilman H-antibody measurement was performed on all 64 controls or a subsample of 27. If a subsample, assess representativeness.
+**~~PREREQUISITE 2~~** (**RESOLVED 2026-03-24**): The Gilman Table 5 cross-tabulates Well/Ill × H-antibody status. The original extraction misread the "Well" row (14, 13) as denominators. Correct denominators: H<1:20 = 36 (14 well + 22 ill), H≥1:20 = 17 (13 well + 4 ill). Total with H-antibody data: 53 of 64 controls (83%). The 11 missing are likely controls without baseline sera. Strata are well-powered (not a thin subsample). π_susc prior updated from Beta(5,5) to Beta(7,4) to reflect 68% susceptible.
 
 **~~PREREQUISITE 3~~** (**RESOLVED 2026-03-18**): Oxford infection definitions now harmonized on shedding-only across all three studies. Darton shedding-only extracted from S1 individual-level data: Placebo 19/30 (63.3%), M01ZH09 20/31 (64.5%), Ty21a 18/30 (60.0%). Jin confirmed as shedding-only (22/31, 22/37, 21/35). Waddington shedding (13/20 at 10³, ?/20 at 10⁴). All consistent.
 
