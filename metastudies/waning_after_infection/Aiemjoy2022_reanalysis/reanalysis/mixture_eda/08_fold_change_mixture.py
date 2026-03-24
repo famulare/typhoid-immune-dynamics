@@ -439,6 +439,121 @@ def fit_teunis_mixture(x, t0, t1, p1):
 
 
 # =========================================================================
+# Step 5: Fold-rise-informed mixture (Stage A)
+#
+# Replaces the free μ_bio with the fold-rise model from
+# scratch/cohort_incidence_model_proof_of_concept.R:
+#
+#   fold_rise = 10^(μ₀ * (1 - (log10(CoP_pre) - log10(CoP_min))
+#                              / (log10(CoP_max) - log10(CoP_min))))
+#
+# On the log2 scale, the expected initial boost for a responder with
+# starting EU = eu_start is:
+#   B₀_mean(eu_start) = log2(fold_rise(eu_start))
+#                      = μ₀/log10(2) * (1 - log10(eu_start)/log10(CoP_max))
+#   (using CoP_min = 1, so log10(CoP_min) = 0)
+#
+# The signal component becomes:
+#   B₀ ~ TruncNorm(B₀_mean(eu_start), σ_bio, lower=0), then waned + noise
+#   Observed: X = B₀ - α₂·z + ε
+#
+# Noise component unchanged: N(-α₁·z, σ₁)
+#
+# Parameters: μ₀ (boost intensity), log10(CoP_max), α₁, α₂, σ₁, σ_bio, π
+# 7 parameters. The fold-rise structure predicts the eu_start-FC correlation
+# that was ρ=-0.62 in the data.
+# =========================================================================
+
+COP_MIN = 1.0  # EU/ml, baseline for unexposed (below LOD)
+
+
+def fold_rise_log2(eu_start, mu_0, log10_cop_max):
+    """Expected log2(fold rise) from the fold-rise model.
+
+    fold_rise = 10^(μ₀ * (1 - log10(eu_start) / log10(CoP_max)))
+    log2(fold_rise) = μ₀ / log10(2) * (1 - log10(eu_start) / log10(CoP_max))
+
+    Clamped to ≥ 0: subjects at or above CoP_max get fold_rise = 1 (no boost).
+    """
+    frac = np.log10(np.maximum(eu_start, COP_MIN)) / log10_cop_max
+    return np.maximum(mu_0 / np.log10(2) * (1 - frac), 0.0)
+
+
+def neg_ll_foldrise_mixture(theta, x, z, eu_start):
+    alpha1, log_sigma1, mu_0, log10_cop_max, alpha2, log_sigma_bio, logit_pi = theta
+    sigma1 = np.exp(log_sigma1)
+    sigma_bio = np.exp(log_sigma_bio)
+    pi_noise = 1 / (1 + np.exp(-logit_pi))
+
+    # Noise: waning only
+    pdf_n = stats.norm.pdf(x, -alpha1 * z, sigma1)
+
+    # Signal: fold-rise-predicted boost, truncated at 0, then waned + noise
+    b0_mean = fold_rise_log2(eu_start, mu_0, log10_cop_max)
+    pdf_s = truncnorm_conv_pdf(x + alpha2 * z, b0_mean, sigma1, sigma_bio)
+
+    mixture = pi_noise * pdf_n + (1 - pi_noise) * pdf_s
+    mixture = np.maximum(mixture, 1e-300)
+    return -np.sum(np.log(mixture))
+
+
+def fit_foldrise_mixture(x, t0, t1, eu_start, p1):
+    """Fit fold-rise-informed mixture. Uses τ-ratio covariate + eu_start."""
+    z = tau_ratio_covariate(t0, t1)
+    rng = np.random.default_rng(42)
+    best_ll = -np.inf
+    best_result = None
+
+    inits = [
+        # From cohort model defaults: mu_0=2.5, CoP_max=10^3.5
+        [0.025, np.log(0.43), 2.5, 3.5, -0.11, np.log(0.5), np.log(0.38 / 0.62)],
+        # Variations
+        [0.03, np.log(0.40), 2.0, 3.0, -0.05, np.log(0.6), -0.3],
+        [0.02, np.log(0.45), 3.0, 3.5, -0.15, np.log(0.4), -0.5],
+        [0.01, np.log(0.40), 1.5, 3.0, 0.0, np.log(0.8), 0.0],
+        [0.05, np.log(0.40), 2.5, 4.0, -0.10, np.log(0.5), 0.3],
+    ]
+    for _ in range(20):
+        base = inits[rng.integers(len(inits))].copy()
+        perturbed = [b + rng.normal(0, 0.2) for b in base]
+        inits.append(perturbed)
+
+    for x0 in inits:
+        result = optimize.minimize(
+            neg_ll_foldrise_mixture, x0, args=(x, z, eu_start),
+            method="Nelder-Mead", options={"maxiter": 100000, "xatol": 1e-8, "fatol": 1e-8},
+        )
+        if -result.fun > best_ll:
+            best_ll = -result.fun
+            best_result = result
+
+    result = best_result
+    alpha1, log_sigma1, mu_0, log10_cop_max, alpha2, log_sigma_bio, logit_pi = result.x
+    sigma1 = np.exp(log_sigma1)
+    sigma_bio = np.exp(log_sigma_bio)
+    sigma2 = compute_sigma2(sigma1, sigma_bio)
+    pi_noise = 1 / (1 + np.exp(-logit_pi))
+    ll = -result.fun
+    aic, bic = compute_ic(ll, 7, len(x))
+
+    b0_mean = fold_rise_log2(eu_start, mu_0, log10_cop_max)
+    pdf_n = stats.norm.pdf(x, -alpha1 * z, sigma1)
+    pdf_s = truncnorm_conv_pdf(x + alpha2 * z, b0_mean, sigma1, sigma_bio)
+    p_noise, _ = compute_posteriors(x, pi_noise, pdf_n, pdf_s)
+
+    return {
+        "alpha1": alpha1, "sigma1": sigma1,
+        "mu_0": mu_0, "log10_cop_max": log10_cop_max,
+        "cop_max": 10**log10_cop_max,
+        "alpha2": alpha2, "sigma_bio": sigma_bio, "sigma2": sigma2,
+        "t_peak": T_PEAK, "pi_noise": pi_noise,
+        "ll": ll, "aic": aic, "bic": bic,
+        "converged": result.success, "p_noise": p_noise,
+        "b0_mean": b0_mean,  # per-subject predicted boost
+    }
+
+
+# =========================================================================
 # Plotting — one figure per step + summary
 # =========================================================================
 
@@ -621,9 +736,81 @@ def plot_step4(df, p4):
     print("Saved 08_step4_teunis_mixture.png")
 
 
-def plot_summary(x, p1, p2, p3, p4, df):
+def plot_step5(df, p5):
+    x = df["log2_fc"].values
+    eu = df["eu_start"].values
+    t0 = df["t_start"].values
+    t1 = df["t_end"].values
+    z = tau_ratio_covariate(t0, t1)
     xgrid = np.linspace(x.min() - 1, x.max() + 1, 500)
-    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+    fig, axes = plt.subplots(2, 2, figsize=(14, 11))
+    p_resp = 1 - p5["p_noise"]
+
+    # Panel A: P(resp) vs starting EU, colored by fold change
+    ax = axes[0, 0]
+    sc = ax.scatter(eu, p_resp, c=x, cmap="coolwarm", s=25, alpha=0.7,
+                    edgecolors="black", linewidths=0.3, vmin=-2, vmax=2)
+    plt.colorbar(sc, ax=ax, label="log2(FC)")
+    ax.axhline(0.5, color="gray", linestyle="--", linewidth=0.8)
+    ax.set_xscale("log")
+    ax.set_xlabel("Starting Vi IgG (EU)")
+    ax.set_ylabel("P(responder)")
+    ax.set_title("Fold-rise model: P(resp) vs starting titer\n(color = observed log2 FC)")
+    ax.grid(True, alpha=0.3)
+
+    # Panel B: predicted B₀ vs observed FC, colored by P(resp)
+    ax = axes[0, 1]
+    sc = ax.scatter(p5["b0_mean"], x, c=p_resp, cmap="RdYlBu_r", s=25, alpha=0.7,
+                    edgecolors="black", linewidths=0.3, vmin=0, vmax=1)
+    plt.colorbar(sc, ax=ax, label="P(responder)")
+    ax.plot([0, 10], [0, 10], "k:", linewidth=0.8, label="1:1")
+    ax.set_xlabel("Predicted initial boost B₀ = log2(fold_rise(eu_start))")
+    ax.set_ylabel("Observed log2(FC)")
+    ax.set_title("Fold-rise prediction vs observed FC")
+    ax.legend(fontsize=8)
+    ax.grid(True, alpha=0.3)
+
+    # Panel C: fold-rise model curve + data
+    ax = axes[1, 0]
+    eu_grid = np.logspace(0, 4, 200)
+    fr_grid = fold_rise_log2(eu_grid, p5["mu_0"], p5["log10_cop_max"])
+    ax.plot(eu_grid, 2**fr_grid, "r-", linewidth=2, label=f"Fold-rise (μ₀={p5['mu_0']:.2f})")
+    # Show observed FC colored by P(resp)
+    sc = ax.scatter(eu, 2**x, c=p_resp, cmap="RdYlBu_r", s=25, alpha=0.6,
+                    edgecolors="black", linewidths=0.3, vmin=0, vmax=1)
+    plt.colorbar(sc, ax=ax, label="P(responder)")
+    ax.set_xscale("log"); ax.set_yscale("log")
+    ax.set_xlabel("Starting Vi IgG (EU)")
+    ax.set_ylabel("Fold change (natural scale)")
+    ax.axhline(1, color="gray", linestyle=":", linewidth=0.8)
+    ax.set_title(f"Fold-rise model fit\nμ₀={p5['mu_0']:.2f}, CoP_max={p5['cop_max']:.0f} EU")
+    ax.legend(fontsize=9)
+    ax.grid(True, alpha=0.3)
+
+    # Panel D: P(resp) vs Teunis covariate z
+    ax = axes[1, 1]
+    sc = ax.scatter(z, x, c=p_resp, cmap="RdYlBu_r", s=25, alpha=0.7,
+                    edgecolors="black", linewidths=0.3, vmin=0, vmax=1)
+    plt.colorbar(sc, ax=ax, label="P(responder)")
+    ax.set_xlabel("Teunis covariate z = log2(τ₁/τ₀)")
+    ax.set_ylabel("log2(fold change)")
+    ax.set_title("Component assignments vs time ratio")
+    ax.grid(True, alpha=0.3)
+
+    cv = sigma_log2_to_cv(p5["sigma1"])
+    fig.suptitle(f"Step 5: Fold-Rise-Informed Mixture (n={len(x)})\n"
+                 f"CV≈{cv:.2f}, μ₀={p5['mu_0']:.2f}, CoP_max={p5['cop_max']:.0f}, "
+                 f"α₁={p5['alpha1']:.3f}, α₂={p5['alpha2']:.3f}",
+                 fontsize=12, fontweight="bold")
+    fig.tight_layout()
+    fig.savefig(OUT_DIR / "08_step5_foldrise_mixture.png", dpi=150, bbox_inches="tight")
+    plt.close()
+    print("Saved 08_step5_foldrise_mixture.png")
+
+
+def plot_summary(x, p1, p2, p3, p4, p5, df):
+    xgrid = np.linspace(x.min() - 1, x.max() + 1, 500)
+    fig, axes = plt.subplots(2, 3, figsize=(18, 10))
 
     # Step 1
     ax = axes[0, 0]
@@ -633,7 +820,7 @@ def plot_summary(x, p1, p2, p3, p4, df):
     ax.plot(xgrid, pdf_n, "b-", lw=2); ax.plot(xgrid, pdf_s, "r-", lw=2)
     ax.plot(xgrid, pdf_n + pdf_s, "k--", lw=1.5)
     cv1 = sigma_log2_to_cv(p1["sigma1"])
-    ax.set_title(f"Step 1: Two Gaussians\nAIC={p1['aic']:.1f}, CV≈{cv1:.2f}, σ_bio={p1['sigma_bio']:.3f}")
+    ax.set_title(f"Step 1: Two Gaussians\nAIC={p1['aic']:.1f}, CV≈{cv1:.2f}")
     ax.set_xlabel("log2(FC)"); ax.set_xlim(xgrid[0], xgrid[-1])
 
     # Step 2
@@ -644,23 +831,22 @@ def plot_summary(x, p1, p2, p3, p4, df):
     ax.plot(xgrid, pdf_n, "b-", lw=2); ax.plot(xgrid, pdf_s, "r-", lw=2)
     ax.plot(xgrid, pdf_n + pdf_s, "k--", lw=1.5)
     cv2 = sigma_log2_to_cv(p2["sigma1"])
-    ax.set_title(f"Step 2: Gauss + Skew-Normal\nAIC={p2['aic']:.1f}, CV≈{cv2:.2f}, α={p2['alpha']:.2f}")
+    ax.set_title(f"Step 2: Gauss + Skew-Normal\nAIC={p2['aic']:.1f}, α={p2['alpha']:.2f}")
     ax.set_xlabel("log2(FC)"); ax.set_xlim(xgrid[0], xgrid[-1])
 
     # Step 3 at Δt=180d
-    ax = axes[1, 0]
+    ax = axes[0, 2]
     ax.hist(x, bins=30, density=True, alpha=0.4, color="gray", edgecolor="black", linewidth=0.5)
     mu2_eff = p3["mu2"] - p3["beta"] * np.log2(180)
     pdf_n = p3["pi_noise"] * stats.norm.pdf(xgrid, p3["mu1"], p3["sigma1"])
     pdf_s = (1 - p3["pi_noise"]) * stats.norm.pdf(xgrid, mu2_eff, p3["sigma2"])
     ax.plot(xgrid, pdf_n, "b-", lw=2); ax.plot(xgrid, pdf_s, "r-", lw=2)
     ax.plot(xgrid, pdf_n + pdf_s, "k--", lw=1.5)
-    cv3 = sigma_log2_to_cv(p3["sigma1"])
-    ax.set_title(f"Step 3: Signal time-dep (Δt=180d)\nAIC={p3['aic']:.1f}, CV≈{cv3:.2f}, β={p3['beta']:.4f}")
+    ax.set_title(f"Step 3: Signal time-dep\nAIC={p3['aic']:.1f}, β={p3['beta']:.4f}")
     ax.set_xlabel("log2(FC)"); ax.set_xlim(xgrid[0], xgrid[-1])
 
     # Step 4 at representative (t0=14, t1=180)
-    ax = axes[1, 1]
+    ax = axes[1, 0]
     ax.hist(x, bins=30, density=True, alpha=0.4, color="gray", edgecolor="black", linewidth=0.5)
     z_repr = tau_ratio_covariate(14, 180)
     mu_n = -p4["alpha1"] * z_repr
@@ -670,9 +856,37 @@ def plot_summary(x, p1, p2, p3, p4, df):
     ax.plot(xgrid, pdf_n, "b-", lw=2); ax.plot(xgrid, pdf_s, "r-", lw=2)
     ax.plot(xgrid, pdf_n + pdf_s, "k--", lw=1.5)
     cv4 = sigma_log2_to_cv(p4["sigma1"])
-    ax.set_title(f"Step 4: Teunis (t₀=14→t₁=180d)\nAIC={p4['aic']:.1f}, CV≈{cv4:.2f}, "
-                 f"α₁={p4['alpha1']:.3f}, α₂={p4['alpha2']:.3f}")
+    ax.set_title(f"Step 4: Teunis τ-ratio\nAIC={p4['aic']:.1f}, CV≈{cv4:.2f}")
     ax.set_xlabel("log2(FC)"); ax.set_xlim(xgrid[0], xgrid[-1])
+
+    # Step 5: fold-rise curve + data colored by P(resp)
+    ax = axes[1, 1]
+    eu = df["eu_start"].values
+    p_resp5 = 1 - p5["p_noise"]
+    eu_grid = np.logspace(0, 4, 200)
+    fr_grid = fold_rise_log2(eu_grid, p5["mu_0"], p5["log10_cop_max"])
+    ax.plot(eu_grid, 2**fr_grid, "r-", linewidth=2, label=f"Fold-rise (μ₀={p5['mu_0']:.2f})")
+    sc = ax.scatter(eu, 2**x, c=p_resp5, cmap="RdYlBu_r", s=20, alpha=0.6,
+                    edgecolors="black", linewidths=0.3, vmin=0, vmax=1)
+    ax.set_xscale("log"); ax.set_yscale("log")
+    ax.axhline(1, color="gray", linestyle=":", lw=0.8)
+    cv5 = sigma_log2_to_cv(p5["sigma1"])
+    ax.set_title(f"Step 5: Fold-rise-informed\nAIC={p5['aic']:.1f}, μ₀={p5['mu_0']:.2f}, "
+                 f"CoP_max={p5['cop_max']:.0f}")
+    ax.set_xlabel("Starting EU"); ax.set_ylabel("Fold change")
+    ax.legend(fontsize=8)
+
+    # Step 5: P(resp) vs starting EU
+    ax = axes[1, 2]
+    sc = ax.scatter(eu, p_resp5, c=x, cmap="coolwarm", s=20, alpha=0.6,
+                    edgecolors="black", linewidths=0.3, vmin=-2, vmax=2)
+    plt.colorbar(sc, ax=ax, label="log2(FC)")
+    ax.axhline(0.5, color="gray", linestyle="--", lw=0.8)
+    ax.set_xscale("log")
+    ax.set_xlabel("Starting EU"); ax.set_ylabel("P(responder)")
+    n_resp = (p_resp5 > 0.5).sum()
+    ax.set_title(f"Step 5: P(resp) vs titer\n{n_resp}/{len(x)} responders")
+    ax.grid(True, alpha=0.3)
 
     fig.suptitle(f"Model comparison (n={len(x)}, all with σ₂ = √(σ₁² + σ_bio²))", fontsize=13, fontweight="bold")
     fig.tight_layout()
@@ -761,23 +975,51 @@ def main():
     print(f"  ΔAIC vs Step 1: {p1['aic'] - p4['aic']:.2f} ({'Step 4 better' if p1['aic'] > p4['aic'] else 'Step 1 better'})")
     plot_step4(df, p4)
 
+    # Step 5
+    eu_start = df["eu_start"].values
+    print("\n" + "=" * 60)
+    print("STEP 5: Fold-rise-informed mixture")
+    print(f"  Signal boost = fold_rise(eu_start; μ₀, CoP_max)")
+    print(f"  B₀ ~ TruncNorm(log2(fold_rise), σ_bio, ≥0), then waned + noise")
+    print(f"  Noise unchanged: N(-α₁·z, σ₁)")
+    print("=" * 60)
+    p5 = fit_foldrise_mixture(x, t0, t1, eu_start, p1)
+    cv5 = sigma_log2_to_cv(p5["sigma1"])
+    print(f"  Noise:  α₁={p5['alpha1']:.4f}, σ₁={p5['sigma1']:.4f}, π={p5['pi_noise']:.3f}")
+    print(f"          Implied assay CV = {cv5:.3f}")
+    print(f"  Signal: μ₀={p5['mu_0']:.4f} (fold-rise intensity)")
+    print(f"          CoP_max={p5['cop_max']:.1f} EU (log10={p5['log10_cop_max']:.2f})")
+    print(f"          α₂={p5['alpha2']:.4f} (signal waning exponent)")
+    print(f"          σ_bio={p5['sigma_bio']:.4f}, σ₂={p5['sigma2']:.4f}")
+    # Show predicted boost at representative starting titers
+    for eu_ex in [50, 200, 500, 1000]:
+        b0 = fold_rise_log2(eu_ex, p5["mu_0"], p5["log10_cop_max"])
+        print(f"          eu_start={eu_ex}: predicted log2(boost)={b0:.2f} = {2**b0:.1f}× fold rise")
+    print(f"  LL={p5['ll']:.2f}, AIC={p5['aic']:.2f}, BIC={p5['bic']:.2f}")
+    print(f"  Converged: {p5['converged']}")
+    print(f"  ΔAIC vs Step 1: {p1['aic'] - p5['aic']:.2f} ({'Step 5 better' if p1['aic'] > p5['aic'] else 'Step 1 better'})")
+    print(f"  ΔAIC vs Step 4: {p4['aic'] - p5['aic']:.2f}")
+    plot_step5(df, p5)
+
     # Model comparison
     print("\n" + "=" * 60)
     print("MODEL COMPARISON (all with σ₂ = √(σ₁² + σ_bio²))")
     print("=" * 60)
-    print(f"{'Model':<40} {'k':>3} {'LL':>8} {'AIC':>8} {'BIC':>8} {'CV':>6} {'σ_bio':>6}")
-    print("-" * 83)
+    print(f"{'Model':<42} {'k':>3} {'LL':>8} {'AIC':>8} {'BIC':>8} {'CV':>6} {'σ_bio':>6}")
+    print("-" * 85)
     for name, p, cv, k in [
         ("1. Two Gaussians", p1, cv1, 5),
         ("2. Gauss + Skew-Normal", p2, cv2, 6),
         ("3. Signal time-dep (log2 Δt)", p3, cv3, 6),
         ("4. Teunis power-law (τ-ratio)", p4, cv4, 6),
+        ("5. Fold-rise-informed", p5, cv5, 7),
     ]:
-        print(f"{name:<40} {k:>3} {p['ll']:>8.2f} {p['aic']:>8.2f} {p['bic']:>8.2f} "
+        print(f"{name:<42} {k:>3} {p['ll']:>8.2f} {p['aic']:>8.2f} {p['bic']:>8.2f} "
               f"{cv:>6.3f} {p['sigma_bio']:>6.3f}")
 
     # Component assignments (best AIC)
-    all_models = [(p1, "Step 1"), (p2, "Step 2"), (p3, "Step 3"), (p4, "Step 4")]
+    all_models = [(p1, "Step 1"), (p2, "Step 2"), (p3, "Step 3"),
+                  (p4, "Step 4"), (p5, "Step 5")]
     best_p, best_name = min(all_models, key=lambda x: x[0]["aic"])
     print(f"\n{'='*60}")
     print(f"COMPONENT ASSIGNMENTS ({best_name}, P(responder) > 0.5)")
@@ -796,7 +1038,7 @@ def main():
               f"duration: {noise['duration_days'].median():.0f}d, "
               f"starting EU: {noise['eu_start'].median():.1f}")
 
-    plot_summary(x, p1, p2, p3, p4, df)
+    plot_summary(x, p1, p2, p3, p4, p5, df)
 
 
 if __name__ == "__main__":

@@ -493,6 +493,44 @@ To go further requires per-subject trajectory modeling (Stan) that jointly estim
 
 The fold-change EDA provides strong priors for this model: CV, the population mixture proportions, the waning exponent range, and the correlate-of-protection relationship.
 
+### Step 26: Fold-rise-informed mixture model (Step 5 in 08_fold_change_mixture.py)
+
+Replaced the free μ_bio boost parameter with the fold-rise model from `scratch/cohort_incidence_model_proof_of_concept.R`:
+
+fold_rise(eu_start) = 10^(μ₀ · (1 − log10(eu_start) / log10(CoP_max)))
+
+The signal component's expected boost is now a **decreasing function of starting titer** — subjects with high pre-challenge Vi IgG get smaller boosts (ceiling effect). This mechanistically explains the ρ=-0.62 correlation we observed.
+
+Signal: B₀ ~ TruncNorm(log2(fold_rise(eu_start)), σ_bio, ≥0), then X = B₀ − α₂·z + ε
+
+#### Results
+
+| Model | k | AIC | ΔAIC vs Step 1 |
+|---|---|---|---|
+| Steps 1-4 | 5-6 | 484-490 | baseline |
+| **Step 5: Fold-rise** | **7** | **419.8** | **+64.7** |
+
+**ΔAIC = 65 over Step 1** — overwhelmingly better with only 2 extra parameters.
+
+Fitted parameters:
+- **μ₀ = 3.32** — boost intensity. Predicted fold rises: 23× at eu_start=50, 4.6× at 200, 1.6× at 500, 1× at 1000 EU
+- **CoP_max = 753 EU** — titer ceiling where boost → 1×. Lower than the cohort model default (3162 EU), suggesting Vi IgG boost saturates earlier than assumed
+- **α₁ = -0.023** — noise waning exponent (near zero, noise component essentially flat with time)
+- **α₂ = 0.107** — signal waning exponent (positive, correct sign: responders' fold changes decline with time ratio)
+- **σ_bio = 0.000** — collapsed to zero! The fold-rise model explains ALL biological heterogeneity through the eu_start dependence
+- **CV ≈ 0.30** — higher than Steps 1-3 (0.20). The fold-rise model absorbs what was previously called "noise"
+- **π_noise = 0.45** — 55% noise, 45% signal; but component assignments shifted (64% classified as responders at P>0.5 because the signal component now correctly predicts small boosts for high-titer subjects)
+
+#### Interpretation
+
+The fold-rise model does two critical things:
+1. **Explains the eu_start → FC correlation mechanistically** — it's not regression to the mean, it's the immunological ceiling effect where high-titer subjects boost less
+2. **Enables correct classification of high-titer subjects with small FC** — these were misclassified as noise in Steps 1-4 but are now correctly identified as responders who had small expected boosts
+
+The σ_bio = 0 finding means individual variation in boost magnitude is entirely captured by the fold-rise model's dependence on starting titer. No additional subject-level heterogeneity is needed beyond measurement noise.
+
+CoP_max = 753 EU is a calibration target for the cohort model. It represents the Vi IgG level at which natural infection produces no additional boost — effectively the immune saturation point for Vi.
+
 ---
 
 ## Infrastructure notes
