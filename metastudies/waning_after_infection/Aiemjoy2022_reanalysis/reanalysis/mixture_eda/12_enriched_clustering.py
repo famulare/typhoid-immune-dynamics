@@ -255,7 +255,7 @@ def main():
         ("S. Paratyphi A — centered", "paratyphi", "centered"),
     ]
 
-    fig, axes = plt.subplots(4, k_primary, figsize=(6 * k_primary, 18), sharex=True)
+    fig, axes = plt.subplots(4, k_primary, figsize=(6 * k_primary + 1, 18), sharex=True)
 
     for col, c in enumerate(range(1, k_primary + 1)):
         c_sids = [s for s in sids if cluster_map[s] == c]
@@ -284,13 +284,44 @@ def main():
                 ax.scatter(t, y_plot, color=color, s=15, alpha=0.6,
                            edgecolors="black", linewidths=0.2)
 
-            if len(all_t) >= 6:
-                smooth = sm_lowess(np.array(all_y), np.array(all_t),
-                                   frac=0.6, return_sorted=True)
-                if mode == "absolute":
-                    ax.plot(smooth[:, 0], 10**smooth[:, 1], "k-", lw=3, alpha=0.9, zorder=10)
+            all_t_arr = np.array(all_t)
+            all_y_arr = np.array(all_y)
+            if len(all_t_arr) >= 6 and len(sv_sids) >= 3:
+                smooth = sm_lowess(all_y_arr, all_t_arr, frac=0.6, return_sorted=True)
+
+                # Bootstrap CI by resampling subjects
+                t_eval = smooth[:, 0]
+                rng = np.random.RandomState(42 + col * 10 + row_idx)
+                boot_curves = []
+                for _ in range(200):
+                    boot_sids = rng.choice(sv_sids, size=len(sv_sids), replace=True)
+                    bt, by = [], []
+                    for bsid in boot_sids:
+                        bgrp = longi[longi["index_id"] == bsid].sort_values("days_since_fever_onset")
+                        bt_vals = bgrp["days_since_fever_onset"].values
+                        by_log = np.log10(np.maximum(bgrp["vi_igg_eu"].values, 1))
+                        if mode == "centered":
+                            by_log = by_log - feature_rows[bsid]["subj_mean_log10"]
+                        bt.extend(bt_vals); by.extend(by_log)
+                    if len(bt) >= 6:
+                        bs = sm_lowess(np.array(by), np.array(bt), frac=0.6, return_sorted=True)
+                        boot_interp = np.interp(t_eval, bs[:, 0], bs[:, 1])
+                        boot_curves.append(boot_interp)
+                if len(boot_curves) >= 10:
+                    boot_arr = np.array(boot_curves)
+                    lo = np.percentile(boot_arr, 2.5, axis=0)
+                    hi = np.percentile(boot_arr, 97.5, axis=0)
+                    if mode == "absolute":
+                        ax.fill_between(t_eval, 10**lo, 10**hi, color="black", alpha=0.2, zorder=9)
+                        ax.plot(smooth[:, 0], 10**smooth[:, 1], "k-", lw=3, alpha=0.9, zorder=10)
+                    else:
+                        ax.fill_between(t_eval, lo, hi, color="black", alpha=0.2, zorder=9)
+                        ax.plot(smooth[:, 0], smooth[:, 1], "k-", lw=3, alpha=0.9, zorder=10)
                 else:
-                    ax.plot(smooth[:, 0], smooth[:, 1], "k-", lw=3, alpha=0.9, zorder=10)
+                    if mode == "absolute":
+                        ax.plot(smooth[:, 0], 10**smooth[:, 1], "k-", lw=3, alpha=0.9, zorder=10)
+                    else:
+                        ax.plot(smooth[:, 0], smooth[:, 1], "k-", lw=3, alpha=0.9, zorder=10)
 
             ax.set_xlim(-10, 400); ax.grid(True, alpha=0.3)
             if mode == "absolute":
@@ -312,7 +343,7 @@ def main():
 
     sm_cb = cm.ScalarMappable(norm=presp_norm, cmap=presp_cmap)
     sm_cb.set_array([])
-    fig.colorbar(sm_cb, ax=axes, location="right", shrink=0.5, pad=0.02, label="P(responder)")
+    fig.colorbar(sm_cb, ax=axes, location="right", shrink=0.4, pad=0.06, label="P(responder)")
 
     fig.suptitle(f"Enriched clusters × serovar (n={n}, k={k_primary})\n"
                  f"Colored by P(resp), black = LOESS",
