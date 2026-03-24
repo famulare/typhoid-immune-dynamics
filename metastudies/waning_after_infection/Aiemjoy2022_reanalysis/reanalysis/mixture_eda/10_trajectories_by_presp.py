@@ -296,25 +296,32 @@ def main():
     populated_quintiles = sorted(df_good["p_resp_quintile"].unique())
     n_cols = len(populated_quintiles)
 
-    fig, axes = plt.subplots(1, n_cols, figsize=(5 * n_cols, 6), sharey=True, sharex=True)
+    # Precompute per-subject mean log10(EU) for mean-centering (row 2)
+    subj_mean_log10 = {}
+    for sid in good_ids:
+        grp = long[long["index_id"] == sid]
+        vals = grp["vi_igg_eu"].values
+        subj_mean_log10[sid] = np.log10(np.maximum(vals, 1)).mean()
+
+    fig, axes = plt.subplots(2, n_cols, figsize=(5 * n_cols, 10),
+                             sharex=True)
     if n_cols == 1:
-        axes = [axes]
+        axes = axes.reshape(2, 1)
 
     for col, qi in enumerate(populated_quintiles):
-        ax = axes[col]
         sub = df_good[df_good["p_resp_quintile"] == qi]
         bounds = quintile_bounds.loc[qi]
-
         n_typhi = (sub["bldculres"] == "typhi").sum()
         n_para = (sub["bldculres"] == "paratyphi").sum()
         n_reinf = sub["reinf_algo"].sum()
 
+        # --- Row 0: absolute titers ---
+        ax = axes[0, col]
         for _, r in sub.iterrows():
             sid = r["index_id"]
             grp = long[long["index_id"] == sid].sort_values("days_since_fever_onset")
             color = serovar_colors[r["bldculres"]]
             is_reinf = r["reinf_algo"]
-
             ax.plot(grp["days_since_fever_onset"], grp["vi_igg_eu"],
                     color=color, linewidth=1.0, alpha=0.6)
             marker = "*" if is_reinf else "o"
@@ -325,7 +332,7 @@ def main():
                        alpha=0.9 if is_reinf else 0.6,
                        edgecolors="black", linewidths=0.4 if is_reinf else 0.2)
 
-        # LOESS smooth per serovar (on log10 scale, back-transformed)
+        # LOESS on absolute log10
         for sv, sv_color in serovar_colors.items():
             sv_ids = sub[sub["bldculres"] == sv]["index_id"]
             if len(sv_ids) < 3:
@@ -339,14 +346,53 @@ def main():
             ax.plot(smooth[:, 0], 10**smooth[:, 1], color=sv_color,
                     linewidth=3, alpha=0.9, zorder=10)
 
-        ax.set_yscale("log"); ax.set_ylim(10, 5000); ax.set_xlim(-10, 1200)
+        ax.set_yscale("log"); ax.set_ylim(10, 5000); ax.set_xlim(-10, 400)
         ax.grid(True, alpha=0.3)
-        ax.set_xlabel("Days since fever onset")
         ax.set_title(f"Q{qi}: P ∈ [{bounds['min']:.2f}, {bounds['max']:.2f}]\n"
                      f"n={len(sub)} ({n_typhi} T, {n_para} P, {n_reinf}★)",
                      fontsize=10)
         if col == 0:
             ax.set_ylabel("Vi IgG (EU)")
+
+        # --- Row 1: mean-centered (log10 scale, subtract subject mean) ---
+        ax = axes[1, col]
+        for _, r in sub.iterrows():
+            sid = r["index_id"]
+            grp = long[long["index_id"] == sid].sort_values("days_since_fever_onset")
+            color = serovar_colors[r["bldculres"]]
+            is_reinf = r["reinf_algo"]
+            y_centered = np.log10(np.maximum(grp["vi_igg_eu"].values, 1)) - subj_mean_log10[sid]
+            ax.plot(grp["days_since_fever_onset"].values, y_centered,
+                    color=color, linewidth=1.0, alpha=0.6)
+            marker = "*" if is_reinf else "o"
+            size = 80 if is_reinf else 20
+            ax.scatter(grp["days_since_fever_onset"].values, y_centered,
+                       color=color, marker=marker, s=size,
+                       zorder=5 if is_reinf else 4,
+                       alpha=0.9 if is_reinf else 0.6,
+                       edgecolors="black", linewidths=0.4 if is_reinf else 0.2)
+
+        # LOESS on mean-centered
+        for sv, sv_color in serovar_colors.items():
+            sv_ids = sub[sub["bldculres"] == sv]["index_id"]
+            if len(sv_ids) < 3:
+                continue
+            sv_long = long[long["index_id"].isin(sv_ids)].copy()
+            t_vals = sv_long["days_since_fever_onset"].values
+            y_raw = np.log10(np.maximum(sv_long["vi_igg_eu"].values, 1))
+            y_centered = y_raw - sv_long["index_id"].map(subj_mean_log10).values
+            if len(t_vals) < 6:
+                continue
+            smooth = lowess(y_centered, t_vals, frac=0.6, return_sorted=True)
+            ax.plot(smooth[:, 0], smooth[:, 1], color=sv_color,
+                    linewidth=3, alpha=0.9, zorder=10)
+
+        ax.axhline(0, color="gray", linestyle=":", linewidth=0.8)
+        ax.set_xlim(-10, 400)
+        ax.grid(True, alpha=0.3)
+        ax.set_xlabel("Days since fever onset")
+        if col == 0:
+            ax.set_ylabel("log10(EU) − subject mean")
 
     legend_elements = [
         Line2D([0], [0], color="#9133be", lw=3, label="S. Typhi (LOESS)"),
@@ -354,10 +400,10 @@ def main():
         Line2D([0], [0], marker="o", color="gray", lw=0, markersize=6, label="No reinf flag"),
         Line2D([0], [0], marker="*", color="gray", lw=0, markersize=12, label="Aiemjoy reinf algo"),
     ]
-    axes[-1].legend(handles=legend_elements, fontsize=8, loc="upper right")
+    axes[0, -1].legend(handles=legend_elements, fontsize=8, loc="upper right")
 
     fig.suptitle(f"Vi IgG trajectories: ≥3 points, ≥2 by day 180 (n={len(df_good)})\n"
-                 f"Colored by blood culture result, faceted by P(resp) quintile",
+                 f"Top: absolute titers | Bottom: mean-centered (shape emphasis)",
                  fontsize=13, fontweight="bold")
     fig.tight_layout()
     fig.savefig(OUT_DIR / "10_trajectories_multipoint_serovar.png", dpi=150, bbox_inches="tight")
