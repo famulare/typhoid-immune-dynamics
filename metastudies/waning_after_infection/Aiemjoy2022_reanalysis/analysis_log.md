@@ -531,6 +531,20 @@ The σ_bio = 0 finding means individual variation in boost magnitude is entirely
 
 CoP_max = 753 EU is a calibration target for the cohort model. It represents the Vi IgG level at which natural infection produces no additional boost — effectively the immune saturation point for Vi.
 
+#### Caution: error-in-covariates and the Step 5 AIC
+
+Despite the ΔAIC=65, Step 5's parameter estimates are biased and should not be used directly:
+
+1. **Error-in-covariates.** eu_start is a noisy measurement of something that isn't even the right quantity. The fold-rise model requires the *pre-infection* titer, but eu_start is a *post-infection* observation taken days to months after fever onset. Conditioning on a noisy covariate inflates apparent explanatory power because the model overfits to measurement error in eu_start.
+
+2. **σ_bio = 0 is a red flag.** The model claims ALL individual variation in boost magnitude is explained by eu_start. This is too good — it's absorbing eu_start measurement error into the fit rather than identifying genuine biological heterogeneity.
+
+3. **CoP_max = 753 EU is biased downward.** Fitting from noisy, post-infection first-observations rather than true pre-challenge titers systematically underestimates the ceiling.
+
+**Decision: Step 4 (untruncated Teunis τ-ratio) is the working model** for fold-change classification and parameter estimation. It uses only timing information (measured precisely), gives interpretable parameters (α₁, CV), and its limitations are well-characterized.
+
+Step 5 is retained as a proof-of-concept that the fold-rise model structure explains the eu_start→FC correlation mechanistically. Its parameters (μ₀, CoP_max) should be re-estimated in the Stan individual-level trajectory model where a proper observation model handles measurement timing and error-in-covariates.
+
 ---
 
 ## Infrastructure notes
