@@ -10,6 +10,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy import stats
+from statsmodels.nonparametric.smoothers_lowess import lowess
 from pathlib import Path
 import sys
 
@@ -324,6 +325,20 @@ def main():
                        alpha=0.9 if is_reinf else 0.6,
                        edgecolors="black", linewidths=0.4 if is_reinf else 0.2)
 
+        # LOESS smooth per serovar (on log10 scale, back-transformed)
+        for sv, sv_color in serovar_colors.items():
+            sv_ids = sub[sub["bldculres"] == sv]["index_id"]
+            if len(sv_ids) < 3:
+                continue
+            sv_long = long[long["index_id"].isin(sv_ids)].copy()
+            t_vals = sv_long["days_since_fever_onset"].values
+            y_vals = np.log10(np.maximum(sv_long["vi_igg_eu"].values, 1))
+            if len(t_vals) < 6:
+                continue
+            smooth = lowess(y_vals, t_vals, frac=0.6, return_sorted=True)
+            ax.plot(smooth[:, 0], 10**smooth[:, 1], color=sv_color,
+                    linewidth=3, alpha=0.9, zorder=10)
+
         ax.set_yscale("log"); ax.set_ylim(10, 5000); ax.set_xlim(-10, 1200)
         ax.grid(True, alpha=0.3)
         ax.set_xlabel("Days since fever onset")
@@ -334,8 +349,8 @@ def main():
             ax.set_ylabel("Vi IgG (EU)")
 
     legend_elements = [
-        Line2D([0], [0], color="#9133be", lw=2, label="S. Typhi"),
-        Line2D([0], [0], color="#2ca02c", lw=2, label="S. Paratyphi A"),
+        Line2D([0], [0], color="#9133be", lw=3, label="S. Typhi (LOESS)"),
+        Line2D([0], [0], color="#2ca02c", lw=3, label="S. Paratyphi A (LOESS)"),
         Line2D([0], [0], marker="o", color="gray", lw=0, markersize=6, label="No reinf flag"),
         Line2D([0], [0], marker="*", color="gray", lw=0, markersize=12, label="Aiemjoy reinf algo"),
     ]
