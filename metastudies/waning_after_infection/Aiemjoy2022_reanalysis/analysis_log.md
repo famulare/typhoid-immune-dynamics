@@ -604,6 +604,43 @@ Paratyphi subjects are distributed across all three clusters. The trajectory sha
 
 **Key observation from the 4×3 faceted figure** (cluster × serovar, absolute + mean-centered): Both Typhi and Paratyphi show similar trajectory shapes within each cluster. The "Rising" cluster (C3) shows clear acute-boost humps in both serovars — consistent with Vi boosting from unconfirmed Typhi exposure in the Paratyphi group.
 
+### Step 30: Enriched clustering — shape + P(resp) + serovar (mixture_eda/12_enriched_clustering.py)
+
+Added P(resp) from the fold-change mixture model and a serovar indicator (typhi=1, paratyphi=0) to the shape feature vector. Features standardized to unit variance; shape dimensions downweighted by √8 to equalize influence with the scalar features. Ward hierarchical clustering.
+
+**k=3 cleanly separates by serovar:**
+
+| Cluster | n | Typhi | Paratyphi | Mean P(resp) |
+|---|---|---|---|---|
+| C1 (Typhi declining) | 20 | 20 | 0 | 0.37 |
+| C2 (Paratyphi mixed) | 16 | 0 | 16 | 0.64 |
+| C3 (Typhi rising) | 21 | 21 | 0 | 0.95 |
+
+The serovar indicator dominates the first split. Within Typhi, shape + P(resp) separate waning (C1) from acute boosting (C3). All Paratyphi subjects land in one cluster (C2) with intermediate P(resp) and mixed shapes.
+
+### Step 31: Sub-cluster analysis at k=8 (mixture_eda/12b_subcluster_analysis.py)
+
+Finer cut of the dendrogram reveals internal structure:
+
+- **Typhi-declining** splits into 2 subclusters (n=14, n=6; both P̄≈0.37) with different decline steepness
+- **Paratyphi** splits into 3 subclusters: SC3 (n=6, P̄=0.45, flat/declining), SC4 (n=6, P̄=0.62, mild hump), SC5 (n=4, P̄=0.95, clear rise-then-plateau). The 4 Paratyphi subjects in SC5 show the same acute-boost trajectory shape as Typhi risers — strongest candidates for asymptomatic Typhi co-infection.
+- **Typhi-rising** splits into 3 subclusters (n=4,8,9; P̄=0.90-0.97) with different boost magnitudes and timing
+
+### Step 32: Raw-titer clustering — level + shape + P(resp) + serovar (mixture_eda/12c_raw_titer_clustering.py)
+
+Unlike 12 (mean-centered shape), uses non-centered log10(EU) traces so titer **level** contributes alongside shape, P(resp), and serovar.
+
+**k=4 results:**
+
+| Cluster | n | Serovar | Mean P(resp) | Mean EU |
+|---|---|---|---|---|
+| C1 | 12 | All Typhi | 0.35 | 812 |
+| C2 | 7 | All Typhi | 0.39 | 687 |
+| C3 | 22 | All Typhi | 0.93 | 520 |
+| C4 | 16 | All Paratyphi | 0.64 | 673 |
+
+Including titer level separates the Typhi decliners into high-start (C1, 812 EU) and mid-start (C2, 687 EU) — a dimension shape-only clustering missed. The rising responders (C3) have the lowest starting titers (520 EU), consistent with the fold-rise model prediction that lower pre-challenge titers enable larger boosts.
+
 ---
 
 ## Infrastructure notes
