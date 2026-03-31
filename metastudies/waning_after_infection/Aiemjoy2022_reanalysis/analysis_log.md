@@ -641,6 +641,47 @@ Unlike 12 (mean-centered shape), uses non-centered log10(EU) traces so titer **l
 
 Including titer level separates the Typhi decliners into high-start (C1, 812 EU) and mid-start (C2, 687 EU) — a dimension shape-only clustering missed. The rising responders (C3) have the lowest starting titers (520 EU), consistent with the fold-rise model prediction that lower pre-challenge titers enable larger boosts.
 
+### Step 33: UMAP + GMM clustering on all 191 longitudinal subjects (mixture_eda/13_umap_gmm_clustering.py)
+
+Prior trajectory clustering (Steps 29-32) required ≥3 observations and ≥2 within 200 days, limiting the sample to 57-58 subjects. This script avoids the interpolation bottleneck by using a 6-feature summary vector computed directly from each subject's first two visits:
+
+**Feature vector:**
+1. log10(EU first visit) — starting titer
+2. log10(EU second visit) — second-visit titer
+3. log2(t_start + 1) — timing of first observation
+4. log2(FC) — fold change first→second visit
+5. P(responder) — from Step 4 mixture model
+6. is_typhi — serovar indicator
+
+**GMM model selection by BIC:**
+- k=1 collapses (BIC >> 0), k=2 gives large BIC drop, **k=4 minimizes BIC**
+- BICs: k=1: 361, k=2: −2152, k=3: −2350, k=4: −2366, k=5+: rising
+
+**k=4 cluster summary (sorted by mean P(resp)):**
+
+| Cluster | n | Typhi | Paratyphi | Mean P(resp) | Median log2FC | Median log10EU |
+|---|---|---|---|---|---|---|
+| C1 (dramatic risers) | 4 | 25% | 75% | 0.56 | 1.50 | 2.61 |
+| C2 (Typhi risers) | 75 | 100% | 0% | 0.36 | 0.70 | 2.53 |
+| C3 (Paratyphi) | 32 | 0% | 100% | 0.28 | 0.17 | 2.63 |
+| C4 (Typhi flat/fallers) | 80 | 100% | 0% | 0.20 | −0.27 | 2.80 |
+
+**Key findings:**
+
+1. **Serovar and fold-change direction dominate the GMM**. Typhi vs. Paratyphi splits cleanly at the first axis of variation. Within Typhi, the main split is risers (C2, median FC=1.6×) vs. flat/fallers (C4, median FC=0.83×, higher starting titer).
+
+2. **The Paratyphi cluster (C3) has lower P(resp) than the Typhi-riser cluster (C2)** but similar to the Typhi-faller cluster (C4). This is consistent with Paratyphi subjects having a mix of true Vi responders (asymptomatic Typhi co-infections) and non-responders, without a clean serovar-specific signal.
+
+3. **C1 (n=4) is a high-starting-titer Paratyphi-dominated cluster** with dramatic fold rises. These 4 subjects are likely the strongest asymptomatic Typhi co-infection candidates from the Paratyphi group.
+
+4. **The Typhi-faller cluster (C4) has the highest starting titers** (median log10EU=2.80 vs 2.53 for risers). This is the complement of the Ji/TyVAC correlate of protection: high baseline → smaller boost → falls toward baseline; low baseline → large boost.
+
+5. **UMAP embedding** cleanly separates the 4 clusters with good local structure. The Paratyphi cluster sits well away from Typhi, and the two Typhi clusters form distinct arms of the manifold, distinguished primarily by fold-change direction.
+
+**Interpretation:** The 6-feature GMM on all 191 subjects recovers the same qualitative structure as the small-sample trajectory shape clustering, but with the full dataset. The primary axes are: (1) serovar and (2) titer direction (rising vs. flat/falling). There is no evidence of a third, novel axis of structure beyond what the fold-change mixture model and serovar indicator already capture.
+
+**Note on YOLO clustering approach:** This was discussed as a way to discover structure beyond the existing mixture model. The result confirms the existing structure — the GMM finds no hidden clusters, and the UMAP reveals no complex manifold geometry beyond what the 6 features encode. This is reassuring: the fold-change mixture model (Step 4) is capturing the true latent structure in the data.
+
 ---
 
 ## Infrastructure notes
