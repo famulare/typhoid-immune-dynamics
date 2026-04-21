@@ -1,0 +1,38 @@
+obs_id,study,year,era,outcome,dose_cfu,n,y,CoP,phi,gilman_stratum,eta_fixed_optC,likelihood_group,tier1_active,tier2_active,validation_only,notes
+W-F-3,Waddington,2011,oxford,fever,1000,20,11,1.0,1.0,0,NA,ox_fev,1,1,0,Naive. Actual median dose 1.34e3.
+W-F-4,Waddington,2011,oxford,fever,10000,20,13,1.0,1.0,0,NA,ox_fev,1,1,0,Naive. Actual median dose 1.98e4. CORRECTED n=20 y=13 (was n=16 y=10).
+D-F-plac,Darton,2013,oxford,fever,18200,30,20,1.15,1.0,0,NA,ox_fev,1,1,0,Mixed (40% Vi+). CoP=1.15 is placeholder for group-average; needs titer model. Actual median dose 1.82e4.
+J-F-ctrl,Jin,2015,oxford,fever,20000,31,24,1.12,1.0,0,NA,ox_fev,1,1,0,Mixed (38% Vi+). CoP=1.12 placeholder. Dose is geometric mean of 1-5e4 target range.
+J-F-ViTT,Jin,2015,oxford,fever,20000,37,13,5.0,1.0,0,NA,ox_fev,1,1,0,Vi-TT vaccinated. GMT 563 EU/mL. CoP=5.0 PLACEHOLDER — needs titer model mapping.
+J-F-ViPS,Jin,2015,oxford,fever,20000,35,13,2.0,1.0,0,NA,ox_fev,1,1,0,Vi-PS vaccinated. GMT 141 EU/mL. CoP=2.0 PLACEHOLDER — needs titer model mapping.
+G20-F-naive,Gibani,2019,oxford,fever,25000,19,12,1.0,1.0,0,NA,ox_fev,1,1,0,Naive rechallenge cohort. Dose ~2.5e4.
+W-I-3,Waddington,2011,oxford,infection,1000,20,13,1.0,NA,0,1.00,ox_inf,0,1,0,Shedding. η=1.0 (shedding > diagnosis at this dose). Tier 2 only.
+W-I-4,Waddington,2011,oxford,infection,10000,20,8,1.0,NA,0,0.62,ox_inf,0,1,0,Shedding. y=8 best estimate (bounded 7-14; not directly reported). η=0.62. Tier 2 only.
+D-I-plac,Darton,2013,oxford,infection,18200,30,19,1.15,NA,0,0.94,ox_inf,0,1,0,Shedding from S1 individual data. η=0.94. CoP placeholder. Tier 2 only.
+J-I-ctrl,Jin,2015,oxford,infection,20000,31,22,1.12,NA,0,0.92,ox_inf,0,1,0,Shedding. η=0.92 (22/24 shedders per diagnosed). CoP placeholder. Tier 2 only.
+J-I-ViTT,Jin,2015,oxford,infection,20000,37,22,5.0,NA,0,0.92,ox_inf,0,1,0,Shedding. Same η as ctrl (similar time-to-treatment). CoP PLACEHOLDER. Tier 2 only.
+J-I-ViPS,Jin,2015,oxford,infection,20000,35,21,2.0,NA,0,0.92,ox_inf,0,1,0,Shedding. Same η. CoP PLACEHOLDER. Tier 2 only.
+H-F-3,Hornick,1965,maryland,fever,1000,14,0,NA,0.25,0,NA,md_fev,1,1,0,Maryland mixture. φ=0.25 (Hornick: >=103F/24-36h).
+H-F-5,Hornick,1965,maryland,fever,100000,116,32,NA,0.25,0,NA,md_fev,1,1,0,Maryland mixture. φ=0.25.
+H-F-8,Hornick,1965,maryland,fever,100000000,9,8,NA,0.25,0,NA,md_fev,1,1,0,Maryland mixture. φ=0.25.
+H-F-9,Hornick,1965,maryland,fever,1000000000,42,40,NA,0.25,0,NA,md_fev,1,1,0,Maryland mixture. φ=0.25.
+H-I-7,Hornick,1965,maryland,infection,10000000,30,28,NA,NA,0,NA,md_inf,1,1,0,Maryland mixture. Hornick Table 2 infection at 10^7.
+H-FgI-7,Hornick,1965,maryland,fever_given_inf,10000000,28,16,NA,0.25,0,NA,hornick_cond,1,1,0,Maryland mixture. Hornick Table 2: P(fever|infected) at 10^7. Denominator=28 infected.
+Gil-F-Hlo,Gilman,1975,maryland,fever,100000,36,22,NA,0.65,1,NA,md_fev,1,1,0,Susceptible stratum (H Ab <1:20). φ=0.65 (Gilman: fever + culture). Gilman_stratum=1.
+Gil-F-Hhi,Gilman,1975,maryland,fever,100000,17,4,NA,0.65,2,NA,md_fev,1,1,0,Immune stratum (H Ab >=1:20). φ=0.65. Gilman_stratum=2.
+Gil-F-rest,Gilman,1975,maryland,fever,100000,11,5,NA,0.65,0,NA,md_fev,1,1,0,DERIVED by subtraction (64-36-17=11). Controls without H-ab data. φ=0.65. Sensitivity: fit with/without.
+Gil-I-ctrl,Gilman,1975,maryland,infection,100000,43,26,NA,NA,0,NA,md_inf,1,1,0,Maryland mixture. Late shedding (4-30 days). Trials 1&3 controls only.
+Lev-F-1,Levine,1970,maryland,fever,100000,26,13,NA,0.65,0,NA,md_fev,1,1,0,Maryland mixture. Trial 1. φ=0.65 (Levine: >=101F + culture).
+Lev-F-2,Levine,1971,maryland,fever,100000,33,10,NA,0.65,0,NA,md_fev,1,1,0,Maryland mixture. Trial 2. φ=0.65.
+Lev-F-3,Levine,1972,maryland,fever,100000,22,12,NA,0.65,0,NA,md_fev,1,1,0,Maryland mixture. Trial 3. φ=0.65.
+Lev-F-4,Levine,1973,maryland,fever,100000,16,4,NA,0.65,0,NA,md_fev,1,1,0,Maryland mixture. Trial 4. φ=0.65.
+Lev-I-1,Levine,1970,maryland,infection,100000,26,19,NA,NA,0,NA,md_inf,1,1,0,Maryland mixture. Trial 1. Any-time stool positive.
+Lev-I-2,Levine,1971,maryland,infection,100000,33,15,NA,NA,0,NA,md_inf,1,1,0,Maryland mixture. Trial 2. Any-time stool positive.
+Lev-I-3,Levine,1972,maryland,infection,100000,22,17,NA,NA,0,NA,md_inf,1,1,0,Maryland mixture. Trial 3. Any-time stool positive.
+Lev-I-4,Levine,1973,maryland,infection,100000,16,6,NA,NA,0,NA,md_inf,1,1,0,Maryland mixture. Trial 4. Any-time stool positive.
+D-F-Ty21a,Darton,2013,oxford,fever,18200,30,13,NA,1.0,0,NA,ox_fev,0,0,1,VALIDATION ONLY. Ty21a lacks Vi gene; non-Vi protection. Cannot map to anti-Vi CoP.
+D-F-M01,Darton,2013,oxford,fever,18200,31,18,NA,1.0,0,NA,ox_fev,0,0,1,VALIDATION ONLY. M01ZH09 did not raise anti-Vi IgG; protection via anti-LPS.
+H-V-K5,Hornick,1965,maryland,fever,100000,43,4,NA,0.25,0,NA,md_fev,0,0,1,VALIDATION. K vaccine (whole-cell killed). CoP unknown.
+H-V-L5,Hornick,1965,maryland,fever,100000,45,3,NA,0.25,0,NA,md_fev,0,0,1,VALIDATION. L vaccine. CoP unknown.
+H-V-K7,Hornick,1965,maryland,fever,10000000,28,12,NA,0.25,0,NA,md_fev,0,0,1,VALIDATION. K vaccine at 10^7.
+H-V-L7,Hornick,1965,maryland,fever,10000000,24,13,NA,0.25,0,NA,md_fev,0,0,1,VALIDATION. L vaccine at 10^7.

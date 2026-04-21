@@ -119,12 +119,17 @@ Gilman RH, Hornick RB, Woodward WE, DuPont HL, Snyder MJ, Levine MM, Libonati JP
 
 ### Table 5 (p.721): H Antibody and Protection in Controls
 
-| Baseline H Antibody | N | Attack Rate |
-|--------------------|---|-------------|
-| < 1:20 | 14 | 61%* |
-| >= 1:20 | 13 | 24%* |
+Table 5 cross-tabulates clinical outcome (Well/Ill) by baseline H-antibody status in unvaccinated controls:
 
-*Difference significant at P = 0.02
+| Clinical Outcome | H Ab <1:20 | H Ab ≥1:20 |
+|------------------|------------|------------|
+| Well | 14 | 13 |
+| Ill | 22 (61%)* | 4 (24%)* |
+| **Total** | **36** | **17** |
+
+*Difference between attack rates significant at P = 0.02
+
+**Denominators**: 36 controls had H Ab <1:20; 17 had H Ab ≥1:20. Total with H-antibody data: 53 of 64 controls (83%). The 11 controls without H-antibody data are unaccounted for in this table (likely missing baseline sera).
 
 ### Table 6 (p.721): Seroconversion After Challenge
 
@@ -213,10 +218,10 @@ Gilman RH, Hornick RB, Woodward WE, DuPont HL, Snyder MJ, Levine MM, Libonati JP
 | Trial 2 controls | 10^5 | 21 | 8 | 38% |
 | Combined | 10^5 | 64 | 31 | 48% |
 
-### Antibody-stratified attack rates (controls only):
+### Antibody-stratified attack rates (controls only, 53/64 with H Ab data):
 | H Antibody Status | N | Disease | Rate |
 |-------------------|---|---------|------|
-| < 1:20 | 14 | ~9 | 61% |
-| >= 1:20 | 13 | ~3 | 24% |
+| < 1:20 | 36 | 22 | 61% |
+| >= 1:20 | 17 | 4 | 24% |
 
-**[OPEN]** Exact case counts for antibody-stratified analysis not given in Table 5; percentages back-calculated. Should verify denominators sum correctly.
+**Note**: Case counts are exact from Table 5 (Well + Ill rows give both numerator and denominator). 53/64 controls had baseline H-antibody measured; 11 are missing.
