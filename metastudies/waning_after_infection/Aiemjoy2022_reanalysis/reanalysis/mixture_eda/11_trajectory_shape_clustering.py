@@ -5,7 +5,8 @@ For subjects with ≥3 points and ≥2 within 200 days:
   1. Linear-interpolate log10(EU) onto a common time grid
   2. Mean-center (remove level) + L2-normalize (unit shape vectors)
   3. Pairwise cosine similarity (= correlation for mean-centered data)
-  4. Hierarchical clustering (Ward's method)
+  4. Hierarchical clustering (average linkage — Ward requires Euclidean
+     geometry and is invalid on a precomputed cosine-distance matrix)
   5. Visualize: dendrogram, clustered trajectories, cluster vs P(resp)
 """
 
@@ -124,9 +125,11 @@ def main():
     dist_matrix = (dist_matrix + dist_matrix.T) / 2
     dist_matrix = np.maximum(dist_matrix, 0)
 
-    # Hierarchical clustering (Ward's method)
+    # Hierarchical clustering on precomputed cosine distances.
+    # Use average (UPGMA) linkage — Ward minimizes Euclidean SSE and is
+    # not well-defined on arbitrary distance matrices.
     dist_condensed = squareform(dist_matrix)
-    Z = linkage(dist_condensed, method="ward")
+    Z = linkage(dist_condensed, method="average")
 
     # Cut at k clusters
     for k in [2, 3, 4]:

@@ -100,7 +100,12 @@ def compute_ic(ll, n_params, n):
 # =========================================================================
 
 def neg_ll_two_gauss(theta, x):
-    mu1, log_sigma1, mu2, log_sigma_bio, logit_pi = theta
+    # Reparametrize mu2 = mu1 + exp(log_delta) to enforce mu2 > mu1 during
+    # optimization. This resolves the label-switching ambiguity at the
+    # model level rather than by post-hoc relabeling, which would break
+    # the asymmetric sigma2 = sqrt(sigma1^2 + sigma_bio^2) constraint.
+    mu1, log_sigma1, log_delta, log_sigma_bio, logit_pi = theta
+    mu2 = mu1 + np.exp(log_delta)
     sigma1 = np.exp(log_sigma1)
     sigma_bio = np.exp(log_sigma_bio)
     sigma2 = compute_sigma2(sigma1, sigma_bio)
@@ -122,8 +127,8 @@ def fit_two_gaussian(x):
 
     for _ in range(20):
         mu1_init = rng.normal(np.median(x) - 0.3, 0.3)
-        mu2_init = rng.normal(np.median(x) + 0.5, 0.5)
-        x0 = [mu1_init, np.log(0.4), mu2_init, np.log(0.8), 0.0]
+        delta_init = max(rng.normal(0.8, 0.3), 0.1)
+        x0 = [mu1_init, np.log(0.4), np.log(delta_init), np.log(0.8), 0.0]
 
         result = optimize.minimize(
             neg_ll_two_gauss, x0, args=(x,),
@@ -133,28 +138,12 @@ def fit_two_gaussian(x):
             best_ll = -result.fun
             best_result = result
 
-    mu1, log_sigma1, mu2, log_sigma_bio, logit_pi = best_result.x
+    mu1, log_sigma1, log_delta, log_sigma_bio, logit_pi = best_result.x
+    mu2 = mu1 + np.exp(log_delta)
     sigma1 = np.exp(log_sigma1)
     sigma_bio = np.exp(log_sigma_bio)
     sigma2 = compute_sigma2(sigma1, sigma_bio)
     pi_noise = 1 / (1 + np.exp(-logit_pi))
-
-    # Order: component 0 = smaller mean
-    if mu1 > mu2:
-        mu1, mu2 = mu2, mu1
-        sigma1, sigma_bio, sigma2 = sigma2, sigma_bio, sigma1  # swap roles — but this breaks the constraint
-        # Actually just swap means and pi
-        pi_noise = 1 - pi_noise
-        # Recompute with proper roles — need to re-fit with swapped init
-        # Simpler: just re-derive
-        mu1, log_sigma1, mu2, log_sigma_bio, logit_pi = best_result.x
-        sigma1 = np.exp(log_sigma1)
-        sigma_bio = np.exp(log_sigma_bio)
-        sigma2 = compute_sigma2(sigma1, sigma_bio)
-        pi_noise = 1 / (1 + np.exp(-logit_pi))
-        # Swap means and weight
-        mu1, mu2 = mu2, mu1
-        pi_noise = 1 - pi_noise
 
     n_params = 5
     aic, bic = compute_ic(best_ll, n_params, len(x))
