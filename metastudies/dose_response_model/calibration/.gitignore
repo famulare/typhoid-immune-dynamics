@@ -1,0 +1,6 @@
+# cmdstanr-compiled model binary (rebuild from .stan)
+typhoid_dose_response
+*.hpp
+
+# fit outputs (regenerate via fit_dose_response.R)
+results/

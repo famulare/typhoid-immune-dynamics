@@ -14,7 +14,7 @@ functions {
   // Beta-Poisson dose-response: P(outcome | dose, N50, alpha, CoP, gamma)
   // Returns probability of outcome given effective dose and immunity.
   // D_eff = D / delta_medium (already converted by caller)
-  real beta_poisson_lp(real D_eff, real N50, real alpha, real CoP, real gamma) {
+  real beta_poisson(real D_eff, real N50, real alpha, real CoP, real gamma) {
     // Modified beta-Poisson with immunity scaling:
     //   P = 1 - (1 + D_eff * (2^(1/alpha) - 1) / N50) ^ (-alpha / CoP^gamma)
     real scale = (pow(2.0, 1.0 / alpha) - 1.0) / N50;
@@ -25,8 +25,8 @@ functions {
   // Maryland mixture model: two-component (susceptible + immune)
   real maryland_mixture(real D_eff, real N50, real alpha, real gamma,
                         real pi_susc, real CoP_susc, real CoP_imm) {
-    real p_susc = beta_poisson_lp(D_eff, N50, alpha, CoP_susc, gamma);
-    real p_imm  = beta_poisson_lp(D_eff, N50, alpha, CoP_imm, gamma);
+    real p_susc = beta_poisson(D_eff, N50, alpha, CoP_susc, gamma);
+    real p_imm  = beta_poisson(D_eff, N50, alpha, CoP_imm, gamma);
     return pi_susc * p_susc + (1.0 - pi_susc) * p_imm;
   }
 
@@ -79,6 +79,9 @@ data {
   int<lower=0> y_hornick_cond;   // = 16 (febrile among infected)
   real<lower=0> dose_hornick_7;  // = 1e7
   real<lower=0> phi_hornick;     // = 0.25 (Hornick φ for conditional)
+
+  // ---- Control flag ----
+  int<lower=0, upper=1> prior_only;  // 1 = skip likelihood (prior predictive)
 }
 
 parameters {
@@ -129,6 +132,15 @@ model {
   // Soft ordering constraint: N50_fev|inf > N50_inf
   // (infection threshold lower than fever threshold)
   // Implemented as half-normal on the difference
+  //
+  // *** DIAGNOSED ROOT CAUSE OF SAMPLING FAILURE (2026-06-23) ***
+  // A truncated sampling statement T[0,] on a DIFFERENCE of two unconstrained
+  // parameters is a density CLIFF (-inf below 0), not a smooth constraint.
+  // NUTS cannot traverse it -> ~85-99% divergent transitions. Removing this one
+  // line drops divergences to 0/4000 (Oxford-only AND full Tier 1). See
+  // tier1_pathology_diagnosis.md. LEFT ACTIVE pending design decision on the
+  // proper reparameterization (recommended: log10_N50_fevginf = log10_N50_inf +
+  // d_fev with real<lower=0> d_fev and a half-normal prior on d_fev).
   (log10_N50_fevginf - log10_N50_inf) ~ normal(0, 1) T[0, ];  // TO BE EXAMINED
 
   // -- Nuisance parameters --
@@ -145,8 +157,9 @@ model {
   sigma_study ~ normal(0, 0.5) T[0, ];   // half-normal; TO BE EXAMINED
 
   // ===========================================================================
-  // LIKELIHOOD
+  // LIKELIHOOD  (skipped when prior_only == 1, for prior predictive checks)
   // ===========================================================================
+  if (prior_only == 0) {
 
   // ---- Oxford fever (δ = 1, no mixture) ----
   for (i in 1:N_ox_fev) {
@@ -154,8 +167,8 @@ model {
     real CoP = CoP_ox_fev[i];
 
     // P(fever) = P(inf) × P(fev|inf)
-    real p_inf = beta_poisson_lp(D_eff, N50_inf, alpha_inf, CoP, gamma_inf);
-    real p_fevginf = beta_poisson_lp(D_eff, N50_fevginf, alpha_fevginf,
+    real p_inf = beta_poisson(D_eff, N50_inf, alpha_inf, CoP, gamma_inf);
+    real p_fevginf = beta_poisson(D_eff, N50_fevginf, alpha_fevginf,
                                       CoP, gamma_fevginf);
     real p_fev = p_inf * p_fevginf;
 
@@ -167,7 +180,7 @@ model {
     real D_eff = dose_ox_inf[i];
     real CoP = CoP_ox_inf[i];
 
-    real p_inf = beta_poisson_lp(D_eff, N50_inf, alpha_inf, CoP, gamma_inf);
+    real p_inf = beta_poisson(D_eff, N50_inf, alpha_inf, CoP, gamma_inf);
     real eta = eta_detection(D_eff, N50_inf, eta_lo, kappa);
 
     // Observed shedding = η × P(infection)
@@ -183,14 +196,14 @@ model {
 
     if (gilman_stratum[i] == 1) {
       // Gilman susceptible stratum: use CoP_susc directly (no mixture)
-      real p_inf_s = beta_poisson_lp(D_eff, N50_inf, alpha_inf, CoP_susc, gamma_inf);
-      real p_fg_s  = beta_poisson_lp(D_eff, N50_fevginf, alpha_fevginf,
+      real p_inf_s = beta_poisson(D_eff, N50_inf, alpha_inf, CoP_susc, gamma_inf);
+      real p_fg_s  = beta_poisson(D_eff, N50_fevginf, alpha_fevginf,
                                       CoP_susc, gamma_fevginf);
       p_fev = phi * p_inf_s * p_fg_s;
     } else if (gilman_stratum[i] == 2) {
       // Gilman immune stratum: use CoP_imm directly (no mixture)
-      real p_inf_i = beta_poisson_lp(D_eff, N50_inf, alpha_inf, CoP_imm, gamma_inf);
-      real p_fg_i  = beta_poisson_lp(D_eff, N50_fevginf, alpha_fevginf,
+      real p_inf_i = beta_poisson(D_eff, N50_inf, alpha_inf, CoP_imm, gamma_inf);
+      real p_fg_i  = beta_poisson(D_eff, N50_fevginf, alpha_fevginf,
                                       CoP_imm, gamma_fevginf);
       p_fev = phi * p_inf_i * p_fg_i;
     } else {
@@ -198,11 +211,11 @@ model {
       real p_inf_mix = maryland_mixture(D_eff, N50_inf, alpha_inf, gamma_inf,
                                          pi_susc, CoP_susc, CoP_imm);
       // For fever, need mixture of the PRODUCT P_inf × P_fev|inf
-      real p_fev_susc = beta_poisson_lp(D_eff, N50_inf, alpha_inf, CoP_susc, gamma_inf)
-                        * beta_poisson_lp(D_eff, N50_fevginf, alpha_fevginf,
+      real p_fev_susc = beta_poisson(D_eff, N50_inf, alpha_inf, CoP_susc, gamma_inf)
+                        * beta_poisson(D_eff, N50_fevginf, alpha_fevginf,
                                            CoP_susc, gamma_fevginf);
-      real p_fev_imm  = beta_poisson_lp(D_eff, N50_inf, alpha_inf, CoP_imm, gamma_inf)
-                        * beta_poisson_lp(D_eff, N50_fevginf, alpha_fevginf,
+      real p_fev_imm  = beta_poisson(D_eff, N50_inf, alpha_inf, CoP_imm, gamma_inf)
+                        * beta_poisson(D_eff, N50_fevginf, alpha_fevginf,
                                            CoP_imm, gamma_fevginf);
       p_fev = phi * (pi_susc * p_fev_susc + (1.0 - pi_susc) * p_fev_imm);
     }
@@ -229,53 +242,57 @@ model {
                                    pi_susc, CoP_susc, CoP_imm);
 
     // Fever probability (mixture of products)
-    real p_fev_susc = beta_poisson_lp(D_eff, N50_inf, alpha_inf, CoP_susc, gamma_inf)
-                      * beta_poisson_lp(D_eff, N50_fevginf, alpha_fevginf,
+    real p_fev_susc = beta_poisson(D_eff, N50_inf, alpha_inf, CoP_susc, gamma_inf)
+                      * beta_poisson(D_eff, N50_fevginf, alpha_fevginf,
                                          CoP_susc, gamma_fevginf);
-    real p_fev_imm  = beta_poisson_lp(D_eff, N50_inf, alpha_inf, CoP_imm, gamma_inf)
-                      * beta_poisson_lp(D_eff, N50_fevginf, alpha_fevginf,
+    real p_fev_imm  = beta_poisson(D_eff, N50_inf, alpha_inf, CoP_imm, gamma_inf)
+                      * beta_poisson(D_eff, N50_fevginf, alpha_fevginf,
                                          CoP_imm, gamma_fevginf);
     real p_fev_mix = phi_hornick * (pi_susc * p_fev_susc + (1.0 - pi_susc) * p_fev_imm);
 
     // Conditional: P(fever | infected) = P(fever) / P(infection)
     real p_cond = p_fev_mix / p_inf;
 
-    // Infection marginal
-    n_hornick_cond ~ binomial(30, p_inf);  // 28/30 infected (hard-coded n=30)
+    // Conditional fever-given-infection only.
+    // The 28/30 infection marginal is carried by the md_inf row H-I-7;
+    // adding it here too would double-count (reviewer-2 MC2). n_hornick_cond
+    // (=28 infected) is used here solely as the conditional denominator.
     y_hornick_cond ~ binomial(n_hornick_cond, p_cond);
   }
+
+  }  // end if (prior_only == 0)
 }
 
 generated quantities {
   // Posterior predictive checks and derived quantities
 
   // Oxford predicted attack rates at reference doses (bicarb frame)
-  real p_inf_1e3_naive = beta_poisson_lp(1e3, N50_inf, alpha_inf, 1.0, gamma_inf);
-  real p_inf_1e4_naive = beta_poisson_lp(1e4, N50_inf, alpha_inf, 1.0, gamma_inf);
+  real p_inf_1e3_naive = beta_poisson(1e3, N50_inf, alpha_inf, 1.0, gamma_inf);
+  real p_inf_1e4_naive = beta_poisson(1e4, N50_inf, alpha_inf, 1.0, gamma_inf);
   real p_fev_1e3_naive = p_inf_1e3_naive
-                         * beta_poisson_lp(1e3, N50_fevginf, alpha_fevginf, 1.0, gamma_fevginf);
+                         * beta_poisson(1e3, N50_fevginf, alpha_fevginf, 1.0, gamma_fevginf);
   real p_fev_1e4_naive = p_inf_1e4_naive
-                         * beta_poisson_lp(1e4, N50_fevginf, alpha_fevginf, 1.0, gamma_fevginf);
+                         * beta_poisson(1e4, N50_fevginf, alpha_fevginf, 1.0, gamma_fevginf);
 
   // Maryland predicted curve at key doses (milk frame)
   real p_fev_md_1e3 = 0.25 * (pi_susc
-    * beta_poisson_lp(1e3/delta, N50_inf, alpha_inf, CoP_susc, gamma_inf)
-      * beta_poisson_lp(1e3/delta, N50_fevginf, alpha_fevginf, CoP_susc, gamma_fevginf)
+    * beta_poisson(1e3/delta, N50_inf, alpha_inf, CoP_susc, gamma_inf)
+      * beta_poisson(1e3/delta, N50_fevginf, alpha_fevginf, CoP_susc, gamma_fevginf)
     + (1-pi_susc)
-    * beta_poisson_lp(1e3/delta, N50_inf, alpha_inf, CoP_imm, gamma_inf)
-      * beta_poisson_lp(1e3/delta, N50_fevginf, alpha_fevginf, CoP_imm, gamma_fevginf));
+    * beta_poisson(1e3/delta, N50_inf, alpha_inf, CoP_imm, gamma_inf)
+      * beta_poisson(1e3/delta, N50_fevginf, alpha_fevginf, CoP_imm, gamma_fevginf));
   real p_fev_md_1e5 = 0.25 * (pi_susc
-    * beta_poisson_lp(1e5/delta, N50_inf, alpha_inf, CoP_susc, gamma_inf)
-      * beta_poisson_lp(1e5/delta, N50_fevginf, alpha_fevginf, CoP_susc, gamma_fevginf)
+    * beta_poisson(1e5/delta, N50_inf, alpha_inf, CoP_susc, gamma_inf)
+      * beta_poisson(1e5/delta, N50_fevginf, alpha_fevginf, CoP_susc, gamma_fevginf)
     + (1-pi_susc)
-    * beta_poisson_lp(1e5/delta, N50_inf, alpha_inf, CoP_imm, gamma_inf)
-      * beta_poisson_lp(1e5/delta, N50_fevginf, alpha_fevginf, CoP_imm, gamma_fevginf));
+    * beta_poisson(1e5/delta, N50_inf, alpha_inf, CoP_imm, gamma_inf)
+      * beta_poisson(1e5/delta, N50_fevginf, alpha_fevginf, CoP_imm, gamma_fevginf));
   real p_fev_md_1e7 = 0.25 * (pi_susc
-    * beta_poisson_lp(1e7/delta, N50_inf, alpha_inf, CoP_susc, gamma_inf)
-      * beta_poisson_lp(1e7/delta, N50_fevginf, alpha_fevginf, CoP_susc, gamma_fevginf)
+    * beta_poisson(1e7/delta, N50_inf, alpha_inf, CoP_susc, gamma_inf)
+      * beta_poisson(1e7/delta, N50_fevginf, alpha_fevginf, CoP_susc, gamma_fevginf)
     + (1-pi_susc)
-    * beta_poisson_lp(1e7/delta, N50_inf, alpha_inf, CoP_imm, gamma_inf)
-      * beta_poisson_lp(1e7/delta, N50_fevginf, alpha_fevginf, CoP_imm, gamma_fevginf));
+    * beta_poisson(1e7/delta, N50_inf, alpha_inf, CoP_imm, gamma_inf)
+      * beta_poisson(1e7/delta, N50_fevginf, alpha_fevginf, CoP_imm, gamma_fevginf));
 
   // Hornick Table 2 conditional prediction
   real p_cond_pred;
@@ -283,10 +300,10 @@ generated quantities {
     real D7 = dose_hornick_7 / delta;
     real p_i = maryland_mixture(D7, N50_inf, alpha_inf, gamma_inf,
                                  pi_susc, CoP_susc, CoP_imm);
-    real pfs = beta_poisson_lp(D7, N50_inf, alpha_inf, CoP_susc, gamma_inf)
-               * beta_poisson_lp(D7, N50_fevginf, alpha_fevginf, CoP_susc, gamma_fevginf);
-    real pfi = beta_poisson_lp(D7, N50_inf, alpha_inf, CoP_imm, gamma_inf)
-               * beta_poisson_lp(D7, N50_fevginf, alpha_fevginf, CoP_imm, gamma_fevginf);
+    real pfs = beta_poisson(D7, N50_inf, alpha_inf, CoP_susc, gamma_inf)
+               * beta_poisson(D7, N50_fevginf, alpha_fevginf, CoP_susc, gamma_fevginf);
+    real pfi = beta_poisson(D7, N50_inf, alpha_inf, CoP_imm, gamma_inf)
+               * beta_poisson(D7, N50_fevginf, alpha_fevginf, CoP_imm, gamma_fevginf);
     p_cond_pred = phi_hornick * (pi_susc * pfs + (1-pi_susc) * pfi) / p_i;
   }
 
@@ -303,11 +320,11 @@ generated quantities {
     real CoP_ViTT = 5.0;  // PLACEHOLDER — TO BE REPLACED with titer model
     real CoP_ViPS = 2.0;  // PLACEHOLDER — TO BE REPLACED
     real p_fev_ctrl = p_fev_1e4_naive;  // approximate
-    real p_fev_vitt = beta_poisson_lp(2e4, N50_inf, alpha_inf, CoP_ViTT, gamma_inf)
-                      * beta_poisson_lp(2e4, N50_fevginf, alpha_fevginf,
+    real p_fev_vitt = beta_poisson(2e4, N50_inf, alpha_inf, CoP_ViTT, gamma_inf)
+                      * beta_poisson(2e4, N50_fevginf, alpha_fevginf,
                                          CoP_ViTT, gamma_fevginf);
-    real p_fev_vips = beta_poisson_lp(2e4, N50_inf, alpha_inf, CoP_ViPS, gamma_inf)
-                      * beta_poisson_lp(2e4, N50_fevginf, alpha_fevginf,
+    real p_fev_vips = beta_poisson(2e4, N50_inf, alpha_inf, CoP_ViPS, gamma_inf)
+                      * beta_poisson(2e4, N50_fevginf, alpha_fevginf,
                                          CoP_ViPS, gamma_fevginf);
     VE_fev_ViTT = 1.0 - p_fev_vitt / p_fev_ctrl;
     VE_fev_ViPS = 1.0 - p_fev_vips / p_fev_ctrl;

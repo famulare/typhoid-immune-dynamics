@@ -126,8 +126,11 @@
 
 ## Phase 8: Fit, Validate, Document
 
-- [ ] Model implemented in Stan/brms
-- [ ] MCMC diagnostics passed
+Workflow ladder + status: see `calibration/CALIBRATION_WORKFLOW.md`.
+
+- [x] Model compiles & samples (cmdstanr + CmdStan 2.39); driver `calibration/fit_dose_response.R`
+- [ ] MCMC diagnostics passed — **BLOCKED**: ~99% divergent; root cause = ordering-constraint cliff (L132). Diagnosis + fix in `calibration/tier1_pathology_diagnosis.md`
+- [ ] Resolve constant-φ cap (Hornick high-dose fever unfittable; reviewer-2 MC1)
 - [ ] Posterior predictive checks completed
 - [ ] Sensitivity analyses completed
 - [ ] Final documentation written
