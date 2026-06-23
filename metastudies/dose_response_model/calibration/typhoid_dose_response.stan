@@ -1,28 +1,41 @@
 // =============================================================================
-// Typhoid Dose-Response Model: Tier 2 (η-correction, full complexity)
+// Typhoid Dose-Response Model: Tier 2 (eta-correction, full complexity)
 // =============================================================================
-// UNTESTED DRAFT — skeleton for colleague review, not ready to run.
-// Implements: cascaded beta-Poisson (infection × fever|infection),
-//   cross-era δ bridge, Maryland mixture model, study-specific φ(T),
-//   η-correction for Oxford shedding detection bias.
-// Reference: joint_inference_plan.md Sections 2.1-2.7
-// Authors: Mike Famulare, Claude (Opus 4.6)
-// Date: 2026-03-24
+// Refactored 2026-06-23 (workflow upgrade; see calibration/CALIBRATION_WORKFLOW.md
+// and plan please-plan-a-b-smooth-ritchie.md). Changes vs the prior draft:
+//   - Unified obs_prob() helper: ONE source for every observation's success
+//     probability, called by both the model likelihood and generated quantities.
+//   - Flat per-observation data layout (N_obs rows + group code), replacing the
+//     five per-group data blocks.
+//   - N50 reparameterization: log10_N50_fevginf = log10_N50_inf + d_fev with
+//     d_fev<lower=0>. This replaces the T[0,] density CLIFF on the difference
+//     (the diagnosed cause of ~99% divergences) with Stan's smooth lower-bound
+//     transform. The PRIOR is preserved exactly: all three original N50 prior
+//     terms are retained (change of variables Jacobian = 1), so a drop in
+//     divergences is attributable to geometry alone, not a changed prior.
+//   - lprior accumulator (brms idiom): every prior written once; total prior in
+//     `lprior` for priorsense power-scaling. Prior hyperparameters are DATA,
+//     sourced from calibration/priors.yaml (single source of truth).
+//   - generated quantities emit per-observation p_pred, y_rep, log_lik (PPC from
+//     the model, loo-ready) instead of an R-side likelihood mirror.
+// Implements: cascaded beta-Poisson (infection x fever|infection),
+//   cross-era delta bridge, Maryland mixture, study-specific phi(T),
+//   eta-correction for Oxford shedding detection bias.
+// Reference: joint_inference_plan.md Sections 2.1-2.7, Section 7 (priors)
+// Authors: Mike Famulare, Claude (Opus 4.6 draft; Opus 4.8 refactor)
 // =============================================================================
 
 functions {
   // Beta-Poisson dose-response: P(outcome | dose, N50, alpha, CoP, gamma)
-  // Returns probability of outcome given effective dose and immunity.
-  // D_eff = D / delta_medium (already converted by caller)
+  //   P = 1 - (1 + D_eff * (2^(1/alpha) - 1) / N50) ^ (-alpha / CoP^gamma)
+  // D_eff = D / delta_medium (already converted by caller).
   real beta_poisson(real D_eff, real N50, real alpha, real CoP, real gamma) {
-    // Modified beta-Poisson with immunity scaling:
-    //   P = 1 - (1 + D_eff * (2^(1/alpha) - 1) / N50) ^ (-alpha / CoP^gamma)
     real scale = (pow(2.0, 1.0 / alpha) - 1.0) / N50;
     real exponent = -alpha / pow(CoP, gamma);
     return 1.0 - pow(1.0 + D_eff * scale, exponent);
   }
 
-  // Maryland mixture model: two-component (susceptible + immune)
+  // Maryland two-component (susceptible + immune) mixture.
   real maryland_mixture(real D_eff, real N50, real alpha, real gamma,
                         real pi_susc, real CoP_susc, real CoP_imm) {
     real p_susc = beta_poisson(D_eff, N50, alpha, CoP_susc, gamma);
@@ -30,70 +43,106 @@ functions {
     return pi_susc * p_susc + (1.0 - pi_susc) * p_imm;
   }
 
-  // η shedding detection probability (dose-dependent, Option A)
-  // At low dose: η → 1 (plenty of time before diagnosis)
-  // At high dose: η → η_lo (treatment truncates shedding detection)
+  // eta shedding-detection probability (dose-dependent, Option A).
   real eta_detection(real D_eff, real N50_inf, real eta_lo, real kappa) {
     return eta_lo + (1.0 - eta_lo) * exp(-kappa * D_eff / N50_inf);
+  }
+
+  // ---- Unified observation probability -------------------------------------
+  // ONE place that turns an observation into its binomial success probability.
+  // group: 1=ox_fev  2=ox_inf  3=md_fev  4=md_inf  5=hornick_cond
+  // Covariates: dose (raw CFU), CoP (group-average, used by ox only),
+  //             phi (definition sensitivity, md_fev/hornick only),
+  //             stratum (gilman: 0=mixture, 1=susceptible, 2=immune).
+  // Unused covariates take harmless defaults (CoP=phi=1, stratum=0) from the
+  // caller; the math below ignores them per-group.
+  real obs_prob(int group, real dose, real CoP, real phi, int stratum,
+                real N50_inf, real N50_fevginf,
+                real alpha_inf, real alpha_fevginf,
+                real gamma_inf, real gamma_fevginf,
+                real delta, real pi_susc, real CoP_susc, real CoP_imm,
+                real eta_lo, real kappa) {
+    if (group == 1) {                                   // ox_fev (delta=1, no mixture)
+      real D = dose;
+      return beta_poisson(D, N50_inf, alpha_inf, CoP, gamma_inf)
+           * beta_poisson(D, N50_fevginf, alpha_fevginf, CoP, gamma_fevginf);
+    } else if (group == 2) {                            // ox_inf (eta-corrected shedding)
+      real D = dose;
+      real p_inf = beta_poisson(D, N50_inf, alpha_inf, CoP, gamma_inf);
+      return eta_detection(D, N50_inf, eta_lo, kappa) * p_inf;
+    } else if (group == 3) {                            // md_fev (delta>1, mixture/strata, *phi)
+      real D = dose / delta;
+      if (stratum == 1) {                               // Gilman susceptible stratum
+        return phi * beta_poisson(D, N50_inf, alpha_inf, CoP_susc, gamma_inf)
+                   * beta_poisson(D, N50_fevginf, alpha_fevginf, CoP_susc, gamma_fevginf);
+      } else if (stratum == 2) {                        // Gilman immune stratum
+        return phi * beta_poisson(D, N50_inf, alpha_inf, CoP_imm, gamma_inf)
+                   * beta_poisson(D, N50_fevginf, alpha_fevginf, CoP_imm, gamma_fevginf);
+      } else {                                          // mixture of the P_inf x P_fev|inf product
+        real p_fev_susc = beta_poisson(D, N50_inf, alpha_inf, CoP_susc, gamma_inf)
+                        * beta_poisson(D, N50_fevginf, alpha_fevginf, CoP_susc, gamma_fevginf);
+        real p_fev_imm  = beta_poisson(D, N50_inf, alpha_inf, CoP_imm, gamma_inf)
+                        * beta_poisson(D, N50_fevginf, alpha_fevginf, CoP_imm, gamma_fevginf);
+        return phi * (pi_susc * p_fev_susc + (1.0 - pi_susc) * p_fev_imm);
+      }
+    } else if (group == 4) {                            // md_inf (delta>1, mixture)
+      return maryland_mixture(dose / delta, N50_inf, alpha_inf, gamma_inf,
+                              pi_susc, CoP_susc, CoP_imm);
+    } else {                                            // group == 5 hornick_cond: P(fever | infected)
+      real D = dose / delta;
+      real p_inf = maryland_mixture(D, N50_inf, alpha_inf, gamma_inf,
+                                    pi_susc, CoP_susc, CoP_imm);
+      real p_fev_susc = beta_poisson(D, N50_inf, alpha_inf, CoP_susc, gamma_inf)
+                      * beta_poisson(D, N50_fevginf, alpha_fevginf, CoP_susc, gamma_fevginf);
+      real p_fev_imm  = beta_poisson(D, N50_inf, alpha_inf, CoP_imm, gamma_inf)
+                      * beta_poisson(D, N50_fevginf, alpha_fevginf, CoP_imm, gamma_fevginf);
+      real p_fev_mix = phi * (pi_susc * p_fev_susc + (1.0 - pi_susc) * p_fev_imm);
+      real p_cond = p_fev_mix / p_inf;
+      return fmin(fmax(p_cond, 1e-12), 1.0 - 1e-12);    // guard the division
+    }
   }
 }
 
 data {
-  // ---- Oxford fever observations (δ = 1) ----
-  int<lower=0> N_ox_fev;                    // number of Oxford fever groups
-  array[N_ox_fev] int<lower=0> n_ox_fev;    // sample sizes
-  array[N_ox_fev] int<lower=0> y_ox_fev;    // fever cases
-  vector<lower=0>[N_ox_fev] dose_ox_fev;    // doses in CFU (bicarb frame)
-  vector<lower=0>[N_ox_fev] CoP_ox_fev;     // group-average CoP (1=naive, >1=vaccinated)
+  // ---- Flat observation layout --------------------------------------------
+  int<lower=0> N_obs;
+  array[N_obs] int<lower=1, upper=5> group;   // 1=ox_fev 2=ox_inf 3=md_fev 4=md_inf 5=hornick_cond
+  array[N_obs] int<lower=0> n;                 // sample sizes
+  array[N_obs] int<lower=0> y;                 // events
+  vector<lower=0>[N_obs] dose;                 // raw dose in CFU (helper applies /delta where needed)
+  vector<lower=0>[N_obs] CoP;                  // group-average CoP (used by ox groups; 1 elsewhere)
+  vector<lower=0>[N_obs] phi;                  // definition sensitivity (md_fev/hornick; 1 elsewhere)
+  array[N_obs] int<lower=0, upper=2> stratum;  // gilman stratum (md_fev; 0 elsewhere)
 
-  // ---- Oxford shedding observations (η-corrected, Tier 2) ----
-  int<lower=0> N_ox_inf;                    // number of Oxford shedding groups
-  array[N_ox_inf] int<lower=0> n_ox_inf;    // sample sizes
-  array[N_ox_inf] int<lower=0> y_ox_inf;    // shedding cases
-  vector<lower=0>[N_ox_inf] dose_ox_inf;    // doses in CFU
-  vector<lower=0>[N_ox_inf] CoP_ox_inf;     // group-average CoP
+  // ---- Control flag --------------------------------------------------------
+  int<lower=0, upper=1> prior_only;            // 1 = skip likelihood (prior predictive)
 
-  // ---- Maryland fever observations (δ > 1) ----
-  // Hornick multi-dose + Gilman strata + Levine trials
-  int<lower=0> N_md_fev;                    // number of Maryland fever groups
-  array[N_md_fev] int<lower=0> n_md_fev;    // sample sizes
-  array[N_md_fev] int<lower=0> y_md_fev;    // fever cases
-  vector<lower=0>[N_md_fev] dose_md_fev;    // doses in CFU (milk frame, pre-δ)
-  vector<lower=0>[N_md_fev] phi_md_fev;     // study-specific φ(T) for each obs
-  // phi values: Hornick ≈ 0.25, Levine ≈ 0.65, Gilman ≈ 0.65
-  // These are DATA, not parameters (fixed from Oxford threshold ladder)
-
-  // Flag: is this a Gilman H-antibody stratified observation?
-  // 0 = mixture model, 1 = susceptible stratum (CoP_susc), 2 = immune stratum (CoP_imm)
-  array[N_md_fev] int<lower=0, upper=2> gilman_stratum;
-
-  // ---- Maryland infection observations ----
-  // Hornick Table 2 infection (10^7), Gilman shedding, Levine shedding
-  int<lower=0> N_md_inf;
-  array[N_md_inf] int<lower=0> n_md_inf;
-  array[N_md_inf] int<lower=0> y_md_inf;
-  vector<lower=0>[N_md_inf] dose_md_inf;
-
-  // ---- Hornick Table 2 conditional: fever | infected at 10^7 ----
-  int<lower=0> n_hornick_cond;   // = 28 (infected)
-  int<lower=0> y_hornick_cond;   // = 16 (febrile among infected)
-  real<lower=0> dose_hornick_7;  // = 1e7
-  real<lower=0> phi_hornick;     // = 0.25 (Hornick φ for conditional)
-
-  // ---- Control flag ----
-  int<lower=0, upper=1> prior_only;  // 1 = skip likelihood (prior predictive)
+  // ---- Prior hyperparameters (DATA; single source = calibration/priors.yaml)
+  // Change a value here (via priors.yaml) and refit -- no recompile needed.
+  real pr_log10_N50_inf_mu;      real<lower=0> pr_log10_N50_inf_sd;
+  real pr_log10_N50_fevginf_mu;  real<lower=0> pr_log10_N50_fevginf_sd;
+  real pr_d_fev_mu;              real<lower=0> pr_d_fev_sd;     // half-normal (d_fev>=0)
+  real pr_alpha_inf_mu;          real<lower=0> pr_alpha_inf_sd;
+  real pr_alpha_fevginf_mu;      real<lower=0> pr_alpha_fevginf_sd;
+  real pr_gamma_inf_mu;          real<lower=0> pr_gamma_inf_sd;
+  real pr_gamma_fevginf_mu;      real<lower=0> pr_gamma_fevginf_sd;
+  real pr_log10_delta_mu;        real<lower=0> pr_log10_delta_sd;
+  real<lower=0> pr_pi_susc_a;    real<lower=0> pr_pi_susc_b;    // beta
+  real pr_CoP_imm_mu;            real<lower=0> pr_CoP_imm_sd;
+  real pr_CoP_susc_mu;           real<lower=0> pr_CoP_susc_sd;
+  real<lower=0> pr_eta_lo_a;     real<lower=0> pr_eta_lo_b;     // beta
+  real pr_kappa_mu;              real<lower=0> pr_kappa_sd;
+  real pr_sigma_study_mu;        real<lower=0> pr_sigma_study_sd; // half-normal (sigma_study>=0)
 }
 
 parameters {
   // ---- Biological parameters (shared across all studies) ----
-  // TO BE EXAMINED: all priors are defaults from plan Section 7
-
-  real log10_N50_inf;      // log10 of infection N50 in bicarb-equivalent CFU
-  real log10_N50_fevginf;  // log10 of fever|infection N50
-  real<lower=0> alpha_inf;       // beta-Poisson heterogeneity (infection)
-  real<lower=0> alpha_fevginf;   // beta-Poisson heterogeneity (fever|inf)
-  real<lower=0> gamma_inf;       // immunity scaling exponent (infection)
-  real<lower=0> gamma_fevginf;   // immunity scaling exponent (fever|inf)
+  real log10_N50_inf;             // log10 infection N50 (bicarb-equivalent CFU)
+  real<lower=0> d_fev;            // log10 gap: fever threshold ABOVE infection (reparam offset)
+  real<lower=0> alpha_inf;        // beta-Poisson heterogeneity (infection)
+  real<lower=0> alpha_fevginf;    // beta-Poisson heterogeneity (fever|inf)
+  real<lower=0> gamma_inf;        // immunity scaling exponent (infection)
+  real<lower=0> gamma_fevginf;    // immunity scaling exponent (fever|inf)
 
   // ---- Nuisance parameters ----
   real log10_delta;               // log10 milk-to-bicarb dose offset
@@ -101,172 +150,72 @@ parameters {
   real<lower=0> CoP_imm;          // Maryland immune fraction CoP (>1)
   real<lower=0> CoP_susc;         // Maryland susceptible fraction CoP (near 1)
 
-  // ---- η-correction parameters (Tier 2, Option A) ----
+  // ---- eta-correction parameters (Tier 2, Option A) ----
   real<lower=0, upper=1> eta_lo;  // minimum shedding detection prob at high dose
-  real<lower=0> kappa;            // dose-scaling for η
+  real<lower=0> kappa;            // dose-scaling for eta
 
   // ---- Study-level overdispersion ----
-  real<lower=0> sigma_study;      // study-level random effect SD
+  real<lower=0> sigma_study;      // study-level random effect SD (INERT in Tier 1)
 }
 
 transformed parameters {
+  real log10_N50_fevginf = log10_N50_inf + d_fev;   // reparam: fever threshold >= infection
   real<lower=0> N50_inf = pow(10.0, log10_N50_inf);
   real<lower=0> N50_fevginf = pow(10.0, log10_N50_fevginf);
   real<lower=0> delta = pow(10.0, log10_delta);
+
+  // ---- lprior accumulator (priors written ONCE; hyperparameters from data) --
+  // Reproduces the original three-term N50 prior exactly under the (Jacobian=1)
+  // change of variables (inf, fevginf) -> (inf, d_fev).
+  real lprior = 0;
+  lprior += normal_lpdf(log10_N50_inf     | pr_log10_N50_inf_mu,     pr_log10_N50_inf_sd);
+  lprior += normal_lpdf(log10_N50_fevginf | pr_log10_N50_fevginf_mu, pr_log10_N50_fevginf_sd);
+  lprior += normal_lpdf(d_fev             | pr_d_fev_mu,             pr_d_fev_sd);       // half-normal via lower=0
+  lprior += lognormal_lpdf(alpha_inf      | pr_alpha_inf_mu,         pr_alpha_inf_sd);
+  lprior += lognormal_lpdf(alpha_fevginf  | pr_alpha_fevginf_mu,     pr_alpha_fevginf_sd);
+  lprior += lognormal_lpdf(gamma_inf      | pr_gamma_inf_mu,         pr_gamma_inf_sd);
+  lprior += lognormal_lpdf(gamma_fevginf  | pr_gamma_fevginf_mu,     pr_gamma_fevginf_sd);
+  lprior += normal_lpdf(log10_delta       | pr_log10_delta_mu,       pr_log10_delta_sd);
+  lprior += beta_lpdf(pi_susc             | pr_pi_susc_a,            pr_pi_susc_b);
+  lprior += lognormal_lpdf(CoP_imm        | pr_CoP_imm_mu,           pr_CoP_imm_sd);
+  lprior += lognormal_lpdf(CoP_susc       | pr_CoP_susc_mu,          pr_CoP_susc_sd);
+  lprior += beta_lpdf(eta_lo              | pr_eta_lo_a,             pr_eta_lo_b);
+  lprior += lognormal_lpdf(kappa          | pr_kappa_mu,             pr_kappa_sd);
+  lprior += normal_lpdf(sigma_study       | pr_sigma_study_mu,       pr_sigma_study_sd); // half-normal via lower=0
 }
 
 model {
-  // ===========================================================================
-  // PRIORS — TO BE EXAMINED
-  // All values from joint_inference_plan.md Section 7
-  // ===========================================================================
+  target += lprior;
 
-  // -- Biological parameters --
-  log10_N50_inf ~ normal(2.5, 1.0);       // ~300 bicarb CFU; TO BE EXAMINED
-  log10_N50_fevginf ~ normal(2.8, 1.0);   // ~600 bicarb CFU; TO BE EXAMINED
-  alpha_inf ~ lognormal(-1.5, 0.8);       // ~0.1-0.5; TO BE EXAMINED
-  alpha_fevginf ~ lognormal(-1.5, 0.8);   // same; TO BE EXAMINED
-  gamma_inf ~ lognormal(-0.5, 0.7);       // ~0.2-1.0; TO BE EXAMINED
-  gamma_fevginf ~ lognormal(0.0, 0.7);    // ~0.3-2.0; TO BE EXAMINED
-
-  // Soft ordering constraint: N50_fev|inf > N50_inf
-  // (infection threshold lower than fever threshold)
-  // Implemented as half-normal on the difference
-  //
-  // *** DIAGNOSED ROOT CAUSE OF SAMPLING FAILURE (2026-06-23) ***
-  // A truncated sampling statement T[0,] on a DIFFERENCE of two unconstrained
-  // parameters is a density CLIFF (-inf below 0), not a smooth constraint.
-  // NUTS cannot traverse it -> ~85-99% divergent transitions. Removing this one
-  // line drops divergences to 0/4000 (Oxford-only AND full Tier 1). See
-  // tier1_pathology_diagnosis.md. LEFT ACTIVE pending design decision on the
-  // proper reparameterization (recommended: log10_N50_fevginf = log10_N50_inf +
-  // d_fev with real<lower=0> d_fev and a half-normal prior on d_fev).
-  (log10_N50_fevginf - log10_N50_inf) ~ normal(0, 1) T[0, ];  // TO BE EXAMINED
-
-  // -- Nuisance parameters --
-  log10_delta ~ normal(3.5, 0.7);         // ~1000-30000x; TO BE EXAMINED
-  pi_susc ~ beta(7, 4);                   // ~0.65; Gilman 36/53=68%; TO BE EXAMINED
-  CoP_imm ~ lognormal(1.0, 0.5);          // ~2-5; TO BE EXAMINED
-  CoP_susc ~ lognormal(0, 0.2);           // near 1; TO BE EXAMINED
-
-  // -- η-correction parameters --
-  eta_lo ~ beta(5, 5);                    // ~0.5; TO BE EXAMINED
-  kappa ~ lognormal(0, 1);               // weakly informative; TO BE EXAMINED
-
-  // -- Study-level overdispersion --
-  sigma_study ~ normal(0, 0.5) T[0, ];   // half-normal; TO BE EXAMINED
-
-  // ===========================================================================
-  // LIKELIHOOD  (skipped when prior_only == 1, for prior predictive checks)
-  // ===========================================================================
   if (prior_only == 0) {
-
-  // ---- Oxford fever (δ = 1, no mixture) ----
-  for (i in 1:N_ox_fev) {
-    real D_eff = dose_ox_fev[i];  // bicarb frame, δ=1
-    real CoP = CoP_ox_fev[i];
-
-    // P(fever) = P(inf) × P(fev|inf)
-    real p_inf = beta_poisson(D_eff, N50_inf, alpha_inf, CoP, gamma_inf);
-    real p_fevginf = beta_poisson(D_eff, N50_fevginf, alpha_fevginf,
-                                      CoP, gamma_fevginf);
-    real p_fev = p_inf * p_fevginf;
-
-    y_ox_fev[i] ~ binomial(n_ox_fev[i], p_fev);
-  }
-
-  // ---- Oxford shedding with η-correction (Tier 2) ----
-  for (i in 1:N_ox_inf) {
-    real D_eff = dose_ox_inf[i];
-    real CoP = CoP_ox_inf[i];
-
-    real p_inf = beta_poisson(D_eff, N50_inf, alpha_inf, CoP, gamma_inf);
-    real eta = eta_detection(D_eff, N50_inf, eta_lo, kappa);
-
-    // Observed shedding = η × P(infection)
-    y_ox_inf[i] ~ binomial(n_ox_inf[i], eta * p_inf);
-  }
-
-  // ---- Maryland fever (δ > 1, mixture model, study-specific φ) ----
-  for (i in 1:N_md_fev) {
-    real D_eff = dose_md_fev[i] / delta;  // convert milk dose to bicarb-equivalent
-    real phi = phi_md_fev[i];             // study-specific definition sensitivity
-
-    real p_fev;
-
-    if (gilman_stratum[i] == 1) {
-      // Gilman susceptible stratum: use CoP_susc directly (no mixture)
-      real p_inf_s = beta_poisson(D_eff, N50_inf, alpha_inf, CoP_susc, gamma_inf);
-      real p_fg_s  = beta_poisson(D_eff, N50_fevginf, alpha_fevginf,
-                                      CoP_susc, gamma_fevginf);
-      p_fev = phi * p_inf_s * p_fg_s;
-    } else if (gilman_stratum[i] == 2) {
-      // Gilman immune stratum: use CoP_imm directly (no mixture)
-      real p_inf_i = beta_poisson(D_eff, N50_inf, alpha_inf, CoP_imm, gamma_inf);
-      real p_fg_i  = beta_poisson(D_eff, N50_fevginf, alpha_fevginf,
-                                      CoP_imm, gamma_fevginf);
-      p_fev = phi * p_inf_i * p_fg_i;
-    } else {
-      // Standard Maryland mixture (Hornick, Levine, Gilman unstratified)
-      real p_inf_mix = maryland_mixture(D_eff, N50_inf, alpha_inf, gamma_inf,
-                                         pi_susc, CoP_susc, CoP_imm);
-      // For fever, need mixture of the PRODUCT P_inf × P_fev|inf
-      real p_fev_susc = beta_poisson(D_eff, N50_inf, alpha_inf, CoP_susc, gamma_inf)
-                        * beta_poisson(D_eff, N50_fevginf, alpha_fevginf,
-                                           CoP_susc, gamma_fevginf);
-      real p_fev_imm  = beta_poisson(D_eff, N50_inf, alpha_inf, CoP_imm, gamma_inf)
-                        * beta_poisson(D_eff, N50_fevginf, alpha_fevginf,
-                                           CoP_imm, gamma_fevginf);
-      p_fev = phi * (pi_susc * p_fev_susc + (1.0 - pi_susc) * p_fev_imm);
+    for (i in 1:N_obs) {
+      y[i] ~ binomial(n[i], obs_prob(group[i], dose[i], CoP[i], phi[i], stratum[i],
+                                     N50_inf, N50_fevginf, alpha_inf, alpha_fevginf,
+                                     gamma_inf, gamma_fevginf, delta, pi_susc,
+                                     CoP_susc, CoP_imm, eta_lo, kappa));
     }
-
-    y_md_fev[i] ~ binomial(n_md_fev[i], p_fev);
   }
-
-  // ---- Maryland infection (δ > 1, mixture model) ----
-  for (i in 1:N_md_inf) {
-    real D_eff = dose_md_inf[i] / delta;
-
-    real p_inf = maryland_mixture(D_eff, N50_inf, alpha_inf, gamma_inf,
-                                   pi_susc, CoP_susc, CoP_imm);
-
-    y_md_inf[i] ~ binomial(n_md_inf[i], p_inf);
-  }
-
-  // ---- Hornick Table 2 conditional: P(fever | infected) at 10^7 ----
-  {
-    real D_eff = dose_hornick_7 / delta;
-
-    // Infection probability (mixture)
-    real p_inf = maryland_mixture(D_eff, N50_inf, alpha_inf, gamma_inf,
-                                   pi_susc, CoP_susc, CoP_imm);
-
-    // Fever probability (mixture of products)
-    real p_fev_susc = beta_poisson(D_eff, N50_inf, alpha_inf, CoP_susc, gamma_inf)
-                      * beta_poisson(D_eff, N50_fevginf, alpha_fevginf,
-                                         CoP_susc, gamma_fevginf);
-    real p_fev_imm  = beta_poisson(D_eff, N50_inf, alpha_inf, CoP_imm, gamma_inf)
-                      * beta_poisson(D_eff, N50_fevginf, alpha_fevginf,
-                                         CoP_imm, gamma_fevginf);
-    real p_fev_mix = phi_hornick * (pi_susc * p_fev_susc + (1.0 - pi_susc) * p_fev_imm);
-
-    // Conditional: P(fever | infected) = P(fever) / P(infection)
-    real p_cond = p_fev_mix / p_inf;
-
-    // Conditional fever-given-infection only.
-    // The 28/30 infection marginal is carried by the md_inf row H-I-7;
-    // adding it here too would double-count (reviewer-2 MC2). n_hornick_cond
-    // (=28 infected) is used here solely as the conditional denominator.
-    y_hornick_cond ~ binomial(n_hornick_cond, p_cond);
-  }
-
-  }  // end if (prior_only == 0)
 }
 
 generated quantities {
-  // Posterior predictive checks and derived quantities
+  // ---- Per-observation posterior predictive + pointwise log-likelihood -----
+  // p_pred: fitted success probability (same obs_prob as the likelihood -> no
+  // R mirror); y_rep: replicate counts; log_lik: for loo (with correct unit
+  // grouping applied downstream -- the Hornick marginal H-I-7 and conditional
+  // hornick_cond are one table factorized; combine them into one loo unit).
+  vector[N_obs] p_pred;
+  array[N_obs] int y_rep;
+  vector[N_obs] log_lik;
+  for (i in 1:N_obs) {
+    p_pred[i]  = obs_prob(group[i], dose[i], CoP[i], phi[i], stratum[i],
+                          N50_inf, N50_fevginf, alpha_inf, alpha_fevginf,
+                          gamma_inf, gamma_fevginf, delta, pi_susc,
+                          CoP_susc, CoP_imm, eta_lo, kappa);
+    y_rep[i]   = binomial_rng(n[i], p_pred[i]);
+    log_lik[i] = binomial_lpmf(y[i] | n[i], p_pred[i]);
+  }
 
-  // Oxford predicted attack rates at reference doses (bicarb frame)
+  // ---- Reference-dose derived quantities (naive Oxford, bicarb frame) -------
   real p_inf_1e3_naive = beta_poisson(1e3, N50_inf, alpha_inf, 1.0, gamma_inf);
   real p_inf_1e4_naive = beta_poisson(1e4, N50_inf, alpha_inf, 1.0, gamma_inf);
   real p_fev_1e3_naive = p_inf_1e3_naive
@@ -274,65 +223,41 @@ generated quantities {
   real p_fev_1e4_naive = p_inf_1e4_naive
                          * beta_poisson(1e4, N50_fevginf, alpha_fevginf, 1.0, gamma_fevginf);
 
-  // Maryland predicted curve at key doses (milk frame)
-  real p_fev_md_1e3 = 0.25 * (pi_susc
-    * beta_poisson(1e3/delta, N50_inf, alpha_inf, CoP_susc, gamma_inf)
-      * beta_poisson(1e3/delta, N50_fevginf, alpha_fevginf, CoP_susc, gamma_fevginf)
-    + (1-pi_susc)
-    * beta_poisson(1e3/delta, N50_inf, alpha_inf, CoP_imm, gamma_inf)
-      * beta_poisson(1e3/delta, N50_fevginf, alpha_fevginf, CoP_imm, gamma_fevginf));
-  real p_fev_md_1e5 = 0.25 * (pi_susc
-    * beta_poisson(1e5/delta, N50_inf, alpha_inf, CoP_susc, gamma_inf)
-      * beta_poisson(1e5/delta, N50_fevginf, alpha_fevginf, CoP_susc, gamma_fevginf)
-    + (1-pi_susc)
-    * beta_poisson(1e5/delta, N50_inf, alpha_inf, CoP_imm, gamma_inf)
-      * beta_poisson(1e5/delta, N50_fevginf, alpha_fevginf, CoP_imm, gamma_fevginf));
-  real p_fev_md_1e7 = 0.25 * (pi_susc
-    * beta_poisson(1e7/delta, N50_inf, alpha_inf, CoP_susc, gamma_inf)
-      * beta_poisson(1e7/delta, N50_fevginf, alpha_fevginf, CoP_susc, gamma_fevginf)
-    + (1-pi_susc)
-    * beta_poisson(1e7/delta, N50_inf, alpha_inf, CoP_imm, gamma_inf)
-      * beta_poisson(1e7/delta, N50_fevginf, alpha_fevginf, CoP_imm, gamma_fevginf));
+  // Maryland predicted fever curve at key doses (milk frame; phi=0.25 Hornick)
+  real p_fev_md_1e3 = obs_prob(3, 1e3, 1.0, 0.25, 0, N50_inf, N50_fevginf,
+                               alpha_inf, alpha_fevginf, gamma_inf, gamma_fevginf,
+                               delta, pi_susc, CoP_susc, CoP_imm, eta_lo, kappa);
+  real p_fev_md_1e5 = obs_prob(3, 1e5, 1.0, 0.25, 0, N50_inf, N50_fevginf,
+                               alpha_inf, alpha_fevginf, gamma_inf, gamma_fevginf,
+                               delta, pi_susc, CoP_susc, CoP_imm, eta_lo, kappa);
+  real p_fev_md_1e7 = obs_prob(3, 1e7, 1.0, 0.25, 0, N50_inf, N50_fevginf,
+                               alpha_inf, alpha_fevginf, gamma_inf, gamma_fevginf,
+                               delta, pi_susc, CoP_susc, CoP_imm, eta_lo, kappa);
 
-  // Hornick Table 2 conditional prediction
-  real p_cond_pred;
-  {
-    real D7 = dose_hornick_7 / delta;
-    real p_i = maryland_mixture(D7, N50_inf, alpha_inf, gamma_inf,
-                                 pi_susc, CoP_susc, CoP_imm);
-    real pfs = beta_poisson(D7, N50_inf, alpha_inf, CoP_susc, gamma_inf)
-               * beta_poisson(D7, N50_fevginf, alpha_fevginf, CoP_susc, gamma_fevginf);
-    real pfi = beta_poisson(D7, N50_inf, alpha_inf, CoP_imm, gamma_inf)
-               * beta_poisson(D7, N50_fevginf, alpha_fevginf, CoP_imm, gamma_fevginf);
-    p_cond_pred = phi_hornick * (pi_susc * pfs + (1-pi_susc) * pfi) / p_i;
-  }
+  // Hornick Table 2 conditional prediction (phi=0.25)
+  real p_cond_pred = obs_prob(5, 1e7, 1.0, 0.25, 0, N50_inf, N50_fevginf,
+                              alpha_inf, alpha_fevginf, gamma_inf, gamma_fevginf,
+                              delta, pi_susc, CoP_susc, CoP_imm, eta_lo, kappa);
 
-  // η at reference Oxford doses
+  // eta at reference Oxford doses
   real eta_1e3 = eta_detection(1e3, N50_inf, eta_lo, kappa);
   real eta_1e4 = eta_detection(1e4, N50_inf, eta_lo, kappa);
 
-  // Vaccine efficacy predictions (Jin-like: CoP from Vi-TT GMT 563)
-  // NOTE: requires CoP mapping g(anti-Vi) which is NOT in this model yet.
-  // Placeholder: assume CoP_ViTT ~ 5, CoP_ViPS ~ 2 (TO BE REPLACED)
+  // Vaccine efficacy predictions (PLACEHOLDER CoP; requires titer model g(anti-Vi))
   real VE_fev_ViTT;
   real VE_fev_ViPS;
   {
-    real CoP_ViTT = 5.0;  // PLACEHOLDER — TO BE REPLACED with titer model
-    real CoP_ViPS = 2.0;  // PLACEHOLDER — TO BE REPLACED
-    real p_fev_ctrl = p_fev_1e4_naive;  // approximate
+    real CoP_ViTT = 5.0;  // PLACEHOLDER
+    real CoP_ViPS = 2.0;  // PLACEHOLDER
+    real p_fev_ctrl = p_fev_1e4_naive;
     real p_fev_vitt = beta_poisson(2e4, N50_inf, alpha_inf, CoP_ViTT, gamma_inf)
-                      * beta_poisson(2e4, N50_fevginf, alpha_fevginf,
-                                         CoP_ViTT, gamma_fevginf);
+                      * beta_poisson(2e4, N50_fevginf, alpha_fevginf, CoP_ViTT, gamma_fevginf);
     real p_fev_vips = beta_poisson(2e4, N50_inf, alpha_inf, CoP_ViPS, gamma_inf)
-                      * beta_poisson(2e4, N50_fevginf, alpha_fevginf,
-                                         CoP_ViPS, gamma_fevginf);
+                      * beta_poisson(2e4, N50_fevginf, alpha_fevginf, CoP_ViPS, gamma_fevginf);
     VE_fev_ViTT = 1.0 - p_fev_vitt / p_fev_ctrl;
     VE_fev_ViPS = 1.0 - p_fev_vips / p_fev_ctrl;
   }
 
-  // Infection-fever gap: P(inf) - P(fev) at reference doses
   real inf_fev_gap_1e4 = p_inf_1e4_naive - p_fev_1e4_naive;
-
-  // Delta in human-interpretable units
-  real delta_fold = delta;  // milk dose / bicarb dose equivalence
+  real delta_fold = delta;
 }

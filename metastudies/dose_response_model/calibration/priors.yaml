@@ -1,0 +1,41 @@
+# Prior specification — SINGLE SOURCE OF TRUTH for the dose-response calibration.
+#
+# Consumed by priors.R, which (a) builds the Stan `pr_*` hyperparameter data list
+# (the model reads these from its data block — change a value here and refit, NO
+# recompile) and (b) provides generic prior samplers/densities for the
+# prior-predictive run and the prior-vs-posterior overlay plot.
+#
+# Keys MUST match the Stan parameter names. Families:
+#   normal       -> mu, sd                 (Stan: pr_<p>_mu, pr_<p>_sd)
+#   half_normal  -> mu, sd  (lower=0)       (Stan: pr_<p>_mu, pr_<p>_sd; param declared <lower=0>)
+#   lognormal    -> meanlog, sdlog          (Stan: pr_<p>_mu, pr_<p>_sd)
+#   beta         -> a, b                    (Stan: pr_<p>_a,  pr_<p>_b)
+#
+# Values are joint_inference_plan.md Section 7. All flagged TO BE EXAMINED there.
+
+# ---- Biological parameters ----
+log10_N50_inf:     { family: normal,      mu: 2.5,  sd: 1.0 }   # ~300 bicarb CFU
+log10_N50_fevginf: { family: normal,      mu: 2.8,  sd: 1.0 }   # ~600 bicarb CFU (via d_fev offset)
+d_fev:             { family: half_normal, mu: 0.0,  sd: 1.0 }   # ordering: fever threshold >= infection
+alpha_inf:         { family: lognormal,   meanlog: -1.5, sdlog: 0.8 }   # ~0.1-0.5
+alpha_fevginf:     { family: lognormal,   meanlog: -1.5, sdlog: 0.8 }
+gamma_inf:         { family: lognormal,   meanlog: -0.5, sdlog: 0.7 }   # ~0.2-1.0
+gamma_fevginf:     { family: lognormal,   meanlog:  0.0, sdlog: 0.7 }   # ~0.3-2.0
+
+# ---- Nuisance parameters ----
+log10_delta:       { family: normal,      mu: 3.5,  sd: 0.7 }   # ~1000-30000x
+pi_susc:           { family: beta,        a: 7,     b: 4 }       # ~0.65 (Gilman 36/53)
+CoP_imm:           { family: lognormal,   meanlog: 1.0,  sdlog: 0.5 }   # ~2-5
+CoP_susc:          { family: lognormal,   meanlog: 0.0,  sdlog: 0.2 }   # near 1
+
+# ---- eta-correction parameters (Tier 2) ----
+eta_lo:            { family: beta,        a: 5,     b: 5 }       # ~0.5
+kappa:             { family: lognormal,   meanlog: 0.0,  sdlog: 1.0 }
+
+# ---- Study-level overdispersion (INERT in Tier 1) ----
+sigma_study:       { family: half_normal, mu: 0.0,  sd: 0.5 }
+
+# NOTE (drift flag): joint_inference_plan.md Section 7 lists `phi ~ Beta(5,5)`, but
+# the .stan treats phi as per-observation DATA (study-specific phi(T)), not a
+# parameter. Left out of this file deliberately; resolve the spec/implementation
+# mismatch before adding a phi prior here.
