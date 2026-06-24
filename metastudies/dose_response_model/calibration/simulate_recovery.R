@@ -23,13 +23,16 @@ source("priors.R"); source("data_prep.R"); source("diagnostics.R")
 
 PARAM_NAMES <- c("log10_N50_inf","d_fev","alpha_inf","alpha_fevginf","gamma_inf",
                  "gamma_fevginf","log10_delta","pi_susc","CoP_imm","CoP_susc",
-                 "eta_lo","kappa","sigma_study")
+                 "phi_md","eta_lo","kappa","sigma_study")
 
-# A realistic truth (near the Tier-1 posterior) for point recovery.
+# A realistic truth for point recovery. NOTE: most values are on the PRE-EU/mL scale
+# (pre-Tier-1.5); after the EU/mL value-swap, delta~2.5, CoP_imm~5-7, gamma~0.2,
+# alpha_inf~0.4. Full truth re-sync to the EU/mL scale is a task-list item; phi_md
+# added (≈ Tier-1 posterior 0.97) so the param-match guard passes.
 TRUTH_REALISTIC <- c(log10_N50_inf = 2.0, d_fev = 0.3, alpha_inf = 0.16,
                      alpha_fevginf = 0.8, gamma_inf = 0.6, gamma_fevginf = 0.7,
                      log10_delta = 1.6, pi_susc = 0.7, CoP_imm = 1.8, CoP_susc = 0.8,
-                     eta_lo = 0.5, kappa = 1.0, sigma_study = 0.3)
+                     phi_md = 0.97, eta_lo = 0.5, kappa = 1.0, sigma_study = 0.3)
 
 #' Build a draws_matrix of true parameter values (constrained scale).
 #' @param values named numeric over PARAM_NAMES (defaults to TRUTH_REALISTIC).

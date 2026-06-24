@@ -253,3 +253,63 @@ dimensionless CoP; Tier 1.5 = VaccZyme EU/mL axis + individual Darton + Jin.
 - **γ_inf vs γ_fevginf split** — needs individual infection endpoints (+cascade).
 - **φ dose-independence** — φ(T) calibrated at one (Oxford) dose; Hornick 39.4
   extrapolates beyond the 39.0 ladder max.
+
+## C3 finding — the Darton ladder validates φ₀, and proves φ must be dose-dependent
+
+Worked the Darton placebo temperature ladder (the +φ piece). Among the 20 TD+
+placebo subjects: ≥38 = 16, ≥38.5 = 10, ≥39 = 8 [observed]. Two results:
+
+1. **The original eyeballed φ values are right — as the LOW-DOSE asymptote.** The
+   data-derived definition-sensitivities are φ(38.3) ≈ 0.66 and φ(39.4) ≈ 0.30
+   (interp/extrap), essentially the hand-picked 0.65 / 0.25. So φ₀(T) was never the
+   bug; *constancy across dose* was. The arc closes.
+2. **A dose-INDEPENDENT φ(T) re-introduces the cap.** Plugging φ(39.4) ≈ 0.30 into
+   the Maryland likelihood caps high-dose Hornick: in the current fit p_fev_mix(10⁹)
+   ≈ 0.87, so fitted fever → 0.30·0.87 ≈ **0.26 vs observed 0.95** — the original
+   catastrophe. The free `phi_md ≈ 0.97` only fits the saturating points *because*
+   it's near 1; the ladder says φ should be 0.30 at that threshold. **That
+   contradiction (φ≈0.30 at Oxford dose vs φ→1 needed at Hornick's saturating dose)
+   is the data-grounded proof that φ is dose-dependent** [inferred, arithmetic].
+
+**Decision [Mike]: bank dose-dependent φ(T,D) for next session** (fork option b).
+The proper fix is the plan §2.5 form `φ(T,D) = φ₀(T) + (1−φ₀(T))·P_fev_naive(D)^β_φ`
+— φ₀(T) from the ladder, → 1 at saturating dose. Retires `phi_md`, adds φ₀-level/λ/β_φ;
+**β_φ rests on Hornick's 4 multi-dose fever points (thin-data ID — watch it).** A
+dose-independent φ(T) is a dead-end (re-caps), so we go straight to dose-dependent.
+Task-listed in `tier1.5_harness_handoff.md`; the harness parity/recovery guards must
+re-sync to the new φ params after C3 (parity gate is GREEN for the current phi_md state).
+
+## NEXT SESSION — pick up here (2026-06-24)
+
+State: branch `dose-response-tier1-resurrection` (not merged to main). Tier 1.5
+minimal+φ (C0+C1+C2) is committed and clean (0 div); the prior Tier-1 (Beta(1,1),
+dimensionless) fit is preserved at `results/tier1_pre_eumL/` for comparison.
+Full individual-Darton upgrade tracked as **issue #15**.
+
+**The main task — C3: dose-dependent φ(T,D)** (banked tonight; see C3 finding above):
+- Implement plan §2.5 form: `φ(T,D) = φ₀(T) + (1−φ₀(T))·P_fev_naive(D_eff)^β_φ`.
+  φ₀(T) = Darton-ladder asymptote (≈0.30 at 39.4 / 0.66 at 38.3); → 1 at saturating dose.
+- Retire `phi_md`; add φ₀-level + λ (ladder) + β_φ (dose-rise). **Watch β_φ — it rests
+  on Hornick's 4 multi-dose fever points only (thin ID).**
+- Per-obs temperature threshold needed in the data (Hornick 39.4, Levine/Gilman 38.3);
+  map by study in `data_prep.R`. Darton ladder counts (n_TD=20, ≥38=16, ≥38.5=10, ≥39=8)
+  feed the φ₀ sub-likelihood.
+- **Then re-sync the harness guards** (they'll go red — that's the guard working):
+  parity `PARAM_NAMES`/`vecs`/`obs_prob_R` (replicate φ(T,D)) and recovery
+  `PARAM_NAMES`/`TRUTH_REALISTIC`. See `tier1.5_harness_handoff.md`.
+
+**Other dangling bits:**
+- **Plots**: add a titre→protection (CoP-axis) panel to `dose_response_curves.R` — the
+  current dose-axis panels stack the 30 Darton individuals at one dose (y∈{0,1}), which
+  doesn't show the immunity slope we gained.
+- **Recovery `TRUTH_REALISTIC`** still on the pre-EU/mL scale → re-sync (delta~2.5,
+  CoP_imm~5–7, gamma~0.2, alpha_inf~0.4) so point recovery tests a representative point.
+- **Open prior elicitation (your call)**: `CoP_imm` (Maryland latent immune anti-Vi-equiv)
+  is prior-dominated + unidentifiable — highest leverage. Also confirm the reserved
+  picks: naive-ref 3.7 (fit-invariant); Maryland CoP priors (`CoP_imm ~ lognormal(log5,0.7)`,
+  `CoP_susc ~ lognormal(0,0.3)`); γ recenter to median ~0.2 (titre scale).
+- **Detail review** you flagged: the EU/mL value-swap (Jin 563/141/8→CoP, Darton
+  individual rows), the γ_inf still-prior-dominated split, the δ↔N50 ridge.
+
+**Don't re-derive:** VaccZyme verified for both Jin & Darton (EU/mL, LLD 7.4); the
+φ-cap↔δ-tension-same-artifact result; φ₀ validates the original 0.25/0.65.
