@@ -28,6 +28,22 @@ bayesplot::color_scheme_set("blue")
 
 # ---- small helpers ------------------------------------------------------------
 
+#' Load hand-tuned reference points (cohort-model point estimates) for the
+#' prior-vs-posterior overlay. Single source: calibration/reference_points.csv
+#' (built by equation from scratch/cohort_incidence_model_*.R). Returns a tibble
+#' or NULL if the file is absent. Path discovery mirrors priors.R: --file= when
+#' run via Rscript, else getwd() (callers setwd() to the calibration dir).
+load_reference_points <- function(path = NULL) {
+  if (is.null(path)) {
+    args <- commandArgs(trailingOnly = FALSE)
+    fa <- grep("^--file=", args, value = TRUE)
+    here <- if (length(fa)) dirname(normalizePath(sub("^--file=", "", fa))) else getwd()
+    path <- file.path(here, "reference_points.csv")
+  }
+  if (!file.exists(path)) return(NULL)
+  readr::read_csv(path, show_col_types = FALSE)
+}
+
 .save_gg <- function(p, path, w = 9, h = 6) {
   tryCatch(ggplot2::ggsave(path, p, width = w, height = h, dpi = 150, bg = "white"),
            error = function(e) message("  [skip] ", basename(path), ": ", conditionMessage(e)))
@@ -108,7 +124,11 @@ plot_battery <- function(fit, out_dir, pars, true_params = NULL) {
 }
 
 #' Prior-vs-posterior overlay (generic over family, from priors.yaml).
-plot_prior_posterior <- function(fit, out_dir, priors, true_params = NULL) {
+#' @param ref_points hand-tuned cohort-model reference points (load_reference_points())
+#'   or NULL. Drawn as labeled orange triangles on the x-axis of the matching
+#'   facet, clamped into the panel range with off-scale values flagged in the label.
+plot_prior_posterior <- function(fit, out_dir, priors, true_params = NULL,
+                                 ref_points = NULL) {
   pp <- intersect(names(priors), fit$metadata()$stan_variables)
   if (!length(pp)) return(invisible())
   post <- posterior::as_draws_df(fit$draws(pp))
@@ -137,6 +157,41 @@ plot_prior_posterior <- function(fit, out_dir, priors, true_params = NULL) {
       dplyr::filter(param %in% pp)
     if (nrow(tdf)) p <- p + geom_vline(data = tdf, aes(xintercept = value),
                                        colour = "red", linewidth = 0.7)
+  }
+  # Hand-tuned cohort-model reference points: orange triangles on the x-axis of the
+  # matching facet. Reference markers ONLY — they do not inform the prior. Clamped
+  # to each panel's prior/posterior x-range so one far-tail value can't squash the
+  # densities; off-scale points are pinned at the edge and labeled with the value.
+  if (!is.null(ref_points) && nrow(ref_points) &&
+      all(c("calibration_param", "plot_value", "label") %in% names(ref_points))) {
+    rp <- dplyr::filter(ref_points, calibration_param %in% pp)
+    if (nrow(rp)) {
+      rng <- df |> dplyr::group_by(param) |>
+        dplyr::summarize(xmin = min(value), xmax = max(value), .groups = "drop")
+      rp <- rp |>
+        dplyr::rename(param = calibration_param) |>
+        dplyr::group_by(param, plot_value) |>            # merge scripts that coincide
+        dplyr::summarize(label = paste(sort(unique(label)), collapse = ";"),
+                         .groups = "drop") |>
+        dplyr::left_join(rng, by = "param") |>
+        dplyr::mutate(
+          offscale = plot_value < xmin | plot_value > xmax,
+          x = pmin(pmax(plot_value, xmin), xmax),
+          txt = ifelse(offscale,
+                       sprintf("%s\n%.3g (off-scale)", label, plot_value),
+                       sprintf("%s\n%.3g", label, plot_value)))
+      p <- p +
+        geom_point(data = rp, aes(x = x, y = 0), inherit.aes = FALSE,
+                   shape = 17, colour = "#d95f02", size = 2.4) +
+        ggrepel::geom_text_repel(data = rp, aes(x = x, y = 0, label = txt),
+                   inherit.aes = FALSE, colour = "#d95f02", size = 2.2,
+                   direction = "y", nudge_y = Inf, min.segment.length = 0,
+                   segment.size = 0.25, segment.colour = "#d95f02",
+                   lineheight = 0.85, max.overlaps = 20, seed = 1) +
+        labs(caption = paste(
+          "Orange triangles: hand-tuned cohort-model point estimates",
+          "(scratch/cohort_incidence_model_*.R; reference only, see reference_points.csv)."))
+    }
   }
   .save_gg(p, file.path(out_dir, "prior_posterior.png"),
            w = 11, h = 2.5 * ceiling(length(pp) / 4))
@@ -272,9 +327,13 @@ strong_correlations <- function(fit, pars, threshold = 0.7) {
 #' @param priors parsed priors (load_priors()) for the overlay, or NULL.
 #' @param model_name label for the summary.
 #' @param elapsed_s wall time, if known.
+#' @param ref_points hand-tuned reference points for the prior-vs-posterior overlay.
+#'   Defaults to load_reference_points() so every regenerated plot shows them; pass
+#'   NULL to suppress.
 diagnose_fit <- function(fit, out_dir, pars, true_params = NULL, obs = NULL,
                          priors = NULL, model_name = "fit", elapsed_s = NA_real_,
-                         corr_exclude = c("N50_inf", "N50_fevginf", "delta")) {
+                         corr_exclude = c("N50_inf", "N50_fevginf", "delta"),
+                         ref_points = load_reference_points()) {
   dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
   pars <- intersect(pars, fit$metadata()$stan_variables)
 
@@ -284,7 +343,7 @@ diagnose_fit <- function(fit, out_dir, pars, true_params = NULL, obs = NULL,
   ps_tab <- powerscale_table(fit, pars)
 
   plot_battery(fit, out_dir, pars, true_params)
-  if (!is.null(priors)) plot_prior_posterior(fit, out_dir, priors, true_params)
+  if (!is.null(priors)) plot_prior_posterior(fit, out_dir, priors, true_params, ref_points)
   ppc_df <- plot_ppc(fit, out_dir, obs, true_params)
 
   write_summary_md(out_dir, model_name, health, tab, corr, ps_tab)

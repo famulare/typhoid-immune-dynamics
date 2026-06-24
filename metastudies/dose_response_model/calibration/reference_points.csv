@@ -1,0 +1,13 @@
+calibration_param,source_script,label,script_param,script_value,plot_value,scale,mapping,note
+log10_N50_inf,proof_of_concept,POC,n50_infection_given_dose,2780,3.4440,log10,exact_object,"Same P(infection|dose) beta-Poisson object. FRAME CAVEAT: script dose is raw ingested-bacilli (blends Hornick milk + Oxford bicarb into one curve, no delta); calibration N50_inf is bicarb-equivalent CFU with a separate log10_delta milk->bicarb offset. Not the same dose axis -- do not read the gap as miscalibration."
+log10_N50_inf,high_dose_explore,high-dose,n50_infection_given_dose,695,2.8420,log10,exact_object,"Same as POC row; the ONLY dose-response parameter that differs between the two scripts (27800/40 vs 27800/10). Same frame caveat."
+alpha_inf,proof_of_concept,POC,alpha_infection_given_dose,1.68,1.68,identity,exact_object,"beta-Poisson heterogeneity for infection; dimensionless, frame-independent. Identical in both scripts (0.84*2)."
+alpha_inf,high_dose_explore,high-dose,alpha_infection_given_dose,1.68,1.68,identity,exact_object,"Identical to POC."
+gamma_inf,proof_of_concept,POC,gamma_infection_given_dose,0.2,0.2,identity,exact_object,"Immunity scaling exponent for infection (CoP^gamma); dimensionless. Identical in both scripts (0.4/2). NOTE: script CoP is anti-Vi on a ~1-3000 scale like the calibration's EU/mL-relative CoP, so gamma is roughly comparable."
+gamma_inf,high_dose_explore,high-dose,gamma_infection_given_dose,0.2,0.2,identity,exact_object,"Identical to POC."
+log10_N50_fevginf,proof_of_concept,POC,n50_fever_given_dose,27800,4.4440,log10,approx_object,"OBJECT MISMATCH: script n50_fever_given_dose parameterizes P(fever|dose) as its OWN marginal beta-Poisson; calibration log10_N50_fevginf parameterizes P(fever|INFECTION) conditional. Mapped by functional-form role only. Plus the same ingested-vs-bicarb frame caveat as N50_inf. Interpret with care."
+log10_N50_fevginf,high_dose_explore,high-dose,n50_fever_given_dose,27800,4.4440,log10,approx_object,"Identical to POC. Same object + frame caveats."
+alpha_fevginf,proof_of_concept,POC,alpha_fever_given_dose,0.84,0.84,identity,approx_object,"OBJECT MISMATCH: script alpha is for the P(fever|dose) marginal curve; calibration alpha_fevginf is for P(fever|infection). Same functional role, different curve. Dimensionless."
+alpha_fevginf,high_dose_explore,high-dose,alpha_fever_given_dose,0.84,0.84,identity,approx_object,"Identical to POC."
+gamma_fevginf,proof_of_concept,POC,gamma_fever_given_dose,0.4,0.4,identity,approx_object,"OBJECT MISMATCH: as alpha_fevginf. Immunity exponent on the fever curve."
+gamma_fevginf,high_dose_explore,high-dose,gamma_fever_given_dose,0.4,0.4,identity,approx_object,"Identical to POC."
