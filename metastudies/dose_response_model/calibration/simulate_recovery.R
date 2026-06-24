@@ -11,19 +11,34 @@
 #'
 #' Functions:
 #'   make_truth()                  - 1-row draws_matrix of all 13 params (constrained)
+#'   draw_truth_from_prior()       - 1 draw from the prior over the model's params{}
+#'   augment_truth_derived()       - append transformed-parameter truths to a truth vec
 #'   simulate_y()                  - draw synthetic y at a truth via generate_quantities
-#'   recover_once()                - simulate -> refit -> diagnose vs truth
+#'   recover_once()                - simulate at a fixed truth -> refit -> diagnose
+#'   recover_from_prior()          - 1 prior draw -> simulate -> refit -> diagnose
 #'   recover_repeated()            - k truths from the prior -> SBC-lite coverage
 #'   attribution_cliff_vs_reparam()- controlled cliff(T[0,]) vs reparam divergence test
 #'
 #' Quick demo:  Rscript simulate_recovery.R
+#' Single-draw recovery example:  Rscript recover_from_prior_example.R
 
 suppressPackageStartupMessages({library(cmdstanr); library(posterior); library(dplyr)})
 source("priors.R"); source("data_prep.R"); source("diagnostics.R")
+source("dose_response_curves.R")   # bespoke dose-response PPC (plot_dose_response_fit)
 
 PARAM_NAMES <- c("log10_N50_inf","d_fev","alpha_inf","alpha_fevginf","gamma_inf",
                  "gamma_fevginf","log10_delta","pi_susc","CoP_imm","CoP_susc",
                  "phi_md","eta_lo","kappa","sigma_study")
+
+# Per-tier recovery report config. REPORT = active/identifiable params the
+# recovery table judges; INERT = params that do NOT enter this tier's likelihood
+# (their posterior should ~ prior — shown in prior_posterior.png, not a "miss").
+# A new model tier adds a *_REPORT_PARS / *_INERT_PARS pair; the simulator and
+# diagnostics need no change because the likelihood lives only in the .stan.
+TIER1_REPORT_PARS <- c("log10_N50_inf","d_fev","log10_N50_fevginf","alpha_inf",
+                       "alpha_fevginf","gamma_inf","gamma_fevginf","log10_delta",
+                       "pi_susc","CoP_imm","CoP_susc","phi_md")
+TIER1_INERT_PARS  <- c("sigma_study","eta_lo","kappa")
 
 # A realistic truth for point recovery. NOTE: most values are on the PRE-EU/mL scale
 # (pre-Tier-1.5); after the EU/mL value-swap, delta~2.5, CoP_imm~5-7, gamma~0.2,
@@ -50,6 +65,27 @@ simulate_y <- function(mod, truth, stan_data, seed = 99) {
   matrix(as.integer(yr), nrow = nrow(yr), dimnames = list(NULL, NULL))
 }
 
+#' Draw ONE truth from the prior over the model's full parameter block.
+#' Reads parameter names from the .stan via mod$variables() (so it stays correct
+#' as the parameter block evolves across tiers) and draws each from priors.yaml.
+#' @return list(values = named numeric, truth = 1-row constrained draws_matrix).
+draw_truth_from_prior <- function(mod, priors, seed) {
+  set.seed(seed)
+  model_pars <- names(mod$variables()$parameters)
+  tv <- vapply(model_pars, function(p) sample_prior(priors, p, 1L), numeric(1))
+  list(values = tv, truth = posterior::as_draws_matrix(t(as.matrix(tv))))
+}
+
+#' Append the .stan transformed-parameter truths to a free-parameter truth vector
+#' so the recovery table can mark recovery on transformed params too.
+augment_truth_derived <- function(tv) {
+  tv["log10_N50_fevginf"] <- tv["log10_N50_inf"] + tv["d_fev"]
+  tv["N50_inf"]           <- 10^tv["log10_N50_inf"]
+  tv["N50_fevginf"]       <- 10^tv["log10_N50_fevginf"]
+  tv["delta"]             <- 10^tv["log10_delta"]
+  tv
+}
+
 #' Simulate one dataset at `truth` and refit; diagnose recovery.
 recover_once <- function(mod, stan_data, obs, priors, truth_values = TRUTH_REALISTIC,
                          out_dir = "results/recovery/point",
@@ -62,16 +98,73 @@ recover_once <- function(mod, stan_data, obs, priors, truth_values = TRUTH_REALI
                     iter_warmup = warmup, iter_sampling = sampling,
                     adapt_delta = adapt_delta, seed = fit_seed, refresh = 0,
                     show_messages = FALSE)
-  # derived truths so the table can mark recovery on transformed params too
-  tv <- truth_values
-  tv["log10_N50_fevginf"] <- tv["log10_N50_inf"] + tv["d_fev"]
-  tv["N50_inf"] <- 10^tv["log10_N50_inf"]
-  tv["N50_fevginf"] <- 10^tv["log10_N50_fevginf"]
-  tv["delta"] <- 10^tv["log10_delta"]
+  tv <- augment_truth_derived(truth_values)
   pars <- c("log10_N50_inf","d_fev","log10_N50_fevginf","alpha_inf","alpha_fevginf",
             "gamma_inf","gamma_fevginf","log10_delta","pi_susc","CoP_imm","CoP_susc")
   diagnose_fit(fit, out_dir, pars = pars, true_params = tv, obs = obs,
                priors = priors, model_name = "recovery_point")
+}
+
+#' Single prior-draw recovery example — the standard synthetic-data check.
+#' Draw ONE truth from the prior, simulate a synthetic dataset matching the real
+#' covariate table (same group/dose/CoP/stratum/n; only y resampled), refit, and
+#' diagnose recovery against the drawn truth. One point sample.
+#'
+#' A degenerate-data guard walks the seed deterministically if a draw yields an
+#' all-zero or fully-saturated y (an extreme prior draw that makes recovery a
+#' non-demo). The truth-draw and simulate_y seeds are pinned together so the run
+#' is fully reproducible.
+#'
+#' NOTE: the simulator and the fit SHARE obs_prob(), so this cannot catch an
+#' obs_prob() bug — test_obs_prob_parity.R is that guard; run it first.
+#'
+#' @param report_pars active/identifiable params judged in the recovery table.
+#' @param inert_pars  params not in this tier's likelihood (posterior ~ prior;
+#'   shown in prior_posterior.png, not counted as a recovery miss).
+recover_from_prior <- function(mod, stan_data, obs, priors,
+                               seed = 2026,
+                               report_pars = TIER1_REPORT_PARS,
+                               inert_pars  = TIER1_INERT_PARS,
+                               out_dir = "results/recovery/tier1",
+                               chains = 4, warmup = 1000, sampling = 1000,
+                               adapt_delta = 0.9, max_redraws = 20) {
+  s <- seed; td <- NULL; y_sim <- NULL
+  degenerate <- function(y) sum(y) == 0 || all(y == stan_data$n)
+  for (try in seq_len(max_redraws)) {
+    td    <- draw_truth_from_prior(mod, priors, s)
+    y_sim <- simulate_y(mod, td$truth, stan_data, seed = s)[1, ]
+    if (!degenerate(y_sim)) break
+    s <- s + 1L
+  }
+  if (degenerate(y_sim))
+    stop(sprintf("no non-degenerate synthetic dataset within %d redraws from seed %d",
+                 max_redraws, seed))
+  if (s != seed)
+    message(sprintf("recover_from_prior: degenerate draw(s) from seed %d; used seed %d", seed, s))
+
+  rec_data <- modifyList(stan_data, list(y = as.integer(y_sim)))
+  fit <- mod$sample(data = rec_data, chains = chains, parallel_chains = chains,
+                    iter_warmup = warmup, iter_sampling = sampling,
+                    adapt_delta = adapt_delta, seed = s, refresh = 0,
+                    show_messages = FALSE)
+
+  cat(sprintf("\nSingle prior-draw recovery (seed %d). Inert params (posterior~prior,\n", s))
+  cat(sprintf("  see prior_posterior.png, not a recovery miss): %s\n",
+              paste(inert_pars, collapse = ", ")))
+  tv <- augment_truth_derived(td$values)
+  res <- diagnose_fit(fit, out_dir, pars = report_pars, true_params = tv, obs = obs,
+                      priors = priors, model_name = "recovery_tier1_prior")
+
+  # Bespoke dose-response PPC, to match the real-fit plot set. Point the obs at the
+  # SYNTHETIC y actually fit (obs row order == stan_data$y == y_sim order), so the
+  # posterior curve and the plotted points are on the same footing.
+  obs_syn <- obs
+  obs_syn$y        <- as.integer(y_sim)
+  obs_syn$obs_rate <- y_sim / obs$n
+  sd_plot <- stan_data
+  attr(sd_plot, "obs") <- obs_syn
+  plot_dose_response_fit(fit, sd_plot, file.path(out_dir, "dose_response_fit.png"))
+  invisible(res)
 }
 
 #' SBC-lite: k truths drawn from the prior, one synthetic dataset each, refit each,

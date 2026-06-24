@@ -25,9 +25,37 @@ Run with [fit_dose_response.R](fit_dose_response.R) (cmdstanr + CmdStan 2.39).
   (trace/pairs/rank/energy/density/rhat/neff via bayesplot + posterior),
   prior-vs-posterior overlay, PPC fed by Stan `p_pred` (no R likelihood mirror),
   priorsense power-scaling, `summary.md`/`summary.csv`/`results.json`/`fit.rds`.
+- [reference_points.csv](reference_points.csv) — **single source** for the
+  hand-tuned cohort-model point estimates (from
+  `scratch/cohort_incidence_model_proof_of_concept.R` and
+  `..._high_dose_explore_scratch.R`), mapped to Stan parameters **by equation**
+  (both use the identical beta-Poisson `P = 1 − (1 + D·(2^(1/α)−1)/N50)^(−α/CoP^γ)`).
+  `diagnose_fit()` loads it by default (`load_reference_points()` in diagnostics.R)
+  and draws them as labeled orange triangles on the x-axis of the matching
+  `prior_posterior.png` facet — so they **always appear when the plot is
+  regenerated**. They are reference markers only and do **not** inform the prior.
+  Off-panel values are pinned at the facet edge with the value flagged "off-scale"
+  so a far-tail point can't squash the densities. **Two read caveats baked into
+  the table's `note` column:** (1) **dose-frame** — the script N50s are in raw
+  ingested-bacilli (one curve blending Hornick milk + Oxford bicarb, no `delta`),
+  whereas calibration `N50_inf`/`N50_fevginf` are bicarb-equivalent CFU with a
+  separate `log10_delta` offset, so the N50 gap is frame-confounded, not pure
+  miscalibration; (2) **fever object** — the script's `*_fever_given_dose` params
+  describe the P(fever|dose) **marginal**, while `*_fevginf` describe P(fever|
+  infection) **conditional** (mapped by functional-form role only). The infection
+  triple (`N50_inf`, `alpha_inf`, `gamma_inf`) is an exact same-object mapping.
+  To drop/add a marker, edit the CSV — no code change. (The fold-rise `mu_0`,
+  2.5 vs 1.25, also differs between scripts but is an immunity/boosting parameter
+  outside this dose-response calibration's parameter set, so it is not plotted.)
 - [simulate_recovery.R](simulate_recovery.R) — known-truth recovery harness
   (`generate_quantities` simulator → refit), SBC-lite coverage, and the controlled
-  cliff-vs-reparam divergence attribution.
+  cliff-vs-reparam divergence attribution. `recover_from_prior()` is the standard
+  single-prior-draw check (draw one truth from the prior → simulate synthetic data
+  matching the real covariate table → refit → recovery report); run it via
+  [recover_from_prior_example.R](recover_from_prior_example.R), output to
+  `results/recovery/tier1/`. Per-tier reuse = a `*_REPORT_PARS`/`*_INERT_PARS` pair
+  + the `tier_col`; the simulator/diagnostics are unchanged (likelihood lives only
+  in the `.stan`).
 - [run_scenarios.R](run_scenarios.R) — `run_scenario()`/`summarize_scenarios()`
   cross-run comparison (row-filter + prior-override sensitivities, loo on grouped
   units). Deps: bayesplot, loo, priorsense, yaml, gridExtra (+ cmdstanr/posterior).
