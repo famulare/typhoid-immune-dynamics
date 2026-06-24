@@ -26,6 +26,7 @@ get_script_dir <- function() {
 calib_dir <- get_script_dir()
 setwd(calib_dir)
 source("priors.R"); source("data_prep.R"); source("diagnostics.R")
+source("dose_response_curves.R")  # bespoke model PPC: dose-response curves vs data
 
 stan_file   <- "typhoid_dose_response.stan"
 data_file   <- "dose_response_data.csv"
@@ -34,7 +35,7 @@ results_dir <- "results"
 # Interpretable parameters (the inert sigma_study/eta_lo/kappa are excluded here).
 interp_pars <- c("log10_N50_inf", "d_fev", "log10_N50_fevginf",
                  "alpha_inf", "alpha_fevginf", "gamma_inf", "gamma_fevginf",
-                 "log10_delta", "pi_susc", "CoP_imm", "CoP_susc",
+                 "log10_delta", "pi_susc", "CoP_imm", "CoP_susc", "phi_md",
                  "N50_inf", "N50_fevginf", "delta")
 
 priors <- load_priors()
@@ -72,6 +73,9 @@ fit$cmdstan_diagnose()
 diag <- diagnose_fit(fit, file.path(results_dir, "tier1"),
                      pars = interp_pars, obs = obs, priors = priors,
                      model_name = "tier1", elapsed_s = elapsed)
+
+# Bespoke model PPC: posterior dose-response curves vs observed (+ phi ceiling).
+plot_dose_response_fit(fit, stan_data, file.path(results_dir, "tier1", "dose_response_fit.png"))
 
 cat("\n=== INTERPRETABLE PARAMETERS ===\n")
 print(diag$table, n = Inf)

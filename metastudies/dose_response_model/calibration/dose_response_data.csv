@@ -1,17 +1,17 @@
 obs_id,study,year,era,outcome,dose_cfu,n,y,CoP,phi,gilman_stratum,eta_fixed_optC,likelihood_group,tier1_active,tier2_active,validation_only,notes
 W-F-3,Waddington,2011,oxford,fever,1000,20,11,1.0,1.0,0,NA,ox_fev,1,1,0,Naive. Actual median dose 1.34e3.
 W-F-4,Waddington,2011,oxford,fever,10000,20,13,1.0,1.0,0,NA,ox_fev,1,1,0,Naive. Actual median dose 1.98e4. CORRECTED n=20 y=13 (was n=16 y=10).
-D-F-plac,Darton,2013,oxford,fever,18200,30,20,1.15,1.0,0,NA,ox_fev,1,1,0,Mixed (40% Vi+). CoP=1.15 is placeholder for group-average; needs titer model. Actual median dose 1.82e4.
-J-F-ctrl,Jin,2015,oxford,fever,20000,31,24,1.12,1.0,0,NA,ox_fev,1,1,0,Mixed (38% Vi+). CoP=1.12 placeholder. Dose is geometric mean of 1-5e4 target range.
-J-F-ViTT,Jin,2015,oxford,fever,20000,37,13,5.0,1.0,0,NA,ox_fev,1,1,0,Vi-TT vaccinated. GMT 563 EU/mL. CoP=5.0 PLACEHOLDER — needs titer model mapping.
-J-F-ViPS,Jin,2015,oxford,fever,20000,35,13,2.0,1.0,0,NA,ox_fev,1,1,0,Vi-PS vaccinated. GMT 141 EU/mL. CoP=2.0 PLACEHOLDER — needs titer model mapping.
+D-F-plac,Darton,2013,oxford,fever,18200,30,20,1.98,1.0,0,NA,ox_fev,1,1,0,SUPERSEDED in Tier 1.5: dropped in data_prep and replaced by 30 individual n=1 rows (per-subject anti-Vi EU/mL) from darton_individual_endpoints.csv. CoP=group GMT 7.31/3.7 retained for reference/group-mode.
+J-F-ctrl,Jin,2015,oxford,fever,20000,31,24,2.16,1.0,0,NA,ox_fev,1,1,0,Control. anti-Vi GMT 8.0 EU/mL (day28); CoP=GMT/3.7 (VaccZyme EU/mL ref naive). Dose geomean 1-5e4.
+J-F-ViTT,Jin,2015,oxford,fever,20000,37,13,152.16,1.0,0,NA,ox_fev,1,1,0,Vi-TT. anti-Vi GMT 563 EU/mL; CoP=GMT/3.7 (VaccZyme EU/mL ref naive).
+J-F-ViPS,Jin,2015,oxford,fever,20000,35,13,38.11,1.0,0,NA,ox_fev,1,1,0,Vi-PS. anti-Vi GMT 141 EU/mL; CoP=GMT/3.7. Within-group titre predicts outcome (Jensen; Fig S3 later).
 G20-F-naive,Gibani,2019,oxford,fever,25000,19,12,1.0,1.0,0,NA,ox_fev,1,1,0,Naive rechallenge cohort. Dose ~2.5e4.
 W-I-3,Waddington,2011,oxford,infection,1000,20,13,1.0,NA,0,1.00,ox_inf,0,1,0,Shedding. η=1.0 (shedding > diagnosis at this dose). Tier 2 only.
 W-I-4,Waddington,2011,oxford,infection,10000,20,8,1.0,NA,0,0.62,ox_inf,0,1,0,Shedding. y=8 best estimate (bounded 7-14; not directly reported). η=0.62. Tier 2 only.
-D-I-plac,Darton,2013,oxford,infection,18200,30,19,1.15,NA,0,0.94,ox_inf,0,1,0,Shedding from S1 individual data. η=0.94. CoP placeholder. Tier 2 only.
-J-I-ctrl,Jin,2015,oxford,infection,20000,31,22,1.12,NA,0,0.92,ox_inf,0,1,0,Shedding. η=0.92 (22/24 shedders per diagnosed). CoP placeholder. Tier 2 only.
-J-I-ViTT,Jin,2015,oxford,infection,20000,37,22,5.0,NA,0,0.92,ox_inf,0,1,0,Shedding. Same η as ctrl (similar time-to-treatment). CoP PLACEHOLDER. Tier 2 only.
-J-I-ViPS,Jin,2015,oxford,infection,20000,35,21,2.0,NA,0,0.92,ox_inf,0,1,0,Shedding. Same η. CoP PLACEHOLDER. Tier 2 only.
+D-I-plac,Darton,2013,oxford,infection,18200,30,19,1.98,NA,0,0.94,ox_inf,0,1,0,Shedding from S1. η=0.94. CoP=group GMT 7.31/3.7 EU/mL. Tier 2 only (individualize in +cascade).
+J-I-ctrl,Jin,2015,oxford,infection,20000,31,22,2.16,NA,0,0.92,ox_inf,0,1,0,Shedding. η=0.92. CoP=GMT(8.0)/3.7 EU/mL. Tier 2 only.
+J-I-ViTT,Jin,2015,oxford,infection,20000,37,22,152.16,NA,0,0.92,ox_inf,0,1,0,Shedding. Same η. CoP=GMT(563)/3.7 EU/mL. Tier 2 only.
+J-I-ViPS,Jin,2015,oxford,infection,20000,35,21,38.11,NA,0,0.92,ox_inf,0,1,0,Shedding. Same η. CoP=GMT(141)/3.7 EU/mL. Tier 2 only.
 H-F-3,Hornick,1965,maryland,fever,1000,14,0,NA,0.25,0,NA,md_fev,1,1,0,Maryland mixture. φ=0.25 (Hornick: >=103F/24-36h).
 H-F-5,Hornick,1965,maryland,fever,100000,116,32,NA,0.25,0,NA,md_fev,1,1,0,Maryland mixture. φ=0.25.
 H-F-8,Hornick,1965,maryland,fever,100000000,9,8,NA,0.25,0,NA,md_fev,1,1,0,Maryland mixture. φ=0.25.

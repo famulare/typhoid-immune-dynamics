@@ -60,7 +60,7 @@ sd <- build_stan_data("dose_response_data.csv", priors, tier_col = "tier1_active
 obs <- attr(sd, "obs")
 mod <- cmdstan_model("typhoid_dose_response.stan")
 
-# ---- Parameter vectors to test (constrained scale; all 13 parameters) ---------
+# ---- Parameter vectors to test (constrained scale; must cover the model's params) ----
 PARAM_NAMES <- c("log10_N50_inf","d_fev","alpha_inf","alpha_fevginf","gamma_inf",
                  "gamma_fevginf","log10_delta","pi_susc","CoP_imm","CoP_susc",
                  "eta_lo","kappa","sigma_study")
@@ -72,6 +72,7 @@ vecs <- list(
 truth <- posterior::as_draws_matrix(do.call(rbind, lapply(vecs, function(v) setNames(v, PARAM_NAMES))))
 
 # ---- New-model p_pred / log_lik via generate_quantities -----------------------
+assert_fitted_params_match(mod, PARAM_NAMES)
 gq <- mod$generate_quantities(fitted_params = truth, data = sd, seed = 1)
 p_stan  <- posterior::as_draws_matrix(gq$draws("p_pred"))    # ndraws x N_obs
 ll_stan <- posterior::as_draws_matrix(gq$draws("log_lik"))

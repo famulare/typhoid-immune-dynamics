@@ -8,9 +8,10 @@ shedding / +η, 13 params).
 
 | Step | = plan concept | obs | active params | status |
 |---|---|---:|---|---|
-| **1. Minimal Tier 1** | sub-milestone *below* repo Tier 1 | 25 | 10 (6 bio + 4 nuisance); `sigma_study` inert | **clean: 0/4000 divergences, R-hat<1.01, ESS>1700** |
-| **2. Tier 1 complete** | repo **Tier 1** | 25 | 11 (+ study RE) | not started |
-| **3. Tier 2** | repo **Tier 2** | 31 | 13 (+ η_lo, κ) | not started |
+| **1. Tier 1 (floated φ)** | sub-milestone *below* repo Tier 1 | 25 | 11 (6 bio + 5 nuisance incl. `phi_md`); `sigma_study`/`eta_lo`/`κ` inert | **clean: 0/4000 div, R-hat≤1.002, ESS>1700; φ̂≈0.97 (uniform prior, edge-pressing), δ̂≈280×** |
+| **1.5. EU/mL axis + individual Darton** | immunity upgrade ([issue #15](https://github.com/famulare/typhoid-immune-dynamics/issues/15), `tier1.5_plan.md`) | 25 grp + 30 indiv | CoP in VaccZyme EU/mL; Darton placebo individual; (+φ) φ(T) from threshold ladder | building minimal+φ |
+| **2. Tier 1 complete** | repo **Tier 1** | 25 | 12 (+ study RE) | not started |
+| **3. Tier 2** | repo **Tier 2** | 31 | 14 (+ η_lo, κ) | not started |
 
 Run with [fit_dose_response.R](fit_dose_response.R) (cmdstanr + CmdStan 2.39).
 
@@ -31,10 +32,37 @@ Run with [fit_dose_response.R](fit_dose_response.R) (cmdstanr + CmdStan 2.39).
   cross-run comparison (row-filter + prior-override sensitivities, loo on grouped
   units). Deps: bayesplot, loo, priorsense, yaml, gridExtra (+ cmdstanr/posterior).
 
-## Step 1 — Minimal Tier 1 (current)
+## CoP units (definitional)
+
+The correlate of protection (CoP) is **denominated in anti-Vi IgG titre on the
+commercial VaccZyme ELISA scale** (The Binding Site; EU/mL, LLD 7.4) — the modern
+standard for typhoid anti-Vi. **Verified** that both modern Oxford inputs use this
+exact assay: Jin 2017 (p.2474) and Darton 2016 (p.4), same LLD. CoP is expressed
+**relative to the naive reference** so CoP = 1 at naive (anti-Vi < LLD, imputed
+~3.7 EU/mL). It enters the dose-response as `CoP^gamma` — a per-log₁₀-titre power
+law — so **γ is the protection slope, anchorable to Darton's HR = 0.29 per log₁₀
+anti-Vi** (same scale, no cross-assay calibration). Maryland is latent
+anti-Vi-*equivalent* EU/mL (anti-Vi unmeasured pre-VaccZyme).
+
+Reference titres (source of truth): Jin Vi-TT 562.9, Vi-PS 140.5, control 8.0
+EU/mL (measured GMTs); Darton placebo per-subject in S1; naive 3.7 (LLD-imputed).
+
+**Status:** the *units definition* is wired into the contracts and the `.stan`.
+The per-group **value-swap + refit** (replacing the interim CoP placeholders
+1.15/1.12/5.0/2.0 with titre-relative values, rescaling the Maryland latent CoP
+priors, and re-anchoring γ to the Darton HR) is the immediate next step, pending
+three choices logged in `tier1_lab_notebook.md` D1 (naive reference; Maryland
+latent prior scale; Darton per-subject vs GMT).
+
+## Step 1 — Tier 1 with floated φ and δ (current)
+
 Goal: a clean-sampling 25-observation fit (compiles, 0 divergences, R-hat < 1.01,
 ESS > 400) with prior + posterior predictive checks. Oxford shedding/η and the
-study RE are deliberately excluded; `delta`, the Maryland mixture, and `φ` are in.
+study RE are deliberately excluded. **Both Maryland nuisance scales now float:**
+`delta` (always was estimated) and — as of 2026-06-23 — `phi_md`, a single
+**estimated scalar** Maryland fever definition-sensitivity (`Beta(1,1)` uniform
+prior; a deliberate loosening from plan §7's `Beta(5,5)`, see below), replacing the
+fixed per-obs `φ` data (0.25/0.65). The Maryland mixture is also in.
 
 **Divergence pathology resolved (2026-06-23).** Root cause was the ordering-constraint
 cliff (`(log10_N50_fevginf - log10_N50_inf) ~ normal(0,1) T[0,]`), which produced
@@ -52,12 +80,47 @@ The unified `obs_prob()` refactor is verified against the original per-group
 likelihood by [test_obs_prob_parity.R](test_obs_prob_parity.R) (the only guard the
 recovery harness cannot provide — run it before trusting the harness).
 
-**Remaining (science decisions, out of scope of the workflow upgrade):**
-1. Constant-φ cap — the PPC now visibly shows high-dose Hornick fever (H-F-8/H-F-9)
-   underfit because φ=0.25 caps fitted fever (reviewer-2 MC1). Needs dose-dependent φ.
-2. δ prior-data tension — `log10_delta` posterior ≈1.6 vs prior mean 3.5; the
-   `delta_prior_*` scenarios show residual prior pull. priorsense flags it as
-   prior-data conflict.
+**φ resolution (2026-06-23).** The constant-φ cap is removed: `φ=0.25` was the
+*low-dose asymptote* of the definition-sensitivity function applied dose-wide, so
+it capped Maryland fitted fever at 0.25 while Hornick's high-dose data are 0.89–0.95
+(structurally unfittable, not just biased; reviewer-2 MC1). Rather than dose-dependent
+φ (+1–2 params on already-thin ID), Tier 1 now **estimates a single scalar `phi_md`**
+identified by the Hornick dose-range plateau (at saturation `P_fev→1` so `fitted→φ`,
+which directly measures φ near the plateau). Plan §7 specified `φ ~ Beta(5,5)`, but
+that is too strong here, so Tier 1 uses **`Beta(1,1)` (uniform)** — a deliberate
+departure (see two-stage history below). Decision log:
+
+- **Single global `phi_md`, not per-study.** Gilman/Levine are single-dose (all 10⁵)
+  so they cannot identify their own φ (confounded with the 10⁵ attack rate); only
+  Hornick's dose range can. The old 0.25 (Hornick) vs 0.65 (Gilman/Levine) split was
+  itself unaudited LLM-derived; cross-study level differences move to the study RE
+  (Step 2) / residual. Per-study or ratio-preserving φ is a documented alternative.
+- **Prior choice.** `Beta(5,5)` (90% mass [0.25,0.75], ~10 pseudo-obs at 0.5) pulled
+  φ̂ to 0.886 — the prior's 99.8th pctile — and still left H-F-9 underfit, so it was
+  loosened to `Beta(1,1)`. Fallback if φ destabilizes at the [0,1] edge: a
+  mildly-informed elicited prior (e.g. `Beta(2,2)`).
+
+**Re-fit result (2026-06-23, `Beta(1,1)`).** 0/4000 divergences, R-hat ≤ 1.002,
+ESS > 1700 (φ_md ess_tail ~1250). See `results/tier1/dose_response_fit.png` for the
+bespoke dose-response PPC.
+
+- **`phi_md` = 0.966** (median 0.975, 90% CI 0.91–0.998) — floats up to the plateau
+  and **presses the [0,1] boundary**: the data wants ≈no definitional suppression, so
+  the whole Maryland↔Oxford gap is carried by δ, not φ.
+- **`log10_delta` rose to 2.46** (δ ≈ 280×; was 1.6 / 42× under fixed φ) — continuing
+  toward the prior mean 3.5. The φ-cap and δ tension were the same artifact, confirmed.
+- **`alpha_fevginf` re-identified** (priorsense prior-sensitivity 0.56 → ~0.06); the
+  fixed cap had been corrupting it.
+- **Key residual — the binding constraint SHIFTED off φ.** High-dose Hornick is *still*
+  underfit ~0.12 (H-F-8 0.889 → fit 0.77; H-F-9 0.952 → fit 0.83) **even with φ≈0.97**.
+  Cause is no longer φ: the Maryland mixture's immune component (~39% at CoP_imm≈2.2)
+  plus the slow `P_fev|inf` saturation (small `alpha_fevginf`) cap the *predicted*
+  plateau at ~0.86. A tighter φ prior would lower this further — so the elicited φ
+  prior addresses the boundary/ID, but the high-dose misfit is a separate structural
+  question (is immunity fully overwhelmed at 10⁹? does fever|infection saturate faster?).
+- δ↔N50 ridge now visible (r ≈ −0.76/−0.79) — dose-scale confound, a Tier-2 concern.
+- Gilman/Levine 10⁵ fever scatter (±0.2 residual) and the H-FgI-7 conditional overfit
+  (0.57 obs vs 0.75 fit) are study-RE / fever-process items for Steps 2+.
 
 Expected limitation even when clean: γ_inf is only weakly identified without the
 Oxford vaccine shedding contrast (plan §2.6); `alpha_fevginf` shows the highest

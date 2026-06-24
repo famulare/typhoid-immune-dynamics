@@ -18,8 +18,14 @@
 //     sourced from calibration/priors.yaml (single source of truth).
 //   - generated quantities emit per-observation p_pred, y_rep, log_lik (PPC from
 //     the model, loo-ready) instead of an R-side likelihood mirror.
+// Update 2026-06-23: phi (Maryland fever definition-sensitivity) is now an
+//   ESTIMATED scalar parameter phi_md ~ Beta (plan Section 7), NOT fixed per-obs
+//   data. The old fixed phi=0.25 was the low-dose asymptote of phi(T) applied
+//   dose-wide; it capped Maryland fitted fever at 0.25 while Hornick high-dose
+//   data are 0.89-0.95 (structurally unfittable). A single floated scalar is
+//   identified by the Hornick dose-range plateau and covaries with delta.
 // Implements: cascaded beta-Poisson (infection x fever|infection),
-//   cross-era delta bridge, Maryland mixture, study-specific phi(T),
+//   cross-era delta bridge, Maryland mixture, estimated scalar phi_md,
 //   eta-correction for Oxford shedding detection bias.
 // Reference: joint_inference_plan.md Sections 2.1-2.7, Section 7 (priors)
 // Authors: Mike Famulare, Claude (Opus 4.6 draft; Opus 4.8 refactor)
@@ -110,9 +116,17 @@ data {
   array[N_obs] int<lower=0> n;                 // sample sizes
   array[N_obs] int<lower=0> y;                 // events
   vector<lower=0>[N_obs] dose;                 // raw dose in CFU (helper applies /delta where needed)
-  vector<lower=0>[N_obs] CoP;                  // group-average CoP (used by ox groups; 1 elsewhere)
-  vector<lower=0>[N_obs] phi;                  // definition sensitivity (md_fev/hornick; 1 elsewhere)
+  // CoP = correlate of protection. DEFINITIONAL UNITS: anti-Vi IgG titre on the
+  // commercial VaccZyme ELISA scale (The Binding Site; EU/mL, LLD 7.4), expressed
+  // RELATIVE TO THE NAIVE REFERENCE so CoP=1 at naive (<LLD, imputed ~3.7 EU/mL).
+  // Both modern Oxford inputs (Jin 2017, Darton 2016) use this assay (verified).
+  // It enters the dose-response as CoP^gamma — a per-log10-titre power law — so
+  // gamma is the protection slope anchorable to Darton's HR 0.29/log10 anti-Vi.
+  // NOTE: current per-group values are INTERIM placeholders (Jin 5.0/2.0 etc.)
+  // pending the EU/mL value-swap; see tier1_lab_notebook.md D1.
+  vector<lower=0>[N_obs] CoP;                  // group-average CoP (anti-Vi/naive, VaccZyme EU/mL; 1 elsewhere)
   array[N_obs] int<lower=0, upper=2> stratum;  // gilman stratum (md_fev; 0 elsewhere)
+  // NOTE: phi is no longer data — it is the estimated scalar parameter phi_md below.
 
   // ---- Control flag --------------------------------------------------------
   int<lower=0, upper=1> prior_only;            // 1 = skip likelihood (prior predictive)
@@ -130,6 +144,7 @@ data {
   real<lower=0> pr_pi_susc_a;    real<lower=0> pr_pi_susc_b;    // beta
   real pr_CoP_imm_mu;            real<lower=0> pr_CoP_imm_sd;
   real pr_CoP_susc_mu;           real<lower=0> pr_CoP_susc_sd;
+  real<lower=0> pr_phi_md_a;     real<lower=0> pr_phi_md_b;     // beta (Maryland definition-sensitivity)
   real<lower=0> pr_eta_lo_a;     real<lower=0> pr_eta_lo_b;     // beta
   real pr_kappa_mu;              real<lower=0> pr_kappa_sd;
   real pr_sigma_study_mu;        real<lower=0> pr_sigma_study_sd; // half-normal (sigma_study>=0)
@@ -147,8 +162,11 @@ parameters {
   // ---- Nuisance parameters ----
   real log10_delta;               // log10 milk-to-bicarb dose offset
   real<lower=0, upper=1> pi_susc; // Maryland susceptible fraction
-  real<lower=0> CoP_imm;          // Maryland immune fraction CoP (>1)
-  real<lower=0> CoP_susc;         // Maryland susceptible fraction CoP (near 1)
+  // Latent Maryland CoP (anti-Vi not measured pre-VaccZyme); same units as CoP
+  // above — anti-Vi-equivalent titre relative to naive (VaccZyme EU/mL).
+  real<lower=0> CoP_imm;          // Maryland immune-component CoP (>1)
+  real<lower=0> CoP_susc;         // Maryland susceptible-component CoP (near 1)
+  real<lower=0, upper=1> phi_md;  // Maryland fever definition-sensitivity (estimated scalar; was fixed 0.25/0.65)
 
   // ---- eta-correction parameters (Tier 2, Option A) ----
   real<lower=0, upper=1> eta_lo;  // minimum shedding detection prob at high dose
@@ -179,6 +197,7 @@ transformed parameters {
   lprior += beta_lpdf(pi_susc             | pr_pi_susc_a,            pr_pi_susc_b);
   lprior += lognormal_lpdf(CoP_imm        | pr_CoP_imm_mu,           pr_CoP_imm_sd);
   lprior += lognormal_lpdf(CoP_susc       | pr_CoP_susc_mu,          pr_CoP_susc_sd);
+  lprior += beta_lpdf(phi_md              | pr_phi_md_a,             pr_phi_md_b);
   lprior += beta_lpdf(eta_lo              | pr_eta_lo_a,             pr_eta_lo_b);
   lprior += lognormal_lpdf(kappa          | pr_kappa_mu,             pr_kappa_sd);
   lprior += normal_lpdf(sigma_study       | pr_sigma_study_mu,       pr_sigma_study_sd); // half-normal via lower=0
@@ -189,7 +208,7 @@ model {
 
   if (prior_only == 0) {
     for (i in 1:N_obs) {
-      y[i] ~ binomial(n[i], obs_prob(group[i], dose[i], CoP[i], phi[i], stratum[i],
+      y[i] ~ binomial(n[i], obs_prob(group[i], dose[i], CoP[i], phi_md, stratum[i],
                                      N50_inf, N50_fevginf, alpha_inf, alpha_fevginf,
                                      gamma_inf, gamma_fevginf, delta, pi_susc,
                                      CoP_susc, CoP_imm, eta_lo, kappa));
@@ -207,7 +226,7 @@ generated quantities {
   array[N_obs] int y_rep;
   vector[N_obs] log_lik;
   for (i in 1:N_obs) {
-    p_pred[i]  = obs_prob(group[i], dose[i], CoP[i], phi[i], stratum[i],
+    p_pred[i]  = obs_prob(group[i], dose[i], CoP[i], phi_md, stratum[i],
                           N50_inf, N50_fevginf, alpha_inf, alpha_fevginf,
                           gamma_inf, gamma_fevginf, delta, pi_susc,
                           CoP_susc, CoP_imm, eta_lo, kappa);
@@ -223,19 +242,19 @@ generated quantities {
   real p_fev_1e4_naive = p_inf_1e4_naive
                          * beta_poisson(1e4, N50_fevginf, alpha_fevginf, 1.0, gamma_fevginf);
 
-  // Maryland predicted fever curve at key doses (milk frame; phi=0.25 Hornick)
-  real p_fev_md_1e3 = obs_prob(3, 1e3, 1.0, 0.25, 0, N50_inf, N50_fevginf,
+  // Maryland predicted fever curve at key doses (milk frame; estimated phi_md)
+  real p_fev_md_1e3 = obs_prob(3, 1e3, 1.0, phi_md, 0, N50_inf, N50_fevginf,
                                alpha_inf, alpha_fevginf, gamma_inf, gamma_fevginf,
                                delta, pi_susc, CoP_susc, CoP_imm, eta_lo, kappa);
-  real p_fev_md_1e5 = obs_prob(3, 1e5, 1.0, 0.25, 0, N50_inf, N50_fevginf,
+  real p_fev_md_1e5 = obs_prob(3, 1e5, 1.0, phi_md, 0, N50_inf, N50_fevginf,
                                alpha_inf, alpha_fevginf, gamma_inf, gamma_fevginf,
                                delta, pi_susc, CoP_susc, CoP_imm, eta_lo, kappa);
-  real p_fev_md_1e7 = obs_prob(3, 1e7, 1.0, 0.25, 0, N50_inf, N50_fevginf,
+  real p_fev_md_1e7 = obs_prob(3, 1e7, 1.0, phi_md, 0, N50_inf, N50_fevginf,
                                alpha_inf, alpha_fevginf, gamma_inf, gamma_fevginf,
                                delta, pi_susc, CoP_susc, CoP_imm, eta_lo, kappa);
 
-  // Hornick Table 2 conditional prediction (phi=0.25)
-  real p_cond_pred = obs_prob(5, 1e7, 1.0, 0.25, 0, N50_inf, N50_fevginf,
+  // Hornick Table 2 conditional prediction (estimated phi_md)
+  real p_cond_pred = obs_prob(5, 1e7, 1.0, phi_md, 0, N50_inf, N50_fevginf,
                               alpha_inf, alpha_fevginf, gamma_inf, gamma_fevginf,
                               delta, pi_susc, CoP_susc, CoP_imm, eta_lo, kappa);
 

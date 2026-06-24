@@ -41,6 +41,7 @@ make_truth <- function(values = TRUTH_REALISTIC) {
 #' Draw `reps` synthetic y vectors at the given truth via generate_quantities.
 #' @return integer matrix reps x N_obs (one synthetic dataset per row).
 simulate_y <- function(mod, truth, stan_data, seed = 99) {
+  assert_fitted_params_match(mod, posterior::variables(truth))
   gq <- mod$generate_quantities(fitted_params = truth, data = stan_data, seed = seed)
   yr <- posterior::as_draws_matrix(gq$draws("y_rep"))
   matrix(as.integer(yr), nrow = nrow(yr), dimnames = list(NULL, NULL))
@@ -78,11 +79,14 @@ recover_repeated <- function(mod, stan_data, priors, k = 20,
                              adapt_delta = 0.9, seed0 = 1000) {
   pars <- c("log10_N50_inf","d_fev","alpha_inf","alpha_fevginf","gamma_inf",
             "gamma_fevginf","log10_delta","pi_susc","CoP_imm","CoP_susc")
+  # Simulate at a truth covering EVERY model parameter, derived from the .stan
+  # rather than a hardcoded list, so SBC stays correct as the parameter block evolves.
+  model_pars <- names(mod$variables()$parameters)
   rng <- set.seed(seed0)
   rows <- list()
   for (rep in seq_len(k)) {
-    tv <- vapply(PARAM_NAMES, function(p) sample_prior(priors, p, 1L), numeric(1))
-    truth <- make_truth(tv)
+    tv <- vapply(model_pars, function(p) sample_prior(priors, p, 1L), numeric(1))
+    truth <- posterior::as_draws_matrix(t(as.matrix(tv)))
     y_sim <- simulate_y(mod, truth, stan_data, seed = seed0 + rep)[1, ]
     rec_data <- modifyList(stan_data, list(y = as.integer(y_sim)))
     fit <- mod$sample(data = rec_data, chains = chains, parallel_chains = chains,

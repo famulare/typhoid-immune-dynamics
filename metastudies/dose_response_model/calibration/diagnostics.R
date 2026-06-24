@@ -94,7 +94,12 @@ plot_battery <- function(fit, out_dir, pars, true_params = NULL) {
                w = 2 + 1.6 * length(pars), h = 2 + 1.6 * length(pars))
     .save_gg(bayesplot::mcmc_nuts_energy(np), file.path(out_dir, "energy.png"), w = 8, h = 4)
   }
-  rh <- tryCatch(posterior::rhat(draws), error = function(e) NULL)
+  # posterior::rhat() expects one variable; on a multi-var draws_array it collapses
+  # to a single scalar. Use summarise_draws for per-parameter R-hat (matches summary.md).
+  rh <- tryCatch({
+    rt <- posterior::summarise_draws(draws, "rhat")
+    stats::setNames(rt$rhat, rt$variable)
+  }, error = function(e) NULL)
   if (!is.null(rh)) .save_gg(bayesplot::mcmc_rhat(rh) + bayesplot::yaxis_text(),
                              file.path(out_dir, "rhat.png"), w = 7, h = 4)
   ne <- tryCatch(bayesplot::neff_ratio(fit, pars = pars), error = function(e) NULL)

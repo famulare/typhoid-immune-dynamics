@@ -19,14 +19,35 @@ log10_N50_fevginf: { family: normal,      mu: 2.8,  sd: 1.0 }   # ~600 bicarb CF
 d_fev:             { family: half_normal, mu: 0.0,  sd: 1.0 }   # ordering: fever threshold >= infection
 alpha_inf:         { family: lognormal,   meanlog: -1.5, sdlog: 0.8 }   # ~0.1-0.5
 alpha_fevginf:     { family: lognormal,   meanlog: -1.5, sdlog: 0.8 }
-gamma_inf:         { family: lognormal,   meanlog: -0.5, sdlog: 0.7 }   # ~0.2-1.0
-gamma_fevginf:     { family: lognormal,   meanlog:  0.0, sdlog: 0.7 }   # ~0.3-2.0
+# gamma priors recentered for the EU/mL titre scale (Tier 1.5): CoP now ranges to
+# ~152 (was ~5), so the protection slope gamma is much smaller. Weakly-informative,
+# median ~0.2, wide — lets the (Darton individual + Jin) titre data identify it.
+gamma_inf:         { family: lognormal,   meanlog: -1.6, sdlog: 0.9 }   # median ~0.2 (titre scale)
+gamma_fevginf:     { family: lognormal,   meanlog: -1.6, sdlog: 0.9 }   # median ~0.2 (titre scale)
 
 # ---- Nuisance parameters ----
 log10_delta:       { family: normal,      mu: 3.5,  sd: 0.7 }   # ~1000-30000x
 pi_susc:           { family: beta,        a: 7,     b: 4 }       # ~0.65 (Gilman 36/53)
-CoP_imm:           { family: lognormal,   meanlog: 1.0,  sdlog: 0.5 }   # ~2-5
-CoP_susc:          { family: lognormal,   meanlog: 0.0,  sdlog: 0.2 }   # near 1
+# CoP units are DEFINITIONAL: anti-Vi IgG (VaccZyme EU/mL) relative to naive (=1).
+# These latent Maryland CoPs are anti-Vi-EQUIVALENT (anti-Vi not measured pre-VaccZyme).
+# Rescaled to the EU/mL-relative scale (Tier 1.5): weakly-informative, immune subgroup
+# a few-fold above naive. RESERVED CHOICE — adjust if Maryland latent immunity is
+# expected higher/lower (tier1.5_plan.md).
+CoP_imm:           { family: lognormal,   meanlog: 1.6,  sdlog: 0.7 }   # median ~5x naive (~18 EU/mL)
+CoP_susc:          { family: lognormal,   meanlog: 0.0,  sdlog: 0.3 }   # ~1x naive
+
+# Maryland fever definition-sensitivity (estimated scalar; resolved 2026-06-23).
+# Was fixed per-obs DATA (phi=0.25 Hornick / 0.65 Gilman-Levine) — the low-dose
+# asymptote of phi(T) applied dose-wide, which capped Maryland fitted fever at 0.25
+# while Hornick high-dose data are 0.89-0.95. Now a single ESTIMATED scalar
+# identified by the Hornick dose-range plateau (at saturation, fitted -> phi).
+# Prior: UNIFORM Beta(1,1). Plan Section 7 had specified Beta(5,5), but that is too
+# strong here — 90% mass in [0.25,0.75] (~10 pseudo-obs at 0.5); with Beta(5,5) the
+# posterior was pulled to 0.886 (the prior's 99.8th pctile) and still left H-F-9
+# (0.95) underfit. Deliberate departure from Section 7: let the plateau speak.
+# Fallback if convergence suffers (phi drifting to the [0,1] edge): a mildly-informed
+# prior — Beta(2,2), or an elicited one (single source: edit here + refit, no recompile).
+phi_md:            { family: beta,        a: 1,     b: 1 }
 
 # ---- eta-correction parameters (Tier 2) ----
 eta_lo:            { family: beta,        a: 5,     b: 5 }       # ~0.5
@@ -34,8 +55,3 @@ kappa:             { family: lognormal,   meanlog: 0.0,  sdlog: 1.0 }
 
 # ---- Study-level overdispersion (INERT in Tier 1) ----
 sigma_study:       { family: half_normal, mu: 0.0,  sd: 0.5 }
-
-# NOTE (drift flag): joint_inference_plan.md Section 7 lists `phi ~ Beta(5,5)`, but
-# the .stan treats phi as per-observation DATA (study-specific phi(T)), not a
-# parameter. Left out of this file deliberately; resolve the spec/implementation
-# mismatch before adding a phi prior here.
