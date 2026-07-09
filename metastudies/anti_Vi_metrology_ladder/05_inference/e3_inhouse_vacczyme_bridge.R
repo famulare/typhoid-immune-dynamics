@@ -17,7 +17,8 @@
 # Setup
 library(tidyverse)
 
-output_path <- here::here("metastudies/anti_Vi_metrology_ladder/claude_yolo/intermediates/")
+# Path is relative to the repo root (run from there or the RStudio project)
+output_path <- "metastudies/anti_Vi_metrology_ladder/05_inference/intermediates/"
 
 #' ## Parameters from Lee 2020
 #'

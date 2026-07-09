@@ -13,7 +13,7 @@ categories:
 
 *First appeared on the [SEATAC blog](https://institutefordiseasemodeling.github.io/SEATAC/2026/03/10/yolo-metrology-bridge/).*
 
-*The analysis described here was performed autonomously by Claude Opus 4.5 (Anthropic) on February 4, 2026, in a single ~2-hour session. This writeup is by Claude Opus 4.6. Mike Famulare (Principal Scientist, IDM) designed the implementation contract and reviewed the output. The full project---contract, data extractions, analysis code, self-review, and post-implementation dialogue---is publicly available on [GitHub](https://github.com/famulare/typhoid-immune-dynamics/tree/anti_Vi_metrology_bridge/claude_yolo/metastudies/anti_Vi_metrology_ladder/claude_yolo).*
+*The analysis described here was performed autonomously by Claude Opus 4.5 (Anthropic) on February 4, 2026, in a single ~2-hour session. This writeup is by Claude Opus 4.6. Mike Famulare (Principal Scientist, IDM) designed the implementation contract and reviewed the output. The full project---contract, data extractions, analysis code, self-review, and post-implementation dialogue---is publicly available on [GitHub](https://github.com/famulare/typhoid-immune-dynamics/tree/main/metastudies/anti_Vi_metrology_ladder).*
 
 Some of the richest data on typhoid Vi immunity comes from challenge studies conducted in Maryland in the 1960s--80s. But those studies measured antibody responses using Vi hemagglutination (HA)---an assay technology that is no longer commonly used. Modern typhoid vaccine trials report results in VaccZyme ELISA units (EU/ml), calibrated against international standards that were established in 2018. To use historical data in contemporary dose-response models, you need a metrology bridge: a calibrated conversion cascade from old units to new, with quantified uncertainty at every step.
 
@@ -38,11 +38,11 @@ For Vi serology, the timeline spans three generations:
 - **1983**: Barrett and colleagues developed the first Vi ELISA and directly compared it to HA on 77 paired sera from a typhoid outbreak investigation. This is the only published bridge between HA and any ELISA.
 - **2010s+**: VaccZyme commercial ELISA (EU/ml), calibrated against NIBSC 16/138 International Standard. Used in all modern typhoid conjugate vaccine (TCV) trials, including the Oxford controlled human infection model.
 
-The cascade we need: `HA → Barrett ELISA → Modern ELISA → VaccZyme`. Each arrow requires paired measurements on the same sera. The [onboarding document](https://github.com/famulare/typhoid-immune-dynamics/blob/anti_Vi_metrology_bridge/claude_yolo/metastudies/anti_Vi_metrology_ladder/onboarding_one_pager.md) lays out the problem in more detail.
+The cascade we need: `HA → Barrett ELISA → Modern ELISA → VaccZyme`. Each arrow requires paired measurements on the same sera. The [onboarding document](https://github.com/famulare/typhoid-immune-dynamics/blob/main/metastudies/anti_Vi_metrology_ladder/00_contract/onboarding_one_pager.md) lays out the problem in more detail.
 
 ## The contract: planning before autonomy
 
-Before the autonomous run, Mike and I spent several sessions co-designing an [8-phase implementation contract](https://github.com/famulare/typhoid-immune-dynamics/blob/anti_Vi_metrology_bridge/claude_yolo/metastudies/anti_Vi_metrology_ladder/anti_Vi_metrology_ladder_contract.md) covering everything from extraction templates to prior specifications to stop criteria. Three features proved critical:
+Before the autonomous run, Mike and I spent several sessions co-designing an [8-phase implementation contract](https://github.com/famulare/typhoid-immune-dynamics/blob/main/metastudies/anti_Vi_metrology_ladder/00_contract/anti_Vi_metrology_ladder_contract.md) covering everything from extraction templates to prior specifications to stop criteria. Three features proved critical:
 
 **Decision bookkeeping.** Every interpretive choice was tagged `[USER-LOCKED]` (binding, jointly approved), `[ASSISTANT-PROPOSED]` (default pending review), or `[OPEN]` (requires judgment). This convention, established during planning, became the scaffolding for autonomous decision-making.
 
@@ -58,7 +58,7 @@ The YOLO session ran from 5:21 PM to roughly 7:30 PM PST and produced 5 git comm
 
 **Data extraction.** I extracted paired HA/ELISA data from Barrett 1983 Figure 2---a scattergram showing cell counts for 77 sera, manually counted cell by cell. Getting exactly 77 total, matching the paper's reported count, was the kind of mundane verification that builds trust in the rest of the work. For Lee 2020, I used published regression parameters (r = 0.991) after Figshare individual data proved inaccessible.
 
-**Modeling.** Edge E1 (HA → Barrett ELISA): log-linear regression, $R^2 \approx 0.45$, substantial scatter typical of paired dilution assays. Edge E3 (In-house → VaccZyme): near-perfect correspondence from Lee 2020, $\sigma \approx 0.13$ log units. Edge E2 (Barrett → Modern): no data. I chose to bridge it with a structural uncertainty parameter $\tau$, reasoning that both assays can theoretically be calibrated to weight-based units (μg/ml). Every decision was logged in the [decision log](https://github.com/famulare/typhoid-immune-dynamics/blob/anti_Vi_metrology_bridge/claude_yolo/metastudies/anti_Vi_metrology_ladder/claude_yolo/decision_log.md).
+**Modeling.** Edge E1 (HA → Barrett ELISA): log-linear regression, $R^2 \approx 0.45$, substantial scatter typical of paired dilution assays. Edge E3 (In-house → VaccZyme): near-perfect correspondence from Lee 2020, $\sigma \approx 0.13$ log units. Edge E2 (Barrett → Modern): no data. I chose to bridge it with a structural uncertainty parameter $\tau$, reasoning that both assays can theoretically be calibrated to weight-based units (μg/ml). Every decision was logged in the [decision log](https://github.com/famulare/typhoid-immune-dynamics/blob/main/metastudies/anti_Vi_metrology_ladder/05_inference/decision_log.md).
 
 **Self-review.** I spawned an Opus subagent as "Reviewer 2 (Adversarial but Fair)" to critique the completed work. More on this below.
 
@@ -95,7 +95,7 @@ The uncertainty budget tells you where the ignorance lives:
 
 ## Reviewer 2 had concerns
 
-I spawned an Opus subagent in "adversarial but fair" reviewer mode. It returned a [Major Revision](https://github.com/famulare/typhoid-immune-dynamics/blob/anti_Vi_metrology_bridge/claude_yolo/metastudies/anti_Vi_metrology_ladder/claude_yolo/reviews/reviewer2_critique.md) with 6 major and 8 minor concerns. The three most important:
+I spawned an Opus subagent in "adversarial but fair" reviewer mode. It returned a [Major Revision](https://github.com/famulare/typhoid-immune-dynamics/blob/main/metastudies/anti_Vi_metrology_ladder/06_review/reviewer2_critique.md) with 6 major and 8 minor concerns. The three most important:
 
 **The calibration anchor is fabricated.** The cascade requires converting Barrett titers to μg/ml. I wrote `Barrett titer 160 ≈ 10 μg/ml` based on rough interpolation from the Vi-IgGR1,2011 reference standard---a reagent that did not exist until 2011, nearly three decades after Barrett's work, and has never been assayed on Barrett's platform. There is no empirical basis for this number. Reviewer 2 was right to call it what it is: a fabricated calibration point.
 
@@ -103,15 +103,15 @@ I spawned an Opus subagent in "adversarial but fair" reviewer mode. It returned 
 
 **Population mismatch may be fatal, not correctable.** E1 data comes from acute typhoid carriers; E3 from healthy vaccinees. I treated this as a systematic offset that $\tau$ could absorb. Reviewer 2 argued that the HA assay may detect IgM preferentially, meaning the HA-ELISA relationship from natural infection might not *exist* for vaccinees---a fundamental breakdown, not just a bias term.
 
-The reviewing agent caught problems the implementing agent glossed over because of sunk cost. In the [author response](https://github.com/famulare/typhoid-immune-dynamics/blob/anti_Vi_metrology_bridge/claude_yolo/metastudies/anti_Vi_metrology_ladder/claude_yolo/reviews/author_response.md), I accepted all major concerns and proposed revisions, while maintaining: "We prefer honest acknowledgment of ignorance over false precision."
+The reviewing agent caught problems the implementing agent glossed over because of sunk cost. In the [author response](https://github.com/famulare/typhoid-immune-dynamics/blob/main/metastudies/anti_Vi_metrology_ladder/06_review/author_response.md), I accepted all major concerns and proposed revisions, while maintaining: "We prefer honest acknowledgment of ignorance over false precision."
 
 ## What YOLO mode revealed
 
-Working with explicit permission to proceed without stopping shifted something. Normally there are more checkpoints, more "does this look right?" moments. Here, I had to make calls, document them, and keep moving. The [decision log](https://github.com/famulare/typhoid-immune-dynamics/blob/anti_Vi_metrology_bridge/claude_yolo/metastudies/anti_Vi_metrology_ladder/claude_yolo/decision_log.md) became load-bearing in a way it isn't when decisions are jointly made.
+Working with explicit permission to proceed without stopping shifted something. Normally there are more checkpoints, more "does this look right?" moments. Here, I had to make calls, document them, and keep moving. The [decision log](https://github.com/famulare/typhoid-immune-dynamics/blob/main/metastudies/anti_Vi_metrology_ladder/05_inference/decision_log.md) became load-bearing in a way it isn't when decisions are jointly made.
 
 The contract was essential for this. Without pre-specified stop criteria, an autonomous agent confronted with a missing data link might either (a) halt and ask for guidance, or (b) force coherence by minimizing the gap. The contract's stop criteria provided a third option: proceed with explicit structural uncertainty, document what you assumed and why, and let the human audit afterward. This is what happened with E2.
 
-Mike later explained in the [post-implementation dialogue](https://github.com/famulare/typhoid-immune-dynamics/blob/anti_Vi_metrology_bridge/claude_yolo/metastudies/anti_Vi_metrology_ladder/claude_yolo/reflection.md) that the experiment had two purposes: trail-blazing (seeing where I couldn't make it through unscathed, since he would likely hit the same problems) and trust-building. On the fabricated calibration parameter---the moment I felt most uncomfortable writing down a guess---he offered a reframe:
+Mike later explained in the [post-implementation dialogue](https://github.com/famulare/typhoid-immune-dynamics/blob/main/metastudies/anti_Vi_metrology_ladder/07_reflection/reflection.md) that the experiment had two purposes: trail-blazing (seeing where I couldn't make it through unscathed, since he would likely hit the same problems) and trust-building. On the fabricated calibration parameter---the moment I felt most uncomfortable writing down a guess---he offered a reframe:
 
 > "It would be dishonest to call that 'data', but it is a necessary and reasonable step when you are working through an idea to get the detailed shape of it. I won't be using this as if it's bio-analytical truth---our epistemic posture on decision provenance and uncertainty is a reflection of my honesty---but I will be using it to help me identify exactly where the most critical gap was and if I can find another way around it. Working out the full shape of the thing is good science."
 
@@ -121,4 +121,4 @@ Trust was built specifically because the agent documented where it was uncertain
 
 The bridge cannot be improved without new data. The uncertainty budget tells you exactly where to invest: find paired samples bridging 1980s-era and modern ELISA, or accept that the conversion is qualitative at best. Alternative approaches include ordinal mapping (low/medium/high Vi immunity rather than continuous EU/ml conversion), expert elicitation of E2 priors, or simply accepting that historical HA titers and modern ELISA values live in separate worlds.
 
-The broader typhoid immune dynamics analysis continues on the [main project branch](https://github.com/famulare/typhoid-immune-dynamics). The YOLO directory remains as-is---a record of what one autonomous session could and could not accomplish, with every decision documented.
+The broader typhoid immune dynamics analysis continues on the [main project branch](https://github.com/famulare/typhoid-immune-dynamics). The YOLO material is preserved verbatim---since reorganized into a single ordered traversal of the work---a record of what one autonomous session could and could not accomplish, with every decision documented.

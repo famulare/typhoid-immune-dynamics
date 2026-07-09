@@ -17,9 +17,9 @@
 # Setup
 library(tidyverse)
 
-# Load extracted data
-data_path <- here::here("metastudies/anti_Vi_metrology_ladder/claude_yolo/extraction/barrett_1983_fig2_data.csv")
-output_path <- here::here("metastudies/anti_Vi_metrology_ladder/claude_yolo/intermediates/")
+# Load extracted data (paths are relative to the repo root; run from there or the RStudio project)
+data_path <- "metastudies/anti_Vi_metrology_ladder/04_extraction/barrett_1983_fig2_data.csv"
+output_path <- "metastudies/anti_Vi_metrology_ladder/05_inference/intermediates/"
 
 barrett_data <- read_csv(data_path, comment = "#", show_col_types = FALSE)
 

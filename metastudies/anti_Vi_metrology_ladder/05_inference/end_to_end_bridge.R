@@ -22,10 +22,11 @@
 library(tidyverse)
 set.seed(20260204)  # Reproducibility
 
-# Use relative paths from project root
-base_path <- "metastudies/anti_Vi_metrology_ladder/claude_yolo/"
-output_path <- file.path(base_path, "intermediates/")
-final_path <- file.path(base_path, "outputs/")
+# Paths relative to the repo root (run from there or the RStudio project).
+# Extraction lives in 04_, inference intermediates/outputs in 05_.
+base_path <- "metastudies/anti_Vi_metrology_ladder"
+output_path <- file.path(base_path, "05_inference/intermediates/")
+final_path <- file.path(base_path, "05_inference/outputs/")
 
 # Create outputs directory if needed
 dir.create(final_path, showWarnings = FALSE, recursive = TRUE)
@@ -33,7 +34,7 @@ dir.create(final_path, showWarnings = FALSE, recursive = TRUE)
 #' ## Load E1 and E3 Parameters
 
 # E1: If already fitted, load; otherwise use extracted data
-e1_data_path <- file.path(base_path, "extraction/barrett_1983_fig2_data.csv")
+e1_data_path <- file.path(base_path, "04_extraction/barrett_1983_fig2_data.csv")
 barrett_data <- read_csv(e1_data_path, comment = "#", show_col_types = FALSE)
 
 # Fit E1 model
