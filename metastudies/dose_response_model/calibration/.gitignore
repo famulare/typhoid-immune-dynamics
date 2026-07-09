@@ -4,3 +4,6 @@ typhoid_dose_response
 
 # fit outputs (regenerate via fit_dose_response.R)
 results/
+
+# stray R default-device plot artifact
+Rplots.pdf
