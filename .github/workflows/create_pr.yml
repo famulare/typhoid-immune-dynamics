@@ -1,0 +1,18 @@
+name: Create PR
+on:
+  workflow_dispatch:
+jobs:
+  create-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.pulls.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: "Merge metrology reorganization into main",
+              body: "Reorganize anti_Vi_metrology_ladder into one ordered traversal for sharing\n\nDissolve the claude_yolo/ nesting and re-present the metrology-bridge metastudy as a single chronological walkthrough (00_contract → 07_reflection), ordered by the git commit history of the autonomous run.\n\n- All original files moved verbatim via git mv (history preserved); input-study PDFs renamed to readable names.\n- One new file: README.md, a chronological narrative linking every artifact (files, line ranges, commit hashes) with an honest status/provenance note.\n- Mechanical-only edit to the 3 R scripts' path strings (dropped the unused `here` dependency for repo-root-relative paths; re-run verified).\n- Blog-post deep-links repointed to the new paths on main and the stale \"remains as-is\" note reworded.",
+              head: "anti_Vi_metrology_reorg",
+              base: "main"
+            })
