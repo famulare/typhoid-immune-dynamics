@@ -32,7 +32,7 @@ plot_dose_response_fit <- function(fit, stan_data, outfile) {
   dr  <- as_draws_df(fit$draws(c("N50_inf", "N50_fevginf", "alpha_inf", "alpha_fevginf",
                                  "gamma_inf", "gamma_fevginf", "delta",
                                  "pi_susc", "CoP_imm", "CoP_susc",
-                                 "phi0_a", "phi0_b", "beta_phi")))
+                                 "phi0_a", "phi0_b")))
   T_ref_val <- if (!is.null(stan_data$T_ref)) stan_data$T_ref else 38.0
   T_curve   <- 39.4   # draw the Maryland fever curve at the Hornick threshold (spans dose)
 
@@ -53,7 +53,7 @@ plot_dose_response_fit <- function(fit, stan_data, outfile) {
       pf <- function(C) .bp(De, N50_inf, alpha_inf, C, gamma_inf) * .bp(De, N50_fevginf, alpha_fevginf, C, gamma_fevginf)
       phi0 <- plogis(phi0_a - phi0_b * (T_curve - T_ref_val))
       p_fev_naive <- .bp(De, N50_inf, alpha_inf, 1, gamma_inf) * .bp(De, N50_fevginf, alpha_fevginf, 1, gamma_fevginf)
-      phi <- phi0 + (1 - phi0) * p_fev_naive^beta_phi
+      phi <- phi0 + (1 - phi0) * p_fev_naive   # beta_phi pinned = 1
       phi * (pi_susc * pf(CoP_susc) + (1 - pi_susc) * pf(CoP_imm)) })
     # Maryland infection = mixture of P_inf, milk frame
     cur_mi <- grid_curve(md, function(d) { De <- d / delta
@@ -75,7 +75,9 @@ plot_dose_response_fit <- function(fit, stan_data, outfile) {
   pts <- obs %>% mutate(panel = unname(panel_of[likelihood_group]),
                         obs_rate = y / n, lo = ci$lo, hi = ci$hi,
                         fitted = apply(pp, 2, median)) %>%
-    filter(likelihood_group != "hornick_cond")  # conditional isn't on this dose-response axis
+    # conditional + individual single-dose endpoints aren't on the dose-response axis
+    # (the Darton individuals belong on the titre panel; see tier1.5 plots task)
+    filter(!likelihood_group %in% c("hornick_cond", "ox_inf_indiv", "ox_fevginf_indiv"))
 
   p <- ggplot(curves, aes(dose_cfu)) +
     geom_ribbon(aes(ymin = lo, ymax = hi), fill = "steelblue", alpha = 0.2) +

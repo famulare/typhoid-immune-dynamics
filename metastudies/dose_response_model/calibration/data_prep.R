@@ -11,7 +11,8 @@ suppressPackageStartupMessages({
 })
 
 # likelihood_group -> Stan group code (must match obs_prob() in the .stan)
-.GROUP_CODE <- c(ox_fev = 1L, ox_inf = 2L, md_fev = 3L, md_inf = 4L, hornick_cond = 5L)
+.GROUP_CODE <- c(ox_fev = 1L, ox_inf = 2L, md_fev = 3L, md_inf = 4L, hornick_cond = 5L,
+                 ox_inf_indiv = 6L, ox_fevginf_indiv = 7L)
 
 #' Fail loudly when supplied parameter names don't match the model's parameters{}.
 #' generate_quantities(fitted_params=) requires *exactly* the model's parameter
@@ -75,24 +76,29 @@ darton_phi0_ladder <- function(data_csv, thresholds = LADDER_THRESHOLDS_C) {
   )
 }
 
-#' Tier 1.5: Darton placebo as individual n=1 rows (per-subject anti-Vi titre→fever),
-#' built from the S1 extract — replaces the D-F-plac group binomial. Single source of
-#' truth: analysis_data/darton_individual_endpoints.csv (sibling of the data CSV).
+#' Tier 1.5 +cascade (issue #15): Darton placebo as individual n=1 rows, decomposed
+#' into the proper CASCADE — an infection endpoint (bact_or_stool) for ALL subjects
+#' (group ox_inf_indiv, P_inf), and a fever|infection endpoint (fever_td) for the
+#' INFECTED subjects only (group ox_fevginf_indiv, P_fev|inf). This replaces the C1
+#' composite-fever rows (which conflated the two layers); the product recovers the
+#' composite while separating gamma_inf from gamma_fevginf via the per-subject titre
+#' spread. Infection = bact_or_stool (broadest marker, includes bacteremia; treated
+#' as true infection — no eta treatment-truncation correction at Tier 1). Single
+#' source of truth: analysis_data/darton_individual_endpoints.csv.
 darton_placebo_individual_rows <- function(data_csv) {
   s1 <- file.path(dirname(data_csv), "..", "analysis_data", "darton_individual_endpoints.csv")
-  readr::read_csv(s1, show_col_types = FALSE) %>%
+  d <- readr::read_csv(s1, show_col_types = FALSE) %>%
     filter(group == "Placebo") %>%
-    transmute(
-      obs_id           = paste0("D-F-plac-", subject_id),
-      study            = "Darton",
-      likelihood_group = "ox_fev",
-      dose_cfu         = 18200,
-      n                = 1L,
-      y                = as.integer(fever_td),
-      CoP              = vi_igg_prechallenge / NAIVE_VI_REF,   # VaccZyme EU/mL, ref naive
-      phi              = 1.0,
-      gilman_stratum   = 0L
-    )
+    mutate(CoP = vi_igg_prechallenge / NAIVE_VI_REF)   # VaccZyme EU/mL, ref naive
+  infection_rows <- d %>% transmute(
+    obs_id = paste0("D-I-plac-", subject_id), study = "Darton",
+    likelihood_group = "ox_inf_indiv", dose_cfu = 18200, n = 1L,
+    y = as.integer(bact_or_stool), CoP = CoP, phi = 1.0, gilman_stratum = 0L)
+  fevginf_rows <- d %>% filter(bact_or_stool == 1) %>% transmute(
+    obs_id = paste0("D-FgI-plac-", subject_id), study = "Darton",
+    likelihood_group = "ox_fevginf_indiv", dose_cfu = 18200, n = 1L,
+    y = as.integer(fever_td), CoP = CoP, phi = 1.0, gilman_stratum = 0L)
+  bind_rows(infection_rows, fevginf_rows)
 }
 
 #' Apply nested prior overrides (for sensitivity scenarios), e.g.

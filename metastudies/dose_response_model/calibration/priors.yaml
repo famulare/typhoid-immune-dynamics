@@ -48,11 +48,10 @@ CoP_susc:          { family: lognormal,   meanlog: 0.0,  sdlog: 0.3 }   # ~1x na
 # (the dose-lift toward 1 at saturation) rests on Hornick's multi-dose fever (THIN ID).
 # phi0_a: logit phi0 at T_ref=38. Darton >=38 is 16/20=0.80 -> logit ~1.4; weakly informative.
 # phi0_b: logit decay per degC, >=0 (monotone-decreasing). Darton implies ~1.8/degC.
-# beta_phi [Mike: let it float]: centered at 1 ("phi rises with the naive fever curve"),
-#   lognormal(0,0.7) -> median 1, 95% ~[0.25,4]. Regularized off 0/inf, otherwise free.
+# NB: the dose-lift exponent beta_phi is PINNED to 1 in the model (2026-07-15) -- the C3
+# fit showed it prior-dominated, so it is no longer a free parameter (no prior here).
 phi0_a:            { family: normal,      mu: 1.0,  sd: 1.5 }
 phi0_b:            { family: half_normal, mu: 0.0,  sd: 2.0 }
-beta_phi:          { family: lognormal,   meanlog: 0.0, sdlog: 0.7 }
 
 # ---- eta-correction parameters (Tier 2) ----
 eta_lo:            { family: beta,        a: 5,     b: 5 }       # ~0.5

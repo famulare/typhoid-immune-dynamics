@@ -29,13 +29,18 @@
 //   phi0(T) = inv_logit(phi0_a - phi0_b*(T - T_ref)) is the LOW-DOSE definition
 //   sensitivity (monotone-decreasing in threshold T), pinned by the Darton placebo
 //   temperature ladder (>=38/38.5/39 among the 20 TD+ subjects = 16/10/8) as a
-//   decoupled 2-param binomial sub-likelihood. beta_phi (the dose-lift, -> 1 at
-//   saturating dose) is identified by Hornick's multi-dose fever points (THIN ID).
-//   Approximation: the ladder pins phi0 treating Darton's dose as ~low; Darton's
-//   own dose-lift is absorbed into beta_phi. Retires phi_md.
+//   decoupled 2-param binomial sub-likelihood. The dose-lift exponent beta_phi is
+//   PINNED to 1 (2026-07-15): the C3 fit found it prior-dominated (4 Hornick points
+//   can't identify the transition shape), so phi rises exactly with the naive fever
+//   curve -- the value is the correct limits + inherited scale, not a fitted shape.
+//   Approximation: the ladder pins phi0 treating Darton's dose as ~low. Retires phi_md.
+// Update 2026-07-15 (+cascade, issue #15): Darton placebo per-subject endpoints enter
+//   as a proper cascade -- group 6 (ox_inf_indiv, P_inf at subject anti-Vi) for all
+//   30, group 7 (ox_fevginf_indiv, P_fev|inf) for the infected -- replacing the C1
+//   composite-fever rows. Splits gamma_inf vs gamma_fevginf via the titre spread.
 // Implements: cascaded beta-Poisson (infection x fever|infection),
 //   cross-era delta bridge, Maryland mixture, dose-dependent phi(T,D),
-//   eta-correction for Oxford shedding detection bias.
+//   individual-subject cascade endpoints, eta-correction for Oxford shedding bias.
 // Reference: joint_inference_plan.md Sections 2.1-2.7, Section 7 (priors)
 // Authors: Mike Famulare, Claude (Opus 4.6 draft; Opus 4.8 refactor)
 // =============================================================================
@@ -74,13 +79,18 @@ functions {
   // from phi0(T) toward 1 as the naive fever probability saturates with dose.
   // P_fev_naive is the CoP=1 (naive) cascade fever curve at D_eff, so immunity
   // is NOT double-counted here (it already acts upstream via CoP^gamma).
-  real phi_TD(real T, real D_eff, real T_ref, real phi0_a, real phi0_b, real beta_phi,
+  // beta_phi PINNED to 1 [Mike 2026-07-15]: the C3 fit showed the dose-lift shape
+  // exponent prior-dominated (data can't identify it from 4 Hornick points), so we
+  // keep the simplest identified form -- phi rises exactly with the naive fever
+  // curve. The value is the correct limits (phi0 at low dose -> 1 at saturation)
+  // and the inherited dose scale, not a fitted transition shape.
+  real phi_TD(real T, real D_eff, real T_ref, real phi0_a, real phi0_b,
               real N50_inf, real N50_fevginf, real alpha_inf, real alpha_fevginf,
               real gamma_inf, real gamma_fevginf) {
     real p_fev_naive = beta_poisson(D_eff, N50_inf, alpha_inf, 1.0, gamma_inf)
                      * beta_poisson(D_eff, N50_fevginf, alpha_fevginf, 1.0, gamma_fevginf);
     real phi0 = phi0_fn(T, T_ref, phi0_a, phi0_b);
-    return phi0 + (1.0 - phi0) * pow(p_fev_naive, beta_phi);
+    return phi0 + (1.0 - phi0) * p_fev_naive;
   }
 
   // ---- Unified observation probability -------------------------------------
@@ -97,7 +107,7 @@ functions {
                 real gamma_inf, real gamma_fevginf,
                 real delta, real pi_susc, real CoP_susc, real CoP_imm,
                 real eta_lo, real kappa,
-                real T_ref, real phi0_a, real phi0_b, real beta_phi) {
+                real T_ref, real phi0_a, real phi0_b) {
     if (group == 1) {                                   // ox_fev (delta=1, no mixture)
       real D = dose;
       return beta_poisson(D, N50_inf, alpha_inf, CoP, gamma_inf)
@@ -108,7 +118,7 @@ functions {
       return eta_detection(D, N50_inf, eta_lo, kappa) * p_inf;
     } else if (group == 3) {                            // md_fev (delta>1, mixture/strata, *phi)
       real D = dose / delta;
-      real phi = phi_TD(T_thresh, D, T_ref, phi0_a, phi0_b, beta_phi,
+      real phi = phi_TD(T_thresh, D, T_ref, phi0_a, phi0_b,
                         N50_inf, N50_fevginf, alpha_inf, alpha_fevginf,
                         gamma_inf, gamma_fevginf);
       if (stratum == 1) {                               // Gilman susceptible stratum
@@ -127,9 +137,9 @@ functions {
     } else if (group == 4) {                            // md_inf (delta>1, mixture)
       return maryland_mixture(dose / delta, N50_inf, alpha_inf, gamma_inf,
                               pi_susc, CoP_susc, CoP_imm);
-    } else {                                            // group == 5 hornick_cond: P(fever | infected)
+    } else if (group == 5) {                            // hornick_cond: P(fever | infected)
       real D = dose / delta;
-      real phi = phi_TD(T_thresh, D, T_ref, phi0_a, phi0_b, beta_phi,
+      real phi = phi_TD(T_thresh, D, T_ref, phi0_a, phi0_b,
                         N50_inf, N50_fevginf, alpha_inf, alpha_fevginf,
                         gamma_inf, gamma_fevginf);
       real p_inf = maryland_mixture(D, N50_inf, alpha_inf, gamma_inf,
@@ -141,6 +151,10 @@ functions {
       real p_fev_mix = phi * (pi_susc * p_fev_susc + (1.0 - pi_susc) * p_fev_imm);
       real p_cond = p_fev_mix / p_inf;
       return fmin(fmax(p_cond, 1e-12), 1.0 - 1e-12);    // guard the division
+    } else if (group == 6) {                            // ox_inf_indiv: individual Oxford infection
+      return beta_poisson(dose, N50_inf, alpha_inf, CoP, gamma_inf);   // P_inf at subject CoP (no eta/delta)
+    } else {                                            // group == 7 ox_fevginf_indiv: P(fever | infected)
+      return beta_poisson(dose, N50_fevginf, alpha_fevginf, CoP, gamma_fevginf);
     }
   }
 }
@@ -148,7 +162,7 @@ functions {
 data {
   // ---- Flat observation layout --------------------------------------------
   int<lower=0> N_obs;
-  array[N_obs] int<lower=1, upper=5> group;   // 1=ox_fev 2=ox_inf 3=md_fev 4=md_inf 5=hornick_cond
+  array[N_obs] int<lower=1, upper=7> group;   // 1=ox_fev 2=ox_inf 3=md_fev 4=md_inf 5=hornick_cond 6=ox_inf_indiv 7=ox_fevginf_indiv
   array[N_obs] int<lower=0> n;                 // sample sizes
   array[N_obs] int<lower=0> y;                 // events
   vector<lower=0>[N_obs] dose;                 // raw dose in CFU (helper applies /delta where needed)
@@ -193,7 +207,6 @@ data {
   real pr_CoP_susc_mu;           real<lower=0> pr_CoP_susc_sd;
   real pr_phi0_a_mu;             real<lower=0> pr_phi0_a_sd;    // normal (logit phi0 at T_ref)
   real pr_phi0_b_mu;             real<lower=0> pr_phi0_b_sd;    // half-normal (logit slope per degC, >=0)
-  real pr_beta_phi_mu;           real<lower=0> pr_beta_phi_sd;  // lognormal (dose-lift exponent)
   real<lower=0> pr_eta_lo_a;     real<lower=0> pr_eta_lo_b;     // beta
   real pr_kappa_mu;              real<lower=0> pr_kappa_sd;
   real pr_sigma_study_mu;        real<lower=0> pr_sigma_study_sd; // half-normal (sigma_study>=0)
@@ -216,9 +229,9 @@ parameters {
   real<lower=0> CoP_imm;          // Maryland immune-component CoP (anti-Vi-equiv; Exp prior)
   real<lower=0> CoP_susc;         // Maryland susceptible-component CoP (near 1)
   // ---- Dose-dependent Maryland fever definition-sensitivity phi(T,D) ----
+  // (beta_phi dose-lift exponent PINNED to 1: prior-dominated in the C3 fit.)
   real phi0_a;                    // logit phi0 at T_ref
   real<lower=0> phi0_b;           // logit decay per degC (monotone-decreasing in threshold)
-  real<lower=0> beta_phi;         // dose-lift exponent (phi -> 1 at saturating dose)
 
   // ---- eta-correction parameters (Tier 2, Option A) ----
   real<lower=0, upper=1> eta_lo;  // minimum shedding detection prob at high dose
@@ -251,7 +264,6 @@ transformed parameters {
   lprior += lognormal_lpdf(CoP_susc       | pr_CoP_susc_mu,          pr_CoP_susc_sd);
   lprior += normal_lpdf(phi0_a            | pr_phi0_a_mu,            pr_phi0_a_sd);
   lprior += normal_lpdf(phi0_b            | pr_phi0_b_mu,            pr_phi0_b_sd);   // half-normal via lower=0
-  lprior += lognormal_lpdf(beta_phi       | pr_beta_phi_mu,          pr_beta_phi_sd);
   lprior += beta_lpdf(eta_lo              | pr_eta_lo_a,             pr_eta_lo_b);
   lprior += lognormal_lpdf(kappa          | pr_kappa_mu,             pr_kappa_sd);
   lprior += normal_lpdf(sigma_study       | pr_sigma_study_mu,       pr_sigma_study_sd); // half-normal via lower=0
@@ -266,7 +278,7 @@ model {
                                      N50_inf, N50_fevginf, alpha_inf, alpha_fevginf,
                                      gamma_inf, gamma_fevginf, delta, pi_susc,
                                      CoP_susc, CoP_imm, eta_lo, kappa,
-                                     T_ref, phi0_a, phi0_b, beta_phi));
+                                     T_ref, phi0_a, phi0_b));
     }
     // Darton placebo temperature ladder -> phi0(T) (decoupled from dose-response).
     for (k in 1:N_ladder) {
@@ -289,7 +301,7 @@ generated quantities {
                           N50_inf, N50_fevginf, alpha_inf, alpha_fevginf,
                           gamma_inf, gamma_fevginf, delta, pi_susc,
                           CoP_susc, CoP_imm, eta_lo, kappa,
-                          T_ref, phi0_a, phi0_b, beta_phi);
+                          T_ref, phi0_a, phi0_b);
     y_rep[i]   = binomial_rng(n[i], p_pred[i]);
     log_lik[i] = binomial_lpmf(y[i] | n[i], p_pred[i]);
   }
@@ -306,32 +318,32 @@ generated quantities {
   real p_fev_md_1e3 = obs_prob(3, 1e3, 1.0, 39.4, 0, N50_inf, N50_fevginf,
                                alpha_inf, alpha_fevginf, gamma_inf, gamma_fevginf,
                                delta, pi_susc, CoP_susc, CoP_imm, eta_lo, kappa,
-                               T_ref, phi0_a, phi0_b, beta_phi);
+                               T_ref, phi0_a, phi0_b);
   real p_fev_md_1e5 = obs_prob(3, 1e5, 1.0, 39.4, 0, N50_inf, N50_fevginf,
                                alpha_inf, alpha_fevginf, gamma_inf, gamma_fevginf,
                                delta, pi_susc, CoP_susc, CoP_imm, eta_lo, kappa,
-                               T_ref, phi0_a, phi0_b, beta_phi);
+                               T_ref, phi0_a, phi0_b);
   real p_fev_md_1e7 = obs_prob(3, 1e7, 1.0, 39.4, 0, N50_inf, N50_fevginf,
                                alpha_inf, alpha_fevginf, gamma_inf, gamma_fevginf,
                                delta, pi_susc, CoP_susc, CoP_imm, eta_lo, kappa,
-                               T_ref, phi0_a, phi0_b, beta_phi);
+                               T_ref, phi0_a, phi0_b);
 
   // Hornick Table 2 conditional prediction (phi(T,D) at Hornick 39.4)
   real p_cond_pred = obs_prob(5, 1e7, 1.0, 39.4, 0, N50_inf, N50_fevginf,
                               alpha_inf, alpha_fevginf, gamma_inf, gamma_fevginf,
                               delta, pi_susc, CoP_susc, CoP_imm, eta_lo, kappa,
-                              T_ref, phi0_a, phi0_b, beta_phi);
+                              T_ref, phi0_a, phi0_b);
 
   // ---- phi(T,D) diagnostics: low-dose asymptote phi0(T) + dose-lift at Hornick 39.4
   real phi0_38_3 = phi0_fn(38.3, T_ref, phi0_a, phi0_b);   // Levine/Gilman threshold
   real phi0_39_4 = phi0_fn(39.4, T_ref, phi0_a, phi0_b);   // Hornick threshold
-  real phi_hornick_1e3 = phi_TD(39.4, 1e3 / delta, T_ref, phi0_a, phi0_b, beta_phi,
+  real phi_hornick_1e3 = phi_TD(39.4, 1e3 / delta, T_ref, phi0_a, phi0_b,
                                 N50_inf, N50_fevginf, alpha_inf, alpha_fevginf,
                                 gamma_inf, gamma_fevginf);
-  real phi_hornick_1e5 = phi_TD(39.4, 1e5 / delta, T_ref, phi0_a, phi0_b, beta_phi,
+  real phi_hornick_1e5 = phi_TD(39.4, 1e5 / delta, T_ref, phi0_a, phi0_b,
                                 N50_inf, N50_fevginf, alpha_inf, alpha_fevginf,
                                 gamma_inf, gamma_fevginf);
-  real phi_hornick_1e9 = phi_TD(39.4, 1e9 / delta, T_ref, phi0_a, phi0_b, beta_phi,
+  real phi_hornick_1e9 = phi_TD(39.4, 1e9 / delta, T_ref, phi0_a, phi0_b,
                                 N50_inf, N50_fevginf, alpha_inf, alpha_fevginf,
                                 gamma_inf, gamma_fevginf);
 

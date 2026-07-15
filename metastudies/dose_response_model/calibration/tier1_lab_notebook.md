@@ -364,3 +364,42 @@ Backups: minimal+φ fit preserved at `results/tier1_minimal_phi/`; pre-EU/mL at
 
 **Next (issue #15 ladder): +cascade** — Darton per-subject bacteremia/stool → split
 γ_inf vs γ_fevginf (γ_inf still prior-dominated); may also relieve residual #2.
+
+---
+
+## β_φ PINNED=1 + +cascade (2026-07-15) [observed]
+
+Two changes batched into one refit [Mike: "c" (pin β_φ) + continue +cascade]:
+
+**(1) β_φ pinned to 1.** The C3 fit showed β_φ prior-dominated (data can't identify the
+dose-lift *shape* from 4 Hornick points). Simplified to `φ(T,D)=φ₀(T)+(1−φ₀(T))·P_fev_naive`
+— retains the correct limits (φ₀→1 at saturation) + inherited dose scale, drops the
+un-identified shape param. One fewer parameter.
+
+**(2) +cascade.** Darton placebo per-subject endpoints as a PROPER cascade: group 6
+(ox_inf_indiv, P_inf, y=bact_or_stool) for all 30; group 7 (ox_fevginf_indiv, P_fev|inf,
+y=fever_td) for the 26 infected. Replaces the C1 composite-fever rows (which conflated
+the layers). Infection=bact_or_stool (broadest; no eta at Tier 1 — flagged). No new
+params. 80 obs total (was 54). Parity GREEN (max |Δp|=5e-9 × 80 rows × 3 vecs).
+
+**Fit: 1/4000 div (0.03%, noise), R-hat ≤ 1.004, ESS fine.** vs C3 (isolating cascade):
+- **γ_inf prior-dependence HALVED** (priorsense prior sens 0.168→0.075; now ≈ lik 0.056,
+  roughly balanced). γ_inf 0.182 [0.057,0.316]. The individual infection endpoints pulled
+  it off the prior — the +cascade mechanism working.
+- **γ_fevginf now likelihood-leaning** (prior 0.038 < lik 0.054, diagnosis "-"). Data-identified.
+- **alpha_inf prior-dependence halved** (0.378→0.204), CI tightened 0.32→0.28 [0.18,0.46] —
+  addresses the "too flat α" open item; individual infection data pinned the steepness.
+- **δ likelihood-leaning** (lik 0.28 > prior 0.23), dropped to ~114× (log10_delta 2.06).
+- Individual endpoints fit well: ox_inf lo/hi-titre obs 0.89/0.83 → fit 0.89/0.80;
+  ox_fevginf 0.81/0.70 → 0.85/0.76 (captures the weak immunity gradient).
+
+**HONEST LIMITATION: the γ_inf vs γ_fevginf SPLIT only weakly resolves.** Both sit ~0.16–0.18
+(near the prior median 0.2); γ_inf is not cleanly < γ_fevginf despite the raw data hint
+(inf 0.89→0.83 weaker than fev|inf 0.81→0.70). Cause: Darton's titre range is thin
+(median 3.7, only 12/30 detectable, max ~62) — not enough immunity spread to separate the
+two slopes. +cascade reduced prior-dependence + sharpened α/δ, but SEPARATING the γ's needs
+a longer titre axis → **+vaccine-terms** (M01ZH09/Ty21a arms) and/or **+Jin-digitize**
+(high-titre Vi points). CoP_imm still prior-dominated (unidentified, Exp prior carries it).
+
+Backups: C3 (float β_φ) results superseded (committed as code d1880a8); minimal+φ at
+`results/tier1_minimal_phi/`; current +cascade fit at `results/tier1/`.

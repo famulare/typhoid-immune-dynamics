@@ -27,12 +27,13 @@ bp <- function(D, N50, alpha, CoP, gamma) {
 md_mix <- function(D, N50, alpha, gamma, pi, CoPs, CoPi)
   pi * bp(D, N50, alpha, CoPs, gamma) + (1 - pi) * bp(D, N50, alpha, CoPi, gamma)
 
-# Dose-dependent definition sensitivity phi(T,D) = phi0(T) + (1-phi0)*P_fev_naive^beta.
+# Dose-dependent definition sensitivity phi(T,D) = phi0(T) + (1-phi0)*P_fev_naive
+# (beta_phi pinned to 1).
 phi_TD_R <- function(T, D, N50i, N50f, p) {
   phi0 <- plogis(p$phi0_a - p$phi0_b * (T - T_REF))
   p_fev_naive <- bp(D, N50i, p$alpha_inf, 1, p$gamma_inf) *
                  bp(D, N50f, p$alpha_fevginf, 1, p$gamma_fevginf)
-  phi0 + (1 - phi0) * p_fev_naive^p$beta_phi
+  phi0 + (1 - phi0) * p_fev_naive
 }
 
 obs_prob_R <- function(row, p) {
@@ -62,6 +63,10 @@ obs_prob_R <- function(row, p) {
     p_inf <- md_mix(D, N50i, p$alpha_inf, p$gamma_inf, p$pi_susc, p$CoP_susc, p$CoP_imm)
     pc <- phi * (p$pi_susc * pf(p$CoP_susc) + (1 - p$pi_susc) * pf(p$CoP_imm)) / p_inf
     min(max(pc, 1e-12), 1 - 1e-12)
+  } else if (g == 6L) {                           # ox_inf_indiv: individual Oxford infection
+    bp(row$dose_cfu, N50i, p$alpha_inf, row$CoP, p$gamma_inf)
+  } else if (g == 7L) {                           # ox_fevginf_indiv: individual P(fever | infected)
+    bp(row$dose_cfu, N50f, p$alpha_fevginf, row$CoP, p$gamma_fevginf)
   } else stop("group 2 (ox_inf) not in Tier 1 parity set")
 }
 
@@ -74,11 +79,11 @@ mod <- cmdstan_model("typhoid_dose_response.stan")
 # ---- Parameter vectors to test (constrained scale; must cover the model's params) ----
 PARAM_NAMES <- c("log10_N50_inf","d_fev","alpha_inf","alpha_fevginf","gamma_inf",
                  "gamma_fevginf","log10_delta","pi_susc","CoP_imm","CoP_susc",
-                 "phi0_a","phi0_b","beta_phi","eta_lo","kappa","sigma_study")
-vecs <- list(                          # phi0_a,phi0_b,beta_phi replace phi_md (after CoP_susc)
-  c(2.5, 0.3, 0.30, 0.35, 0.60, 0.90, 3.5, 0.65, 3.0, 1.0, 1.4, 1.8, 1.0, 0.5, 1.0, 0.3),
-  c(2.0, 0.0, 0.15, 0.50, 0.20, 1.50, 2.0, 0.40, 5.0, 1.1, 0.5, 1.0, 1.5, 0.4, 0.7, 0.1),  # d_fev=0 edge
-  c(3.1, 1.2, 0.50, 0.20, 1.00, 0.30, 4.5, 0.80, 2.0, 0.9, 2.0, 0.5, 2.0, 0.6, 1.5, 0.5)
+                 "phi0_a","phi0_b","eta_lo","kappa","sigma_study")
+vecs <- list(                          # phi0_a,phi0_b replace phi_md (beta_phi pinned=1)
+  c(2.5, 0.3, 0.30, 0.35, 0.60, 0.90, 3.5, 0.65, 3.0, 1.0, 1.4, 1.8, 0.5, 1.0, 0.3),
+  c(2.0, 0.0, 0.15, 0.50, 0.20, 1.50, 2.0, 0.40, 5.0, 1.1, 0.5, 1.0, 0.4, 0.7, 0.1),  # d_fev=0 edge
+  c(3.1, 1.2, 0.50, 0.20, 1.00, 0.30, 4.5, 0.80, 2.0, 0.9, 2.0, 0.5, 0.6, 1.5, 0.5)
 )
 truth <- posterior::as_draws_matrix(do.call(rbind, lapply(vecs, function(v) setNames(v, PARAM_NAMES))))
 
