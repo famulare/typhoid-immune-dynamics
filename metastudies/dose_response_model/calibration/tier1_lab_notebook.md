@@ -313,3 +313,54 @@ Full individual-Darton upgrade tracked as **issue #15**.
 
 **Don't re-derive:** VaccZyme verified for both Jin & Darton (EU/mL, LLD 7.4); the
 φ-cap↔δ-tension-same-artifact result; φ₀ validates the original 0.25/0.65.
+
+---
+
+## C3 IMPLEMENTED — dose-dependent φ(T,D) (2026-07-15) [observed]
+
+Implemented the banked `φ(T,D) = φ₀(T) + (1−φ₀(T))·P_fev_naive(D_eff)^β_φ`. Design
+decisions this session [Mike]: **β_φ floats** (not fixed=1); **CoP_imm ~ Exponential,
+mean 50 EU/mL absolute** (= 13.5 on the CoP ratio scale, rate 0.074) replacing the
+lognormal. Wiring: φ₀(T)=inv_logit(phi0_a−phi0_b·(T−T_ref)), T_ref=38.0, pinned by a
+**decoupled** Darton-ladder binomial sub-likelihood (16/10/8 of 20 at ≥38/38.5/39);
+β_φ + Hornick multi-dose supply the dose-lift. Retired `phi_md`. `exponential` family
+added to priors.R. Per-obs threshold mapped by study in data_prep.R. Parity gate GREEN
+(max |Δp|=5e-9 over 3 vecs × 54 rows). Harnesses + fit driver + curves re-synced.
+
+**Fit (4×1000, adapt_delta 0.9): CLEAN — 0/4000 div, R-hat ≤ 1.004, E-BFMI 0.74.**
+
+- **φ(T,D) works.** φ(39.4, D) = 0.31 → 0.70 → 0.97 across 10³/10⁵/10⁹; φ₀(39.4)=0.22.
+  So φ→~1 at saturation (resolves the constant-φ cap) while φ₀(38.3)=0.69 / φ₀(39.4)=0.22
+  reproduce the hand-derived 0.66/0.30. The C3 arc closes as designed.
+- **β_φ = 0.76 (median 0.67, 90% CI 0.27–1.59).** Floated, CI spans 1, **no pathology**
+  (the thin-ID risk did not bite the geometry). BUT priorsense: **β_φ prior-dominated**
+  (prior 0.20 ≫ lik 0.055) — the dose-lift *shape* is essentially the prior; the data
+  barely constrains it. Honest limitation, as flagged. β_φ<1 lean = φ rises slightly
+  faster than the naive fever curve.
+- **φ₀ data-identified** (phi0_a lik 0.098>prior 0.040; phi0_b lik 0.085>prior 0.054) —
+  the ladder does its job. ess_tail ~440–635 (only 3 counts; fine).
+- **δ now likelihood-leaning** (lik 0.31 > prior 0.25), δ̂≈143–209× (log10_delta 2.17,
+  DOWN from the minimal+φ ~2.46 that was climbing toward the 3.5 prior). Dose-dependent
+  φ further unwound the δ↔φ entanglement. [improvement]
+- **CoP_imm prior-dominated** (prior 0.37 ≫ lik 0.050); posterior mean 14.2 ≈ prior mean
+  13.5 → confirmed **unidentified**, now cleanly carried by the Exponential prior.
+- **alpha_inf** still prior-leaning (prior 0.38, lik 0.12; the "too flat" lever), γ_inf
+  prior-dominated (needs +cascade) — both expected/open.
+
+**Residuals to watch (NOT C3 regressions):**
+1. High-dose Hornick marginal still ~0.09 underfit: H-F-8 obs 0.889 / fit 0.786; H-F-9
+   obs 0.952 / fit 0.860. Even at φ≈0.97 the fit is capped by the mixture immune
+   component + fever saturation (the E4 finding), within Hornick small-N Wilson. Slight
+   improvement vs minimal+φ (H-F-9 0.83→0.86).
+2. **NEW mild tension: Hornick conditional H-FgI-7** (P(fever|inf) at 10⁷) obs 0.571 /
+   fit 0.761 — model over-predicts the conditional. φ(39.4,10⁷)≈0.85 pushes fever|inf
+   high vs the observed 0.57. One point (n=28); flag for the +cascade increment (which
+   adds individual infection endpoints and may re-balance the inf/fever split at 10⁷).
+3. Gilman susceptible stratum Gil-F-Hlo obs 0.611 / fit 0.420 (underfit); Levine trial
+   scatter (0.25–0.55 around a pooled 0.358) → study RE (Step 2). Pre-existing.
+
+Backups: minimal+φ fit preserved at `results/tier1_minimal_phi/`; pre-EU/mL at
+`results/tier1_pre_eumL/`. C3 fit at `results/tier1/`.
+
+**Next (issue #15 ladder): +cascade** — Darton per-subject bacteremia/stool → split
+γ_inf vs γ_fevginf (γ_inf still prior-dominated); may also relieve residual #2.

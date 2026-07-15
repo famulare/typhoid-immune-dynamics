@@ -31,7 +31,10 @@ plot_dose_response_fit <- function(fit, stan_data, outfile) {
   obs <- attr(stan_data, "obs")
   dr  <- as_draws_df(fit$draws(c("N50_inf", "N50_fevginf", "alpha_inf", "alpha_fevginf",
                                  "gamma_inf", "gamma_fevginf", "delta",
-                                 "pi_susc", "CoP_imm", "CoP_susc", "phi_md")))
+                                 "pi_susc", "CoP_imm", "CoP_susc",
+                                 "phi0_a", "phi0_b", "beta_phi")))
+  T_ref_val <- if (!is.null(stan_data$T_ref)) stan_data$T_ref else 38.0
+  T_curve   <- 39.4   # draw the Maryland fever curve at the Hornick threshold (spans dose)
 
   # population dose-response over a grid, per panel (median + 90% ribbon across draws)
   grid_curve <- function(doses, fn) {
@@ -44,25 +47,28 @@ plot_dose_response_fit <- function(fit, stan_data, outfile) {
     # naive Oxford fever (CoP=1, delta=1)
     cur_ox <- grid_curve(ox, function(d)
       .bp(d, N50_inf, alpha_inf, 1, gamma_inf) * .bp(d, N50_fevginf, alpha_fevginf, 1, gamma_fevginf))
-    # Maryland fever = phi * mixture of (P_inf * P_fev|inf), milk frame
+    # Maryland fever = phi(T,D) * mixture of (P_inf * P_fev|inf), milk frame.
+    # phi(T,D) drawn at Hornick threshold 39.4: phi0(T) + (1-phi0)*P_fev_naive(De)^beta.
     cur_mf <- grid_curve(md, function(d) { De <- d / delta
       pf <- function(C) .bp(De, N50_inf, alpha_inf, C, gamma_inf) * .bp(De, N50_fevginf, alpha_fevginf, C, gamma_fevginf)
-      phi_md * (pi_susc * pf(CoP_susc) + (1 - pi_susc) * pf(CoP_imm)) })
+      phi0 <- plogis(phi0_a - phi0_b * (T_curve - T_ref_val))
+      p_fev_naive <- .bp(De, N50_inf, alpha_inf, 1, gamma_inf) * .bp(De, N50_fevginf, alpha_fevginf, 1, gamma_fevginf)
+      phi <- phi0 + (1 - phi0) * p_fev_naive^beta_phi
+      phi * (pi_susc * pf(CoP_susc) + (1 - pi_susc) * pf(CoP_imm)) })
     # Maryland infection = mixture of P_inf, milk frame
     cur_mi <- grid_curve(md, function(d) { De <- d / delta
       pi_susc * .bp(De, N50_inf, alpha_inf, CoP_susc, gamma_inf) +
         (1 - pi_susc) * .bp(De, N50_inf, alpha_inf, CoP_imm, gamma_inf) })
     curves <<- bind_rows(
       cur_ox %>% mutate(panel = "Oxford fever (bicarb, naive)"),
-      cur_mf %>% mutate(panel = "Maryland fever (milk, mixture x phi)"),
+      cur_mf %>% mutate(panel = "Maryland fever (milk, mixture x phi(39.4,D))"),
       cur_mi %>% mutate(panel = "Maryland infection (milk, mixture)"))
-    phi_hat <<- median(phi_md)
   })
 
   panel_of <- c(ox_fev = "Oxford fever (bicarb, naive)",
-                md_fev = "Maryland fever (milk, mixture x phi)",
+                md_fev = "Maryland fever (milk, mixture x phi(39.4,D))",
                 md_inf = "Maryland infection (milk, mixture)",
-                hornick_cond = "Maryland fever (milk, mixture x phi)",
+                hornick_cond = "Maryland fever (milk, mixture x phi(39.4,D))",
                 ox_inf = "Oxford fever (bicarb, naive)")
   pp <- as_draws_matrix(fit$draws("p_pred"))
   ci <- .wilson(obs$y, obs$n)
@@ -71,12 +77,9 @@ plot_dose_response_fit <- function(fit, stan_data, outfile) {
                         fitted = apply(pp, 2, median)) %>%
     filter(likelihood_group != "hornick_cond")  # conditional isn't on this dose-response axis
 
-  phi_line <- tibble(panel = "Maryland fever (milk, mixture x phi)", phi_hat = phi_hat)
-
   p <- ggplot(curves, aes(dose_cfu)) +
     geom_ribbon(aes(ymin = lo, ymax = hi), fill = "steelblue", alpha = 0.2) +
     geom_line(aes(y = med), color = "steelblue", linewidth = 0.7) +
-    geom_hline(data = phi_line, aes(yintercept = phi_hat), linetype = 3, color = "grey40") +
     geom_errorbar(data = pts, aes(ymin = lo, ymax = hi), width = 0.08, color = "grey50") +
     geom_point(data = pts, aes(y = obs_rate, color = study), size = 2.4) +
     geom_point(data = pts, aes(y = fitted), shape = 4, size = 2, stroke = 0.8) +  # x = Stan fitted
@@ -87,8 +90,7 @@ plot_dose_response_fit <- function(fit, stan_data, outfile) {
     labs(x = "challenge dose (CFU)", y = "probability",
          color = "study",
          title = "Tier 1 posterior dose-response vs data",
-         subtitle = paste0("line+ribbon: posterior median & 90% (population curve);  point: observed (Wilson 95% CI);  x: Stan p_pred;  dotted: phi_hat=",
-                           sprintf("%.2f", phi_hat))) +
+         subtitle = "line+ribbon: posterior median & 90% (population curve);  point: observed (Wilson 95% CI);  x: Stan p_pred") +
     theme_minimal(base_size = 11) + theme(legend.position = "bottom")
 
   ggsave(outfile, p, width = 8.5, height = 10, dpi = 150)

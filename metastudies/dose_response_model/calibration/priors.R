@@ -8,7 +8,7 @@
 #'   prior_median()         - prior median (handy as a recovery-harness truth)
 #'
 #' Families: normal (mu, sd) | half_normal (mu, sd, lower=0) |
-#'           lognormal (meanlog, sdlog) | beta (a, b).
+#'           lognormal (meanlog, sdlog) | beta (a, b) | exponential (rate, lower=0).
 
 suppressPackageStartupMessages(library(yaml))
 
@@ -27,7 +27,7 @@ load_priors <- function(path = .priors_default_path()) {
   p <- yaml::read_yaml(path)
   for (nm in names(p)) {
     fam <- p[[nm]]$family
-    if (is.null(fam) || !fam %in% c("normal", "half_normal", "lognormal", "beta"))
+    if (is.null(fam) || !fam %in% c("normal", "half_normal", "lognormal", "beta", "exponential"))
       stop(sprintf("priors.yaml: parameter '%s' has unknown/missing family '%s'", nm, fam))
   }
   p
@@ -48,6 +48,8 @@ priors_to_stan_data <- function(priors) {
     } else if (fam == "beta") {
       out[[paste0("pr_", nm, "_a")]] <- as.numeric(spec$a)
       out[[paste0("pr_", nm, "_b")]] <- as.numeric(spec$b)
+    } else if (fam == "exponential") {
+      out[[paste0("pr_", nm, "_rate")]] <- as.numeric(spec$rate)
     }
   }
   out
@@ -61,7 +63,8 @@ sample_prior <- function(priors, param, n = 10000L) {
     normal      = rnorm(n, spec$mu, spec$sd),
     half_normal = qnorm(runif(n, pnorm(0, spec$mu, spec$sd), 1), spec$mu, spec$sd),  # lower-truncated at 0
     lognormal   = rlnorm(n, spec$meanlog, spec$sdlog),
-    beta        = rbeta(n, spec$a, spec$b)
+    beta        = rbeta(n, spec$a, spec$b),
+    exponential = rexp(n, spec$rate)
   )
 }
 
@@ -72,7 +75,8 @@ prior_density <- function(priors, param, x) {
     normal      = dnorm(x, spec$mu, spec$sd),
     half_normal = ifelse(x < 0, 0, dnorm(x, spec$mu, spec$sd) / (1 - pnorm(0, spec$mu, spec$sd))),
     lognormal   = dlnorm(x, spec$meanlog, spec$sdlog),
-    beta        = dbeta(x, spec$a, spec$b)
+    beta        = dbeta(x, spec$a, spec$b),
+    exponential = dexp(x, spec$rate)
   )
 }
 
@@ -83,6 +87,7 @@ prior_median <- function(priors, param) {
     normal      = spec$mu,
     half_normal = qnorm(0.75, spec$mu, spec$sd),       # median of the lower-truncated-at-0 normal (mu=0)
     lognormal   = exp(spec$meanlog),
-    beta        = qbeta(0.5, spec$a, spec$b)
+    beta        = qbeta(0.5, spec$a, spec$b),
+    exponential = qexp(0.5, spec$rate)
   )
 }

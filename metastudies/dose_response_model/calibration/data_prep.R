@@ -43,6 +43,38 @@ assert_fitted_params_match <- function(mod, provided) {
 # CoP=1 at naive. See tier1.5_plan.md / tier1_lab_notebook.md D1.
 NAIVE_VI_REF <- 3.7
 
+# ---- phi(T,D) definition-map inputs (C3) ------------------------------------
+# T_ref = Oxford composite fever threshold (>=38 degC). phi0(T) is logit-centered here.
+T_REF <- 38.0
+# Per-study strict fever threshold (degC) for the Maryland fever obs. The dose-
+# response is threshold-free; only the phi(T,D) definition map reads T. Hornick
+# >=103F/24-36h ~ 39.4; Levine >=101F ~ 38.3; Gilman fever+culture ~ 38.3.
+STUDY_FEVER_THRESHOLD_C <- c(Hornick = 39.4, Levine = 38.3, Gilman = 38.3)
+# Darton placebo temperature-ladder thresholds fed to the phi0(T) sub-likelihood.
+LADDER_THRESHOLDS_C <- c(38.0, 38.5, 39.0)
+
+#' Darton placebo temperature ladder: among the TD+ placebo subjects, how many
+#' crossed each strict threshold. Pins phi0(T) as a decoupled binomial sub-model.
+#' Single source of truth: the individual-endpoints extract (same as C1).
+darton_phi0_ladder <- function(data_csv, thresholds = LADDER_THRESHOLDS_C) {
+  s1 <- file.path(dirname(data_csv), "..", "analysis_data", "darton_individual_endpoints.csv")
+  d  <- readr::read_csv(s1, show_col_types = FALSE) %>%
+    filter(group == "Placebo", fever_td == 1)
+  col <- function(t) paste0("fever_", sub("\\.", "_", format(t, trim = TRUE, nsmall = 1)))
+  cols <- vapply(thresholds, col, character(1))          # 38.0 -> fever_38_0 ...
+  # the extract uses fever_38 / fever_38_5 / fever_39 (no trailing _0); normalize
+  cols <- sub("_0$", "", cols)
+  missing <- setdiff(cols, names(d))
+  if (length(missing)) stop("darton ladder: missing threshold columns: ",
+                            paste(missing, collapse = ", "))
+  list(
+    N_ladder     = length(thresholds),
+    ladder_T     = as.numeric(thresholds),
+    ladder_count = as.integer(vapply(cols, function(c) sum(d[[c]]), numeric(1))),
+    ladder_N     = nrow(d)
+  )
+}
+
 #' Tier 1.5: Darton placebo as individual n=1 rows (per-subject anti-Vi titre→fever),
 #' built from the S1 extract — replaces the D-F-plac group binomial. Single source of
 #' truth: analysis_data/darton_individual_endpoints.csv (sibling of the data CSV).
@@ -102,22 +134,34 @@ build_stan_data <- function(data_csv, priors,
   if (anyNA(grp)) stop("unmapped likelihood_group: ",
                        paste(unique(dat$likelihood_group[is.na(grp)]), collapse = ", "))
 
+  # phi(T,D) reads a strict fever threshold only for Maryland fever obs; elsewhere
+  # T_thresh is unused, set to T_REF as a harmless default.
+  is_md_fever <- dat$likelihood_group %in% c("md_fev", "hornick_cond")
+  T_thresh <- ifelse(is_md_fever,
+                     unname(STUDY_FEVER_THRESHOLD_C[dat$study]), T_REF)
+  if (anyNA(T_thresh)) stop("no fever threshold mapped for Maryland study: ",
+                            paste(unique(dat$study[is_md_fever & is.na(T_thresh)]), collapse = ", "))
+
   stan_data <- list(
-    N_obs   = nrow(dat),
-    group   = as.integer(grp),
-    n       = as.integer(dat$n),
-    y       = as.integer(dat$y),
-    dose    = as.numeric(dat$dose_cfu),
-    CoP     = ifelse(is.na(dat$CoP), 1.0, as.numeric(dat$CoP)),       # used by ox groups only
-    stratum = ifelse(is.na(dat$gilman_stratum), 0L, as.integer(dat$gilman_stratum)),
-    # phi is no longer Stan data — it is the estimated scalar parameter phi_md.
+    N_obs    = nrow(dat),
+    group    = as.integer(grp),
+    n        = as.integer(dat$n),
+    y        = as.integer(dat$y),
+    dose     = as.numeric(dat$dose_cfu),
+    CoP      = ifelse(is.na(dat$CoP), 1.0, as.numeric(dat$CoP)),      # used by ox groups only
+    stratum  = ifelse(is.na(dat$gilman_stratum), 0L, as.integer(dat$gilman_stratum)),
+    T_thresh = as.numeric(T_thresh),
+    T_ref    = T_REF,
     prior_only = as.integer(prior_only)
   )
+  stan_data <- c(stan_data, darton_phi0_ladder(data_csv))
   stan_data <- c(stan_data, priors_to_stan_data(priors))
 
-  stopifnot(!anyNA(unlist(stan_data[c("dose", "CoP", "n", "y", "group", "stratum")])))
+  stopifnot(!anyNA(unlist(stan_data[c("dose", "CoP", "n", "y", "group", "stratum",
+                                      "T_thresh", "ladder_count")])))
   attr(stan_data, "obs") <- dat %>%
+    mutate(T_thresh = as.numeric(T_thresh)) %>%
     transmute(obs_id, study, likelihood_group, group = grp,
-              dose_cfu, n, y, obs_rate = y / n, CoP, phi, gilman_stratum)
+              dose_cfu, n, y, obs_rate = y / n, CoP, phi, T_thresh, gilman_stratum)
   stan_data
 }

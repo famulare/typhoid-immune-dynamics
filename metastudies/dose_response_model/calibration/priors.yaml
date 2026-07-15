@@ -10,6 +10,7 @@
 #   half_normal  -> mu, sd  (lower=0)       (Stan: pr_<p>_mu, pr_<p>_sd; param declared <lower=0>)
 #   lognormal    -> meanlog, sdlog          (Stan: pr_<p>_mu, pr_<p>_sd)
 #   beta         -> a, b                    (Stan: pr_<p>_a,  pr_<p>_b)
+#   exponential  -> rate    (lower=0)       (Stan: pr_<p>_rate; param declared <lower=0>)
 #
 # Values are joint_inference_plan.md Section 7. All flagged TO BE EXAMINED there.
 
@@ -30,24 +31,28 @@ log10_delta:       { family: normal,      mu: 3.5,  sd: 0.7 }   # ~1000-30000x
 pi_susc:           { family: beta,        a: 7,     b: 4 }       # ~0.65 (Gilman 36/53)
 # CoP units are DEFINITIONAL: anti-Vi IgG (VaccZyme EU/mL) relative to naive (=1).
 # These latent Maryland CoPs are anti-Vi-EQUIVALENT (anti-Vi not measured pre-VaccZyme).
-# Rescaled to the EU/mL-relative scale (Tier 1.5): weakly-informative, immune subgroup
-# a few-fold above naive. RESERVED CHOICE — adjust if Maryland latent immunity is
-# expected higher/lower (tier1.5_plan.md).
-CoP_imm:           { family: lognormal,   meanlog: 1.6,  sdlog: 0.7 }   # median ~5x naive (~18 EU/mL)
+# CoP_imm [Mike 2026-07-15]: max-entropy Exponential with mean 50 EU/mL ABSOLUTE =
+# 50/3.7 = 13.5 on the CoP (anti-Vi/naive) scale -> rate = 3.7/50 = 0.074. Asserts
+# only the mean (natural-infection-immune subpop, ~Vi-PS-vaccine level); UNIDENTIFIED
+# (no pre-VaccZyme serology) so prior ~= posterior. Mode at 0 (max-ent) allows the
+# immune-component CoP to dip toward naive; label kept distinct by CoP_susc's tight
+# prior at ~1 and pi_susc (Beta(7,4)). Enters as CoP^gamma (compressive).
+CoP_imm:           { family: exponential, rate: 0.074 }               # mean 13.5 (=50 EU/mL abs)
 CoP_susc:          { family: lognormal,   meanlog: 0.0,  sdlog: 0.3 }   # ~1x naive
 
-# Maryland fever definition-sensitivity (estimated scalar; resolved 2026-06-23).
-# Was fixed per-obs DATA (phi=0.25 Hornick / 0.65 Gilman-Levine) — the low-dose
-# asymptote of phi(T) applied dose-wide, which capped Maryland fitted fever at 0.25
-# while Hornick high-dose data are 0.89-0.95. Now a single ESTIMATED scalar
-# identified by the Hornick dose-range plateau (at saturation, fitted -> phi).
-# Prior: UNIFORM Beta(1,1). Plan Section 7 had specified Beta(5,5), but that is too
-# strong here — 90% mass in [0.25,0.75] (~10 pseudo-obs at 0.5); with Beta(5,5) the
-# posterior was pulled to 0.886 (the prior's 99.8th pctile) and still left H-F-9
-# (0.95) underfit. Deliberate departure from Section 7: let the plateau speak.
-# Fallback if convergence suffers (phi drifting to the [0,1] edge): a mildly-informed
-# prior — Beta(2,2), or an elicited one (single source: edit here + refit, no recompile).
-phi_md:            { family: beta,        a: 1,     b: 1 }
+# Maryland fever definition-sensitivity, now DOSE-DEPENDENT phi(T,D) (C3, 2026-07-15).
+#   phi(T,D) = phi0(T) + (1 - phi0(T)) * P_fev_naive(D_eff)^beta_phi
+#   phi0(T)  = inv_logit(phi0_a - phi0_b*(T - T_ref)),  T_ref = 38.0
+# Retires the free scalar phi_md (was Beta(1,1), edge-pressing at ~0.97). phi0(T) is
+# pinned by the Darton placebo ladder (>=38/38.5/39 among 20 TD+ = 16/10/8); beta_phi
+# (the dose-lift toward 1 at saturation) rests on Hornick's multi-dose fever (THIN ID).
+# phi0_a: logit phi0 at T_ref=38. Darton >=38 is 16/20=0.80 -> logit ~1.4; weakly informative.
+# phi0_b: logit decay per degC, >=0 (monotone-decreasing). Darton implies ~1.8/degC.
+# beta_phi [Mike: let it float]: centered at 1 ("phi rises with the naive fever curve"),
+#   lognormal(0,0.7) -> median 1, 95% ~[0.25,4]. Regularized off 0/inf, otherwise free.
+phi0_a:            { family: normal,      mu: 1.0,  sd: 1.5 }
+phi0_b:            { family: half_normal, mu: 0.0,  sd: 2.0 }
+beta_phi:          { family: lognormal,   meanlog: 0.0, sdlog: 0.7 }
 
 # ---- eta-correction parameters (Tier 2) ----
 eta_lo:            { family: beta,        a: 5,     b: 5 }       # ~0.5

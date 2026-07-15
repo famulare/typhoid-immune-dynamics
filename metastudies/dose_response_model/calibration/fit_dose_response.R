@@ -35,7 +35,8 @@ results_dir <- "results"
 # Interpretable parameters (the inert sigma_study/eta_lo/kappa are excluded here).
 interp_pars <- c("log10_N50_inf", "d_fev", "log10_N50_fevginf",
                  "alpha_inf", "alpha_fevginf", "gamma_inf", "gamma_fevginf",
-                 "log10_delta", "pi_susc", "CoP_imm", "CoP_susc", "phi_md",
+                 "log10_delta", "pi_susc", "CoP_imm", "CoP_susc",
+                 "phi0_a", "phi0_b", "beta_phi",
                  "N50_inf", "N50_fevginf", "delta")
 
 priors <- load_priors()

@@ -17,14 +17,23 @@ source("priors.R"); source("data_prep.R")
 # obs_prob() would produce O(0.01-1) differences, far above these.
 TOL_P  <- 1e-7   # probabilities (O(1) values)
 TOL_LL <- 1e-3   # pointwise log-likelihood
+T_REF  <- 38.0   # phi0(T) logit center (must match data_prep.R T_REF)
 
-# ---- Independent R reference (transcribed from the ORIGINAL model block) -------
+# ---- Independent R reference (transcribed from the model block) ----------------
 bp <- function(D, N50, alpha, CoP, gamma) {
   scale <- (2^(1 / alpha) - 1) / N50
   1 - (1 + D * scale)^(-alpha / CoP^gamma)
 }
 md_mix <- function(D, N50, alpha, gamma, pi, CoPs, CoPi)
   pi * bp(D, N50, alpha, CoPs, gamma) + (1 - pi) * bp(D, N50, alpha, CoPi, gamma)
+
+# Dose-dependent definition sensitivity phi(T,D) = phi0(T) + (1-phi0)*P_fev_naive^beta.
+phi_TD_R <- function(T, D, N50i, N50f, p) {
+  phi0 <- plogis(p$phi0_a - p$phi0_b * (T - T_REF))
+  p_fev_naive <- bp(D, N50i, p$alpha_inf, 1, p$gamma_inf) *
+                 bp(D, N50f, p$alpha_fevginf, 1, p$gamma_fevginf)
+  phi0 + (1 - phi0) * p_fev_naive^p$beta_phi
+}
 
 obs_prob_R <- function(row, p) {
   N50i <- 10^p$log10_N50_inf
@@ -36,7 +45,8 @@ obs_prob_R <- function(row, p) {
     bp(D, N50i, p$alpha_inf, row$CoP, p$gamma_inf) *
       bp(D, N50f, p$alpha_fevginf, row$CoP, p$gamma_fevginf)
   } else if (g == 3L) {                           # md_fev
-    D <- row$dose_cfu / delta; phi <- p$phi_md; st <- row$gilman_stratum  # phi now estimated scalar
+    D <- row$dose_cfu / delta; st <- row$gilman_stratum
+    phi <- phi_TD_R(row$T_thresh, D, N50i, N50f, p)
     pf <- function(C) bp(D, N50i, p$alpha_inf, C, p$gamma_inf) *
                       bp(D, N50f, p$alpha_fevginf, C, p$gamma_fevginf)
     if (!is.na(st) && st == 1L) phi * pf(p$CoP_susc)
@@ -45,7 +55,8 @@ obs_prob_R <- function(row, p) {
   } else if (g == 4L) {                           # md_inf
     md_mix(row$dose_cfu / delta, N50i, p$alpha_inf, p$gamma_inf, p$pi_susc, p$CoP_susc, p$CoP_imm)
   } else if (g == 5L) {                           # hornick_cond
-    D <- row$dose_cfu / delta; phi <- p$phi_md      # phi now estimated scalar
+    D <- row$dose_cfu / delta
+    phi <- phi_TD_R(row$T_thresh, D, N50i, N50f, p)
     pf <- function(C) bp(D, N50i, p$alpha_inf, C, p$gamma_inf) *
                       bp(D, N50f, p$alpha_fevginf, C, p$gamma_fevginf)
     p_inf <- md_mix(D, N50i, p$alpha_inf, p$gamma_inf, p$pi_susc, p$CoP_susc, p$CoP_imm)
@@ -63,11 +74,11 @@ mod <- cmdstan_model("typhoid_dose_response.stan")
 # ---- Parameter vectors to test (constrained scale; must cover the model's params) ----
 PARAM_NAMES <- c("log10_N50_inf","d_fev","alpha_inf","alpha_fevginf","gamma_inf",
                  "gamma_fevginf","log10_delta","pi_susc","CoP_imm","CoP_susc",
-                 "phi_md","eta_lo","kappa","sigma_study")
-vecs <- list(                                                  # phi_md added after CoP_susc
-  c(2.5, 0.3, 0.30, 0.35, 0.60, 0.90, 3.5, 0.65, 3.0, 1.0, 0.90, 0.5, 1.0, 0.3),
-  c(2.0, 0.0, 0.15, 0.50, 0.20, 1.50, 2.0, 0.40, 5.0, 1.1, 0.50, 0.4, 0.7, 0.1),  # d_fev=0 edge
-  c(3.1, 1.2, 0.50, 0.20, 1.00, 0.30, 4.5, 0.80, 2.0, 0.9, 0.97, 0.6, 1.5, 0.5)
+                 "phi0_a","phi0_b","beta_phi","eta_lo","kappa","sigma_study")
+vecs <- list(                          # phi0_a,phi0_b,beta_phi replace phi_md (after CoP_susc)
+  c(2.5, 0.3, 0.30, 0.35, 0.60, 0.90, 3.5, 0.65, 3.0, 1.0, 1.4, 1.8, 1.0, 0.5, 1.0, 0.3),
+  c(2.0, 0.0, 0.15, 0.50, 0.20, 1.50, 2.0, 0.40, 5.0, 1.1, 0.5, 1.0, 1.5, 0.4, 0.7, 0.1),  # d_fev=0 edge
+  c(3.1, 1.2, 0.50, 0.20, 1.00, 0.30, 4.5, 0.80, 2.0, 0.9, 2.0, 0.5, 2.0, 0.6, 1.5, 0.5)
 )
 truth <- posterior::as_draws_matrix(do.call(rbind, lapply(vecs, function(v) setNames(v, PARAM_NAMES))))
 
