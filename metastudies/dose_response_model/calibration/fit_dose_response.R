@@ -75,8 +75,10 @@ diag <- diagnose_fit(fit, file.path(results_dir, "tier1"),
                      pars = interp_pars, obs = obs, priors = priors,
                      model_name = "tier1", elapsed_s = elapsed)
 
-# Bespoke model PPC: posterior dose-response curves vs observed (+ phi ceiling).
+# Bespoke model PPC: posterior dose-response curves vs observed.
 plot_dose_response_fit(fit, stan_data, file.path(results_dir, "tier1", "dose_response_fit.png"))
+# Titre -> protection (CoP-axis): the immunity-slope view (Darton individuals + Jin groups).
+plot_titre_protection(fit, stan_data, file.path(results_dir, "tier1", "titre_protection.png"))
 
 cat("\n=== INTERPRETABLE PARAMETERS ===\n")
 print(diag$table, n = Inf)

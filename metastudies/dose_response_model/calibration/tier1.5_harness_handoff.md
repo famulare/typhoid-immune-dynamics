@@ -124,3 +124,21 @@ cryptic). To fix:
 5. **Open prior elicitation** (review, not code): `CoP_imm` (Maryland latent immune
    anti-Vi-equiv) is prior-dominated and unidentifiable — highest-leverage unelicited
    choice. See `tier1_lab_notebook.md` "Identifiability & prior-dependence status."
+
+---
+
+## CLOSED OUT 2026-07-15 — all handoff TODOs resolved
+
+- **C3 dose-dependent φ(T,D)** — implemented, then β_φ **pinned=1** (prior-dominated).
+  Parity + recovery harnesses re-synced (parity GREEN, 80 rows). Committed d1880a8.
+- **+cascade** — Darton per-subject cascade (groups 6/7). Committed 0088b9e.
+- **Recovery `TRUTH_REALISTIC`** re-synced to the EU/mL scale (δ~10^2.5, CoP_imm~10,
+  γ~0.2, α_inf~0.4, φ0_a/φ0_b) — done.
+- **Titre→protection plot** — added (`plot_titre_protection`) — done.
+- **CoP_imm prior** — resolved to Exponential(mean 50 EU/mL abs) [Mike]; still
+  unidentified (prior-carried), which is expected, not a harness issue.
+
+The `assert_fitted_params_match` guard remains the tripwire for the next parameter-block
+change (e.g. if +Jin-digitize or +vaccine-terms add params). Current model params:
+`log10_N50_inf, d_fev, alpha_inf, alpha_fevginf, gamma_inf, gamma_fevginf, log10_delta,
+pi_susc, CoP_imm, CoP_susc, phi0_a, phi0_b, eta_lo, kappa, sigma_study` (15).

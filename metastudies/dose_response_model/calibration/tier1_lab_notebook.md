@@ -403,3 +403,33 @@ a longer titre axis → **+vaccine-terms** (M01ZH09/Ty21a arms) and/or **+Jin-di
 
 Backups: C3 (float β_φ) results superseded (committed as code d1880a8); minimal+φ at
 `results/tier1_minimal_phi/`; current +cascade fit at `results/tier1/`.
+
+## Consolidation + NEXT SESSION (2026-07-15 close) [Mike: "c for now, b tomorrow"]
+
+Consolidated (no new modeling increment):
+- **Titre→protection figure** `results/tier1/titre_protection.png` (new `plot_titre_protection()`
+  in `dose_response_curves.R`, wired into the driver). CoP-axis, 3 facets (P_inf /
+  P_fev|inf / composite fever) with the CoP^γ curve + Darton individuals (grey, jittered
+  0/1) + Jin vaccine groups (blue, Wilson). **Shows the story visually:** Darton clusters
+  at low titre (3.7–60), Jin anchors the high end (141/563) on the composite curve and
+  sits on the ribbon; the P_inf and P_fev|inf slopes are shallow and near-identical →
+  the γ-split is titre-range-limited. Motivates +Jin-digitize.
+- **model_structure.md** mermaid diagram refreshed (groups 1..7, phi(T,D), ladder, cascade).
+- Harness handoff (`tier1.5_harness_handoff.md`) closed out.
+
+**NEXT SESSION — +Jin-digitize (issue #15 stretch) [b, tomorrow]:**
+- Digitize Jin 2015 **Fig S3** (per-subject anti-Vi titre → outcome) to add Jin vaccine-arm
+  subjects as INDIVIDUAL rows on the anti-Vi axis (CoP up to ~152). Currently Jin is only
+  3 GROUP fever points (ox_fev, CoP 2.2/38/152). Individuals would populate the high-titre
+  end of the P_inf and P_fev|inf facets → the spread needed to SEPARATE γ_inf vs γ_fevginf
+  (the +cascade split that stalled on Darton's thin low-titre range).
+- Route Jin individuals through the same cascade groups (6 = infection, 7 = fever|inf) if
+  Fig S3 gives both endpoints per subject; else fever-composite (group 1) individuals.
+  Jensen-bias caveat (group GMT vs individual) is exactly what this retires.
+- No new parameters expected; re-run parity + fit; check whether γ_inf and γ_fevginf
+  separate and whether the Hornick conditional over-prediction (residual #2) eases.
+- **Don't re-derive:** β_φ pinned=1 (was prior-dominated); CoP_imm Exp(mean 50 EU/mL abs)
+  unidentified→prior-carried; the cascade decomposition (g6/g7) + parity are GREEN.
+
+Commits this session: d1880a8 (C3 dose-dependent φ), 0088b9e (+cascade + β_φ=1 pin),
++ consolidation (plots + docs). Branch `dose-response-tier1-resurrection`, not pushed.

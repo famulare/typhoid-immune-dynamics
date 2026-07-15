@@ -100,6 +100,73 @@ plot_dose_response_fit <- function(fit, stan_data, outfile) {
   invisible(p)
 }
 
+#' Titre -> protection (CoP-axis) figure: the view that shows the immunity slope,
+#' which the dose-axis panels hide (they stack the individual Darton subjects at one
+#' dose). Three facets at a fixed Oxford dose (~2e4): P(infection), P(fever|infection),
+#' and composite P(fever), each the posterior CoP^gamma curve (median + 90%) vs anti-Vi
+#' EU/mL. Overlays the Darton individual endpoints (jittered 0/1: infection on the
+#' P(inf) facet, fever|inf on the P(fev|inf) facet) and the Jin vaccine-group fever
+#' points (Wilson 95%) on the composite facet. Makes the thin Darton titre range and
+#' the Jin high-titre anchors legible — the setup for +Jin-digitize.
+#' @param D_ref Oxford challenge dose to evaluate the curves at (Darton 18200 ~ Jin 2e4).
+plot_titre_protection <- function(fit, stan_data, outfile, D_ref = 2e4,
+                                  naive_ref = 3.7) {
+  obs <- attr(stan_data, "obs")
+  dr  <- as_draws_df(fit$draws(c("N50_inf", "N50_fevginf", "alpha_inf",
+                                 "alpha_fevginf", "gamma_inf", "gamma_fevginf")))
+  cop <- 10^seq(log10(0.9), log10(200), length.out = 80)
+  gc <- function(fn) {
+    q <- vapply(cop, function(c) quantile(fn(c), c(.05, .5, .95)), numeric(3))
+    tibble(eu = cop * naive_ref, lo = q[1, ], med = q[2, ], hi = q[3, ])
+  }
+  with(dr, {
+    ci <- gc(function(C) .bp(D_ref, N50_inf, alpha_inf, C, gamma_inf))
+    cg <- gc(function(C) .bp(D_ref, N50_fevginf, alpha_fevginf, C, gamma_fevginf))
+    cf <- gc(function(C) .bp(D_ref, N50_inf, alpha_inf, C, gamma_inf) *
+                         .bp(D_ref, N50_fevginf, alpha_fevginf, C, gamma_fevginf))
+    curves <<- bind_rows(ci %>% mutate(panel = "P(infection)"),
+                         cg %>% mutate(panel = "P(fever | infection)"),
+                         cf %>% mutate(panel = "P(fever) composite"))
+  })
+  panel_lv <- c("P(infection)", "P(fever | infection)", "P(fever) composite")
+  curves$panel <- factor(curves$panel, panel_lv)
+
+  ind <- obs %>%
+    filter(likelihood_group %in% c("ox_inf_indiv", "ox_fevginf_indiv")) %>%
+    mutate(eu = CoP * naive_ref,
+           panel = ifelse(likelihood_group == "ox_inf_indiv",
+                          "P(infection)", "P(fever | infection)"),
+           yj = y + runif(n(), -0.03, 0.03))
+  ind$panel <- factor(ind$panel, panel_lv)
+
+  jin <- obs %>% filter(study == "Jin", likelihood_group == "ox_fev")
+  jci <- .wilson(jin$y, jin$n)
+  jin <- jin %>% mutate(eu = CoP * naive_ref, rate = y / n,
+                        lo = jci$lo, hi = jci$hi,
+                        panel = factor("P(fever) composite", panel_lv))
+
+  p <- ggplot(curves, aes(eu)) +
+    geom_ribbon(aes(ymin = lo, ymax = hi), fill = "firebrick", alpha = 0.18) +
+    geom_line(aes(y = med), color = "firebrick", linewidth = 0.7) +
+    geom_point(data = ind, aes(y = yj), alpha = 0.4, size = 1.3,
+               color = "grey30") +
+    geom_errorbar(data = jin, aes(ymin = lo, ymax = hi), width = 0.05,
+                  color = "steelblue") +
+    geom_point(data = jin, aes(y = rate), color = "steelblue", size = 2.6) +
+    facet_wrap(~panel, ncol = 1) +
+    scale_x_log10() +
+    coord_cartesian(ylim = c(0, 1)) +
+    labs(x = "anti-Vi IgG (VaccZyme EU/mL, log scale)", y = "probability",
+         title = "Titre -> protection: immunity slope (CoP^gamma) at Oxford dose",
+         subtitle = paste0("red: posterior median & 90% at D=", format(D_ref, scientific = TRUE),
+                           ";  grey: Darton individuals (jittered 0/1);  blue: Jin vaccine groups (Wilson 95%)")) +
+    theme_minimal(base_size = 11)
+
+  ggsave(outfile, p, width = 7.5, height = 9, dpi = 150)
+  message("titre-protection figure: ", outfile)
+  invisible(p)
+}
+
 # Standalone: Rscript dose_response_curves.R  (regenerate from the saved tier1 fit)
 if (sys.nframe() == 0) {
   here <- dirname(normalizePath(sub("^--file=", "",
@@ -110,4 +177,5 @@ if (sys.nframe() == 0) {
   sd  <- build_stan_data("dose_response_data.csv", load_priors("priors.yaml"),
                          tier_col = "tier1_active", prior_only = 0L)
   plot_dose_response_fit(fit, sd, "results/tier1/dose_response_fit.png")
+  plot_titre_protection(fit, sd, "results/tier1/titre_protection.png")
 }
