@@ -134,6 +134,13 @@ compute_loo_units <- function(fit, obs) {
     message("  [skip] loo: ", conditionMessage(e)); NULL })
   if (is.null(lo)) return(NULL)
   list(n_units = length(u),
+       # Comparability key. elpd is comparable only between fits over the IDENTICAL
+       # observation set, and the unit set is too coarse a test: dropping Gil-F-rest
+       # removes a row but not a unit (it shares a cohort_id), leaving the unit keys
+       # identical while that unit now sums one fewer term -- a mechanically higher elpd
+       # that passes a unit-set check. Hash the obs_ids.
+       unit_keys_md5 = digest_chr(sort(u)),
+       data_keys_md5 = digest_chr(sort(obs$obs_id)),
        elpd_loo = lo$estimates["elpd_loo", "Estimate"],
        elpd_loo_se = lo$estimates["elpd_loo", "SE"],
        p_loo = lo$estimates["p_loo", "Estimate"],
@@ -142,7 +149,9 @@ compute_loo_units <- function(fit, obs) {
 
 #' Aggregate results.json (+ loo.json) across scenarios into a comparison table + forest plot.
 summarize_scenarios <- function(labels, tier = DEFAULT_SCENARIO_TIER,
-                                out_dir = file.path("results", "summaries", tier)) {
+                                reference = "base",
+                                out_dir = file.path("results", "scenarios", tier,
+                                                    "cross_scenario_comparisons")) {
   dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
   recs <- lapply(labels, function(lab) {
     rj <- file.path("results", "scenarios", tier, lab, "results.json")
@@ -171,17 +180,38 @@ summarize_scenarios <- function(labels, tier = DEFAULT_SCENARIO_TIER,
     n_divergent = e$r$sampler$n_divergent %||% NA,
     max_rhat = max(vapply(e$r$parameters, function(x) x$rhat %||% NA, numeric(1)), na.rm = TRUE),
     min_ess_bulk = min(vapply(e$r$parameters, function(x) x$ess_bulk %||% NA, numeric(1)), na.rm = TRUE),
+    n_units = if (!is.null(e$loo)) e$loo$n_units else NA,
+    data_keys_md5 = if (!is.null(e$loo)) e$loo$data_keys_md5 %||% NA_character_ else NA,
     elpd_loo = if (!is.null(e$loo)) e$loo$elpd_loo else NA,
     elpd_loo_se = if (!is.null(e$loo)) e$loo$elpd_loo_se else NA,
     pareto_k_gt_0.7 = if (!is.null(e$loo)) e$loo$n_pareto_k_gt_0.7 else NA)))
+
+  # elpd is comparable ONLY across identical LOO unit sets. Row filters change the set,
+  # so their elpd is mechanically higher (fewer terms summed) and must not be read
+  # against the reference. Blank it rather than print a number that invites the
+  # comparison -- the header caveat alone was not enough.
+  ref <- scen$data_keys_md5[match(reference, scen$scenario)]
+  if (length(ref) && !is.na(ref)) {
+    scen$loo_comparable <- !is.na(scen$data_keys_md5) & scen$data_keys_md5 == ref
+    scen$elpd_loo[!scen$loo_comparable]    <- NA
+    scen$elpd_loo_se[!scen$loo_comparable] <- NA
+  } else {
+    scen$loo_comparable <- NA
+  }
 
   readr::write_csv(long, file.path(out_dir, "comparison.csv"))
   readr::write_csv(scen, file.path(out_dir, "comparison_scenarios.csv"))
 
   # comparison.md
   L <- c("# Scenario comparison", "",
-         "## Sampler health + LOO (loo across scenarios with identical units only)", "",
+         "## Sampler health + LOO", "",
          knitr_table(scen), "",
+         paste("`elpd_loo` is blank where a scenario's LOO unit set differs from",
+               sprintf("`%s`", reference), "-- a row filter changes the units, so its",
+               "elpd is mechanically higher and is NOT comparable. Keyed on the",
+               "OBSERVATION set (`data_keys_md5`), not the unit set: dropping a row that",
+               "shares a cohort leaves the unit set unchanged while still shrinking the",
+               "sum."), "",
          "## Key parameters (posterior mean [90% CI])", "")
   wide <- long %>% filter(param %in% KEY_PARS) %>%
     mutate(cell = sprintf("%.3g [%.3g, %.3g]", mean, lo90, hi90)) %>%

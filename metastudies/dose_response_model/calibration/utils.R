@@ -67,3 +67,12 @@ copy_stan_attrs <- function(new, old, which = c("obs", "tier")) {
   for (a in which) if (!is.null(attr(old, a))) attr(new, a) <- attr(old, a)
   new
 }
+
+#' Stable short digest of a character vector, for identity comparisons (e.g. "is this
+#' the same LOO unit set?"). tools::md5sum() hashes files, not values, so route through
+#' a tempfile -- base R only, no `digest` dependency.
+digest_chr <- function(x) {
+  f <- tempfile(); on.exit(unlink(f), add = TRUE)
+  writeLines(as.character(x), f)
+  unname(tools::md5sum(f))
+}

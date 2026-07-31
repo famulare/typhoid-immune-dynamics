@@ -228,7 +228,11 @@ resolve_run_stan_data <- function(run_dir, data_csv = "dose_response_data.csv") 
 #' @param stamp_legacy write an HONEST stub manifest into pre-provenance dirs, so the
 #'   invariant "every run dir has a manifest" holds without inventing a SHA or a tier
 #'   the audit cannot know.
-audit_run_dirs <- function(root = "results", stamp_legacy = FALSE, out_md = NULL,
+#' @param out_md where to write the inventory. Default `results/run_audit.md`: this is a
+#'   REPO-WIDE inventory of every run dir, not a per-configuration artifact, so it does
+#'   not belong inside any one configuration's tree.
+audit_run_dirs <- function(root = "results", stamp_legacy = FALSE,
+                           out_md = file.path(root, "run_audit.md"),
                            data_csv = "dose_response_data.csv",
                            stan_file = "typhoid_dose_response.stan",
                            quiet = FALSE) {
