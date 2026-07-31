@@ -3,7 +3,7 @@
 # Tier ladder — generated from tier_specs.R
 
 Generated 2026-07-31 from `tier_specs.R` + `dose_response_data.csv` +
-`../analysis_data/darton_individual_endpoints.csv` at git `01df289`.
+`../analysis_data/darton_individual_endpoints.csv` at git `736832a`.
 
 Counts are **computed** by calling `build_stan_data()` for each spec and counting
 the rows it returns; the generator hard-errors when a computed count disagrees

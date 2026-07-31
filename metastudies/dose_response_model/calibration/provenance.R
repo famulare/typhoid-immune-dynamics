@@ -232,11 +232,13 @@ audit_run_dirs <- function(root = "results", stamp_legacy = FALSE, out_md = NULL
                            data_csv = "dose_response_data.csv",
                            stan_file = "typhoid_dose_response.stan",
                            quiet = FALSE) {
-  dirs <- sort(unique(dirname(c(Sys.glob(file.path(root, "**", "fit.rds")),
-                                Sys.glob(file.path(root, "*", "fit.rds")),
-                                Sys.glob(file.path(root, "*", "*", "fit.rds")),
-                                Sys.glob(file.path(root, "*", "results.json")),
-                                Sys.glob(file.path(root, "*", "*", "results.json"))))))
+  # Depth-independent: Sys.glob patterns are fixed-depth, so a hand-written set of
+  # them silently misses anything deeper -- e.g. results/scenarios/<tier>/<label>/,
+  # which is three levels down and was invisible to the earlier two-level version.
+  cand <- list.dirs(root, recursive = TRUE, full.names = TRUE)
+  dirs <- sort(cand[vapply(cand, function(d)
+    file.exists(file.path(d, "fit.rds")) || file.exists(file.path(d, "results.json")),
+    logical(1))])
   if (!length(dirs)) {
     if (!quiet) message("no run directories under ", root)
     return(invisible(NULL))

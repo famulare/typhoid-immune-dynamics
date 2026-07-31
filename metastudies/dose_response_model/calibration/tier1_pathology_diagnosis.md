@@ -35,7 +35,8 @@ Three changes were required:
    predictive checks.
 
 Toolchain installed: `cmdstanr` 0.9.0 + CmdStan 2.39.0 (R 4.5.3 via pixi).
-The driver is [fit_dose_response.R](fit_dose_response.R); it assembles the 25
+The driver is `fit_dose_response.R` (renamed to `fit_tier.R` on 2026-07-31; de-linked
+here so this frozen record keeps the name it had); it assembles the 25
 `tier1_active` observations from [dose_response_data.csv](dose_response_data.csv)
 into the Stan groups (ox_fev=7, md_fev=11, md_inf=6, hornick_cond=1) with Oxford
 shedding disabled (`N_ox_inf=0`).
