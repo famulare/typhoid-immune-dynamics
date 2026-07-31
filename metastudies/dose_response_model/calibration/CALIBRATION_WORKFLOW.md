@@ -179,8 +179,10 @@ overdispersion is not identified. Delete the now-dead `sigma_study` declaration 
 its prior. Note the beta-binomial is the cohort RE *integrated out*, but it induces no
 correlation between rows sharing volunteers (`Lev-F-1`/`Lev-I-1` stay independent).
 
-Why not a random effect: the motivating Levine 25–55% spread is homogeneous at
-p = 0.122; Tier 1 has 16 cohorts over 24 grouped observations with 10 singletons;
+Why not a random effect: **not** because there is no heterogeneity -- that claim was
+based on a fever-only test (p = 0.122) and the INFECTION endpoint rejects homogeneity
+across the same four Levine trials (X2 = 10.71, df = 3, **p = 0.013**) [corrected
+2026-07-31]. The lock rests on identifiability alone: Tier 1 has 16 cohorts over 24 grouped observations with 10 singletons;
 and Hornick's five cohorts *are* the dose ladder, so per-cohort offsets compete with
 `N50_inf`/`alpha_inf`. Full argument and the supporting tests:
 [cohort_random_effects_design.md](cohort_random_effects_design.md).

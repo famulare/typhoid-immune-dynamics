@@ -703,10 +703,15 @@ Two consequences worth stating, because they are what the integration costs:
 **Why one parameter and not a random effect** (full argument in
 `cohort_random_effects_design.md`):
 
-1. The motivating premise fails. Levine's 25–55% spread is homogeneous at
-   χ² = 5.80, df = 3, **p = 0.122** (p = 0.207 adding Gilman). Roughly 77% of it is
-   binomial noise at n = 16–33. A prior that excludes zero overdispersion would be
-   asserting heterogeneity the data do not show.
+1. ~~The motivating premise fails.~~ **CORRECTED 2026-07-31: this argument is
+   withdrawn.** It rested on a FEVER-only homogeneity test across Levine's four trials
+   (χ² = 5.80, df = 3, p = 0.122). The **INFECTION** endpoint, same four trials, same
+   men, **rejects homogeneity: χ² = 10.71, df = 3, p = 0.013** (0.731 / 0.455 / 0.773 /
+   0.375 against a flat prediction of 0.676). Cohort heterogeneity IS detectable. The
+   fever/infection residuals are perfectly rank-concordant across trials, but that is
+   largely mechanical (fever is nested inside infection), so only the p = 0.013 counts.
+   The lock stands on 2–4 below, which were always the stronger case; it does **not**
+   stand on "there is nothing to model".
 2. Identifiability. Tier 1 has **16 cohorts over 24 grouped observations, 10 of them
    singletons**. Per-cohort offsets are ~one parameter per datum.
 3. Signal absorption. Hornick's five cohorts *are* the dose ladder (10³–10⁹). A free

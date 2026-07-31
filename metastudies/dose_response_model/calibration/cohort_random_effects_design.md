@@ -26,7 +26,7 @@ for a reason the plan does not state. Details and a revision below.
 
 ---
 
-## 1. The motivating premise does not survive testing
+## 1. The motivating premise — PARTLY REFUTED, see correction at end of section
 
 §5.5 and line 518 both rest on: *"The trial-to-trial variability (25% to 55%) at
 the same dose suggests either batch effects, temporal shifts in cohort immunity,
@@ -48,10 +48,23 @@ Tested directly on the four Levine trials (all 10^5 CFU, all T>=38.3):
 Logit-scale variance decomposition over those 5 cohorts: total 0.305, mean
 binomial sampling variance 0.236, **excess 0.069 -> sigma_cohort ~ 0.26**.
 
-So the 25%-55% range is what n = 16-33 binomial sampling looks like. There may be
-a real cohort effect of order sigma ~ 0.26, but it is **not distinguishable from
-zero**, and roughly 77% of the observed spread is sampling noise. The plan treats
-the range as established heterogeneity; it is not.
+So on FEVER the 25%-55% range is what n = 16-33 binomial sampling looks like.
+
+> **CORRECTION 2026-07-31.** The above tests fever only. The INFECTION endpoint, same
+> four Levine trials, same men, **rejects homogeneity: X2 = 10.71, df = 3, p = 0.013**
+> (rates 0.731 / 0.455 / 0.773 / 0.375 against a flat model prediction of 0.676).
+> Cohort heterogeneity IS detectable; this section's original conclusion was wrong
+> because it tested the one endpoint where it was not.
+>
+> The fever/infection residuals are perfectly rank-concordant across the four trials,
+> but that is largely MECHANICAL (fever is nested inside infection in the cascade, and
+> the counts respect it: 13<=19, 10<=15, 12<=17, 4<=6), so it is not independent
+> evidence. The p = 0.013 stands on its own.
+>
+> **The lock is unaffected**, because it never rested on this argument -- Sections 4
+> and 5 (identifiability: 16 cohorts / 24 observations / 10 singletons; Hornick's
+> cohorts ARE the dose ladder) carry it. But nobody should cite "p = 0.122, no
+> heterogeneity" as settled.
 
 ## 2. The index is wrong (this is the substantive error)
 

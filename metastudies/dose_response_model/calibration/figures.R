@@ -21,6 +21,7 @@ source("dose_response_curves.R")
 source("figures_grid.R")
 source("figures_phi.R")
 source("figures_components.R")
+source("figures_targets.R")
 
 #' Write the whole suite for one fit into one directory.
 #'
@@ -40,6 +41,8 @@ make_model_figures <- function(fit, stan_data, out_dir, label = basename(out_dir
   # saved so figures_from_dir() can reproduce a scenario's exact row selection
   saveRDS(stan_data, file.path(out_dir, "stan_data.rds"))
 
+  plot_calibration_targets(fit, stan_data, file.path(out_dir, "calibration_targets.png"),
+                           label = label)
   plot_dose_response_fit(fit, stan_data, file.path(out_dir, "dose_response_fit.png"))
   plot_titre_protection(fit, stan_data, file.path(out_dir, "titre_protection.png"))
   plot_grouping_grid(fit, stan_data, out_dir, specs, ngrid, n_spaghetti,
