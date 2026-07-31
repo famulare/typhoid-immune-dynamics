@@ -20,11 +20,22 @@ log10_N50_fevginf: { family: normal,      mu: 2.8,  sd: 1.0 }   # ~600 bicarb CF
 d_fev:             { family: half_normal, mu: 0.0,  sd: 1.0 }   # ordering: fever threshold >= infection
 alpha_inf:         { family: lognormal,   meanlog: -1.5, sdlog: 0.8 }   # ~0.1-0.5
 alpha_fevginf:     { family: lognormal,   meanlog: -1.5, sdlog: 0.8 }
-# gamma priors recentered for the EU/mL titre scale (Tier 1.5): CoP now ranges to
-# ~152 (was ~5), so the protection slope gamma is much smaller. Weakly-informative,
-# median ~0.2, wide — lets the (Darton individual + Jin) titre data identify it.
-gamma_inf:         { family: lognormal,   meanlog: -1.6, sdlog: 0.9 }   # median ~0.2 (titre scale)
-gamma_fevginf:     { family: lognormal,   meanlog: -1.6, sdlog: 0.9 }   # median ~0.2 (titre scale)
+# gamma priors on the EU/mL titre scale, ANCHORED to two published titre->protection
+# slopes (2026-07-15) [Mike: use Jin's result to inform the prior, in lieu of digitizing
+# Jin Fig S3 — see notes below / tier1_lab_notebook.md "+Jin-CoP-anchor"]:
+#   - Jin 2017 adjusted logistic OR 0.37 (95% CI 0.15-0.88) per log10 anti-Vi IgG EU/mL
+#     (VERIFIED: Fig S3 x-axis "Log10 anti-Vi IgG (ELISA units per mL)"; typhoid diagnosis).
+#   - Darton 2016 HR 0.29 per log10 anti-Vi IgG EU/mL (same VaccZyme scale).
+# Both are COMPOSITE-diagnosis slopes -> they constrain the COMBINED gamma_inf+gamma_fevginf
+# effect, not each layer. Map (single-layer beta-Poisson at the control op point P~0.77):
+# d logit(P)/d log10(CoP) = -gamma*ln(10)*u/(1-e^-u), u=-ln(1-P)=1.47 -> slope=-gamma*4.40.
+# OR 0.37 => ln(0.37)/-4.40 = 0.23; CI 0.15-0.88 => gamma_eff ~ [0.03, 0.43]. The C3 fit
+# reproduces the Jin composite with gamma_inf~0.20, gamma_fevginf~0.15, so median ~0.2 on
+# EACH layer is consistent. sdlog tightened 0.9->0.7 (two concordant anchors), still weakly-
+# informative: median 0.20, 95% ~[0.05, 0.8] ~ the OR-implied range. Data (Darton individual
+# cascade + Jin groups) still moves it.
+gamma_inf:         { family: lognormal,   meanlog: -1.6, sdlog: 0.7 }   # median ~0.2 (Jin/Darton)
+gamma_fevginf:     { family: lognormal,   meanlog: -1.6, sdlog: 0.7 }   # median ~0.2 (Jin/Darton)
 
 # ---- Nuisance parameters ----
 log10_delta:       { family: normal,      mu: 3.5,  sd: 0.7 }   # ~1000-30000x

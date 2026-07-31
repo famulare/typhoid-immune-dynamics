@@ -433,3 +433,31 @@ Consolidated (no new modeling increment):
 
 Commits this session: d1880a8 (C3 dose-dependent φ), 0088b9e (+cascade + β_φ=1 pin),
 + consolidation (plots + docs). Branch `dose-response-tier1-resurrection`, not pushed.
+
+## +Jin-CoP-anchor — published OR informs the γ prior (in lieu of digitization) [Mike]
+
+**Decision:** Jin Fig S3 (individual anti-Vi titre → diagnosis probability) digitization
+is **feasible but NOT done** — it needs WebPlotDigitizer + human axis calibration (the
+individual points exist only in the scatter; Jin tabulates no per-subject titres). Two
+reasons it's low-value anyway: (a) the figure's quantitative content is *already a
+published number* (the logistic OR); (b) it is titre→**diagnosis** (composite TD), so it
+would tighten the combined γ, NOT separate γ_inf vs γ_fevginf. Instead we **use Jin's
+published logistic result to inform the γ prior.**
+
+- **Jin 2017 adjusted OR = 0.37 (95% CI 0.15–0.88) per log₁₀ anti-Vi IgG (EU/mL)** for
+  typhoid diagnosis [from paper, p.2477]. Increment **VERIFIED**: Fig S3 x-axis is
+  "Log10 anti-Vi IgG (ELISA units per mL)" (pypdf text extract of the main paper).
+  Unadjusted OR 0.35 (0.21–0.59). Same VaccZyme EU/mL scale as the model.
+- **Map OR → γ:** single-layer beta-Poisson at the control op point (P≈0.77, u=−ln(1−P)=1.47):
+  `d logit(P)/d log₁₀CoP = −γ·ln(10)·u/(1−e^−u) = −γ·4.40`. OR 0.37 ⇒ γ_eff = ln(0.37)/−4.40
+  = **0.23**; CI ⇒ γ_eff ∈ ~[0.03, 0.43]. Both Jin (0.37) and Darton (HR 0.29/log₁₀)
+  land γ_eff ≈ 0.2–0.3 for the COMPOSITE slope.
+- **Prior update** (`priors.yaml`, no recompile — hyperparams are data): γ_inf & γ_fevginf
+  `sdlog 0.9 → 0.7`, median unchanged at 0.20 (two concordant published anchors justify the
+  mild tightening; 95% ~[0.05,0.8] ≈ OR-implied range). Anchor is on the COMBINED slope,
+  expressed as concordant priors on both layers — the C3 fit already reproduces Jin's
+  composite with γ_inf~0.20/γ_fevginf~0.15, so this doesn't fight the data.
+
+**If we later want the actual scatter:** WebPlotDigitizer pass (human) or locate deposited
+TyVAC/VAST trial data; wire extracted points as individual rows (I integrate, don't invent).
+Tracked under issue #15 (+Jin-digitize remains open as the higher-fidelity option).
