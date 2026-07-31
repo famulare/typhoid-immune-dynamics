@@ -210,46 +210,84 @@ plot_prior_posterior <- function(fit, out_dir, priors, true_params = NULL,
   if (nchar(lab)) lab else fallback
 }
 
+#' Tie-safe quantile bins of a covariate, used to split an individual-level arm
+#' into ascending CoP strata for the PPC.
+#'
+#' Subjects sharing a CoP value get identical model probabilities, so splitting a
+#' tie block across bins would manufacture two markers that differ only by an
+#' arbitrary partition of one stratum. Ties therefore stay together and bins below
+#' `min_size` are merged into their smaller neighbour, which means the REALISED
+#' number of bins can be < `k`. That is load-bearing here: 18/30 Darton placebo
+#' subjects sit exactly at the <LLD imputation floor (CoP = 1), so no 3-way
+#' equal-size split of that arm exists.
+#'
+#' @return integer bin index per element of `x`, 1 = lowest CoP.
+.ppc_quantile_bins <- function(x, k, min_size) {
+  n <- length(x)
+  if (k <= 1L || n < 2L * min_size) return(rep(1L, n))
+  u <- sort(unique(x))
+  cnt <- as.integer(table(factor(x, levels = u)))
+  mid <- (cumsum(cnt) - cnt / 2) / n            # midpoint of each tie block's rank span
+  b <- pmin(pmax(ceiling(mid * k), 1L), k)
+  repeat {
+    sz <- tapply(cnt, b, sum)
+    if (length(sz) == 1L || all(sz >= min_size)) break
+    s <- as.integer(names(sz)[which(sz < min_size)[1]])
+    nb <- setdiff(as.integer(names(sz)), s)
+    adj <- nb[abs(nb - s) == min(abs(nb - s))]
+    b[b == s] <- adj[which.min(sz[as.character(adj)])]
+  }
+  match(b, sort(unique(b)))[match(x, u)]
+}
+
 #' One PPC row per plotted marker, plus the un-pooled rows for the CSV.
 #'
 #' Individual-level likelihood groups (`*_indiv`, one subject per row) have no
 #' interpretable observed rate -- y/n is exactly 0 or 1 -- so drawing them beside
 #' grouped-binomial arms puts two incommensurate representations on one axis.
-#' Pool them to arm level instead: observed = sum(y)/sum(n) over the arm, fitted =
+#' Pool them to arm level instead: observed = sum(y)/sum(n) over the bin, fitted =
 #' the n-weighted mean of the per-subject p_pred WITHIN each draw, i.e. the
-#' model-implied expected attack rate for the arm. That is exactly the quantity
-#' p_pred already reports for a grouped row, so pooled and grouped markers are on
-#' the same footing. Pooling averages over the arm's CoP spread, which is the whole
-#' point of the individual rows -- the titre gradient is checked in
-#' titre_protection.png, not here.
+#' model-implied expected attack rate for that set of subjects. That is exactly the
+#' quantity p_pred already reports for a grouped row, so pooled and grouped markers
+#' are on the same footing.
+#'
+#' Pooling a whole arm would average away its CoP spread -- the reason the
+#' individual rows exist -- so each arm is split into `indiv_bins` ascending
+#' tie-safe CoP strata (labelled q1..qk, q1 = lowest titre). The titre gradient
+#' then shows as a run of markers walking down the diagonal.
 #'
 #' Individual rows are retained in the returned frame (level == "individual") so
 #' ppc.csv keeps the full detail; only level == "arm" is plotted.
-.ppc_rows <- function(obs, pp) {
+.ppc_rows <- function(obs, pp, indiv_bins = 3L, indiv_bin_min = 4L) {
   probs <- c(0.05, 0.5, 0.95)
   q <- t(apply(pp, 2, stats::quantile, probs = probs))
   base <- obs |>
     dplyr::mutate(fit_lo = q[, 1], fit_med = q[, 2], fit_hi = q[, 3],
                   level = ifelse(grepl("_indiv$", likelihood_group), "individual", "arm"),
-                  n_pooled = 1L,
+                  n_pooled = 1L, cop_bin = NA_integer_,
                   .row = dplyr::row_number())
   indiv <- dplyr::filter(base, level == "individual")
   if (!nrow(indiv)) return(dplyr::select(base, -.row))
 
   pooled <- indiv |>
     dplyr::group_by(study, likelihood_group, group, dose_cfu) |>
+    dplyr::mutate(cop_bin = .ppc_quantile_bins(CoP, indiv_bins, indiv_bin_min),
+                  .n_bin = max(cop_bin)) |>
+    dplyr::group_by(study, likelihood_group, group, dose_cfu, cop_bin) |>
     dplyr::group_modify(function(g, key) {
       w <- g$n / sum(g$n)
       qq <- stats::quantile(as.numeric(pp[, g$.row, drop = FALSE] %*% w),
                             probs = probs, names = FALSE)
+      stem <- .ppc_pool_label(g$obs_id, key$likelihood_group)
+      tag <- if (g$.n_bin[1] > 1L) sprintf(" q%d", key$cop_bin) else ""
       dplyr::tibble(
-        obs_id = sprintf("%s (n=%d)", .ppc_pool_label(g$obs_id, key$likelihood_group),
-                         sum(g$n)),
+        obs_id = sprintf("%s%s (n=%d)", stem, tag, sum(g$n)),
         n = sum(g$n), y = sum(g$y), obs_rate = sum(g$y) / sum(g$n),
-        CoP = stats::median(g$CoP), phi = g$phi[1], T_thresh = g$T_thresh[1],
+        CoP = stats::median(g$CoP), CoP_lo = min(g$CoP), CoP_hi = max(g$CoP),
+        phi = g$phi[1], T_thresh = g$T_thresh[1],
         gilman_stratum = g$gilman_stratum[1],
         fit_lo = qq[1], fit_med = qq[2], fit_hi = qq[3],
-        level = "arm", n_pooled = nrow(g))
+        level = "arm", n_pooled = nrow(g), n_bins = g$.n_bin[1])
     }) |>
     dplyr::ungroup()
 
@@ -257,14 +295,16 @@ plot_prior_posterior <- function(fit, out_dir, priors, true_params = NULL,
 }
 
 #' Rate-space grouped-binomial PPC, fed by Stan p_pred (replaces the R mirror).
-#' Every marker is one arm: individual-level groups are pooled (see .ppc_rows()).
-plot_ppc <- function(fit, out_dir, obs, true_params = NULL) {
+#' Every marker is one arm-level rate: individual-level groups are pooled into
+#' ascending CoP strata (see .ppc_rows()). indiv_bins = 1 pools each arm whole.
+plot_ppc <- function(fit, out_dir, obs, true_params = NULL,
+                     indiv_bins = 3L, indiv_bin_min = 4L) {
   if (is.null(obs) || !"p_pred" %in% fit$metadata()$stan_variables) return(invisible())
   pp <- posterior::as_draws_matrix(fit$draws("p_pred"))   # ndraws x N_obs
   if (ncol(pp) != nrow(obs))
     stop("plot_ppc: obs (", nrow(obs), " rows) does not match p_pred (",
          ncol(pp), " columns) -- wrong stan_data for this fit?", call. = FALSE)
-  df <- .ppc_rows(obs, pp)
+  df <- .ppc_rows(obs, pp, indiv_bins, indiv_bin_min)
   plot_df <- dplyr::filter(df, level == "arm")
   n_pooled_groups <- sum(plot_df$n_pooled > 1L)
   p <- ggplot(plot_df, aes(obs_rate, fit_med, colour = likelihood_group)) +
@@ -278,10 +318,12 @@ plot_ppc <- function(fit, out_dir, obs, true_params = NULL) {
          y = "Posterior fitted probability (median, 90% CI)",
          title = "Posterior predictive check (rate space)", colour = "group",
          caption = if (n_pooled_groups) paste(
-           "Individual-level (n=1) groups pooled to arm level:",
-           "observed = sum(y)/sum(n);",
-           "\nfitted = n-weighted mean of the per-subject p_pred within each draw.",
-           "\nPer-subject rows are kept in ppc.csv (level = 'individual').") else NULL) +
+           "Individual-level (n=1) groups pooled to arm-level rates in ascending",
+           "pre-challenge CoP strata (q1 = lowest titre):",
+           "\nobserved = sum(y)/sum(n); fitted = n-weighted mean of the per-subject",
+           "p_pred within each draw. Ties in CoP are never split,",
+           "\nso an arm yields fewer than", indiv_bins, "strata when subjects pile up at",
+           "one titre. Per-subject rows are kept in ppc.csv.") else NULL) +
     theme(plot.caption = element_text(hjust = 0, size = 7, lineheight = 1.1))
   .save_gg(p, file.path(out_dir, "ppc.png"), w = 8, h = 6)
   invisible(df)

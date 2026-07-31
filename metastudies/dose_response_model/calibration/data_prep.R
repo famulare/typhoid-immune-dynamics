@@ -44,6 +44,31 @@ assert_fitted_params_match <- function(mod, provided) {
 # CoP=1 at naive. See tier1.5_plan.md / tier1_lab_notebook.md D1.
 NAIVE_VI_REF <- 3.7
 
+# ---- cohort_id: PROVENANCE ONLY (added 2026-07-31) ---------------------------
+# `cohort_id` records which observations come from the SAME GROUP OF VOLUNTEERS.
+# It is deliberately NOT passed to Stan and NOT used by any likelihood. It exists
+# so that shared-subject structure is recoverable from the data, and as the
+# precondition for any future hierarchical term (see cohort_random_effects_design.md).
+#
+# Why it cannot be derived from existing columns:
+#   - `study` is the PAPER. Levine's four trials (1970-73) are one study but four
+#     separate challenge cohorts, and their 25-55% fever spread is WITHIN Levine.
+#   - `study x year` fails the other way: Hornick's rows are all year 1965 but are
+#     five different volunteer groups, distinguished only by challenge dose.
+#
+# What it encodes:
+#   - Levine Lev-F-k and Lev-I-k are the SAME men (e.g. 13/26 fever and 19/26
+#     infection in trial 1); same for the Oxford fever/infection pairs.
+#   - H-I-7 (30) and H-FgI-7 (28) are NESTED, not disjoint; the cascade
+#     factorization already handles that correctly.
+#
+# Two documented imperfections -- do not treat cohort_id as exact:
+#   - MD-HOR-1965-D5 (H-F-5, n=116) is itself a POOL of many challenges across
+#     years. It is not a single cohort even in principle; the id is a placeholder.
+#   - MD-GIL-1975-CTRL covers both the three H-strata (which partition all 64
+#     controls) and Gil-I-ctrl (the trials-1&3 subset, 43 of 64). Those PARTIALLY
+#     overlap rather than being disjoint or nested.
+
 # ---- phi(T,D) definition-map inputs (C3) ------------------------------------
 # T_ref = Oxford composite fever threshold (>=38 degC). phi0(T) is logit-centered here.
 T_REF <- 38.0
@@ -105,10 +130,12 @@ darton_placebo_individual_rows <- function(data_csv) {
     mutate(CoP = vi_igg_prechallenge / NAIVE_VI_REF)   # VaccZyme EU/mL, ref naive
   infection_rows <- d %>% transmute(
     obs_id = paste0("D-I-plac-", subject_id), study = "Darton",
+    cohort_id = "OX-DAR-2013-PLAC",
     likelihood_group = "ox_inf_indiv", dose_cfu = 18200, n = 1L,
     y = as.integer(bact_or_stool), CoP = CoP, phi = 1.0, gilman_stratum = 0L)
   fevginf_rows <- d %>% filter(bact_or_stool == 1) %>% transmute(
     obs_id = paste0("D-FgI-plac-", subject_id), study = "Darton",
+    cohort_id = "OX-DAR-2013-PLAC",   # all 30 placebo subjects are ONE challenge cohort
     likelihood_group = "ox_fevginf_indiv", dose_cfu = 18200, n = 1L,
     y = as.integer(fever_td), CoP = CoP, phi = 1.0, gilman_stratum = 0L)
   bind_rows(infection_rows, fevginf_rows)
@@ -196,7 +223,7 @@ build_stan_data <- function(data_csv, priors,
   attr(stan_data, "obs") <- dat %>%
     mutate(T_thresh = as.numeric(T_thresh),
            group = as.integer(unname(.GROUP_CODE[likelihood_group]))) %>%
-    transmute(obs_id, study, likelihood_group, group,
+    transmute(obs_id, study, cohort_id, likelihood_group, group,
               dose_cfu, n, y, obs_rate = y / n, CoP, phi, T_thresh, gilman_stratum)
   stan_data
 }
