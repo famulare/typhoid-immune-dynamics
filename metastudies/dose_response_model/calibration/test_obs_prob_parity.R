@@ -17,7 +17,6 @@ source("priors.R"); source("data_prep.R")
 # obs_prob() would produce O(0.01-1) differences, far above these.
 TOL_P  <- 1e-7   # probabilities (O(1) values)
 TOL_LL <- 1e-3   # pointwise log-likelihood
-T_REF  <- 38.0   # phi0(T) logit center (must match data_prep.R T_REF)
 
 # ---- Independent R reference (transcribed from the model block) ----------------
 # DO NOT refactor the functions in this section to call model_math.R. They are a

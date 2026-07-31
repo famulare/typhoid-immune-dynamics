@@ -18,7 +18,6 @@ suppressPackageStartupMessages({library(cmdstanr); library(posterior); library(d
 source("priors.R"); source("data_prep.R"); source("diagnostics.R")
 source("figures.R")   # bespoke model figure suite, via diagnose_fit(extra_plots=)
 
-`%||%` <- function(a, b) if (is.null(a)) b else a
 
 KEY_PARS <- c("log10_N50_inf","d_fev","gamma_inf","gamma_fevginf","log10_delta",
               "pi_susc","CoP_imm","alpha_inf","alpha_fevginf","CoP_susc")

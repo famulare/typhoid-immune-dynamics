@@ -53,7 +53,6 @@ curve_parity_check <- function(fit, stan_data, tol = 1e-6) {
                  d, tol), call. = FALSE)
   invisible(d)
 }
-`%||%` <- function(a, b) if (is.null(a)) b else a
 
 # ---- data assembly -----------------------------------------------------------
 

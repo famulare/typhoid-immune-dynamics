@@ -9,6 +9,7 @@ suppressPackageStartupMessages({
   library(dplyr)
   library(readr)
 })
+if (!exists("calib_dir")) source("utils.R")
 
 # likelihood_group -> Stan group code (must match obs_prob() in the .stan)
 .GROUP_CODE <- c(ox_fev = 1L, ox_inf = 2L, md_fev = 3L, md_inf = 4L, hornick_cond = 5L,

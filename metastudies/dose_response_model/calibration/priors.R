@@ -11,19 +11,10 @@
 #'           lognormal (meanlog, sdlog) | beta (a, b) | exponential (rate, lower=0).
 
 suppressPackageStartupMessages(library(yaml))
-
-#' Locate priors.yaml relative to this file (works sourced or via Rscript).
-.priors_default_path <- function() {
-  args <- commandArgs(trailingOnly = FALSE)
-  file_arg <- grep("^--file=", args, value = TRUE)
-  here <- if (length(file_arg)) dirname(normalizePath(sub("^--file=", "", file_arg)))
-          else if (!is.null(sys.frames()[[1]]$ofile)) dirname(normalizePath(sys.frames()[[1]]$ofile))
-          else getwd()
-  file.path(here, "priors.yaml")
-}
+if (!exists("calib_dir")) source("utils.R")   # calib_path()
 
 #' @param path Path to priors.yaml. Defaults to the file beside this script.
-load_priors <- function(path = .priors_default_path()) {
+load_priors <- function(path = calib_path("priors.yaml")) {
   p <- yaml::read_yaml(path)
   for (nm in names(p)) {
     fam <- p[[nm]]$family

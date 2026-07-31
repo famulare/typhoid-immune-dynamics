@@ -16,6 +16,7 @@ suppressPackageStartupMessages({
   library(cmdstanr); library(posterior); library(bayesplot)
   library(ggplot2); library(dplyr); library(tidyr)
 })
+if (!exists("calib_dir")) source("utils.R")   # calib_path(), knitr_table(), %||%
 
 # Mike-native theming: theme_bw() everywhere (ggplot + bayesplot), small titles.
 .dr_theme <- ggplot2::theme_bw(base_size = 11) +
@@ -33,13 +34,7 @@ bayesplot::color_scheme_set("blue")
 #' (built by equation from scratch/cohort_incidence_model_*.R). Returns a tibble
 #' or NULL if the file is absent. Path discovery mirrors priors.R: --file= when
 #' run via Rscript, else getwd() (callers setwd() to the calibration dir).
-load_reference_points <- function(path = NULL) {
-  if (is.null(path)) {
-    args <- commandArgs(trailingOnly = FALSE)
-    fa <- grep("^--file=", args, value = TRUE)
-    here <- if (length(fa)) dirname(normalizePath(sub("^--file=", "", fa))) else getwd()
-    path <- file.path(here, "reference_points.csv")
-  }
+load_reference_points <- function(path = calib_path("reference_points.csv")) {
   if (!file.exists(path)) return(NULL)
   readr::read_csv(path, show_col_types = FALSE)
 }

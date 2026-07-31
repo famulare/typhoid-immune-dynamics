@@ -1,6 +1,7 @@
 #' Shared save / size / theme helpers for the model figure suite.
 
 suppressPackageStartupMessages({library(ggplot2)})
+if (!exists("calib_dir")) source("utils.R")   # %||%, .wilson(), calib_path()
 
 #' Save a ggplot. Uses ragg when available (2-3x faster than the default device on
 #' the line-heavy spaghetti layers, and smaller output), always sets a white

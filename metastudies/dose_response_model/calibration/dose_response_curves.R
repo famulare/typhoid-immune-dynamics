@@ -17,13 +17,7 @@ suppressPackageStartupMessages({
   library(posterior); library(dplyr); library(tidyr); library(ggplot2)
 })
 if (!exists("mm_pars")) source("model_math.R")
-
-.wilson <- function(y, n, z = 1.96) {  # Wilson score interval
-  p <- y / n; d <- 1 + z^2 / n
-  ctr <- (p + z^2 / (2 * n)) / d
-  hw  <- z * sqrt(p * (1 - p) / n + z^2 / (4 * n^2)) / d
-  list(lo = pmax(0, ctr - hw), hi = pmin(1, ctr + hw))
-}
+if (!exists(".wilson")) source("utils.R")
 
 #' @param fit cmdstanr fit; @param stan_data list with attr "obs"; @param outfile png path
 plot_dose_response_fit <- function(fit, stan_data, outfile) {

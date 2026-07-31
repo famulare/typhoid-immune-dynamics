@@ -149,4 +149,3 @@ plot_phi_severity <- function(fit, stan_data, outfile, n_spaghetti = 100,
   gridExtra::arrangeGrob(a, b, c, d, ncol = 2,
     top = grid::textGrob(title %||% "", gp = grid::gpar(fontsize = 13), hjust = 0.5))
 }
-`%||%` <- function(a, b) if (is.null(a)) b else a

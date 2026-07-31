@@ -15,7 +15,7 @@
 
 suppressPackageStartupMessages({library(dplyr); library(ggplot2)})
 if (!exists(".fig_save"))  source("figures_common.R")
-if (!exists(".wilson"))    source("dose_response_curves.R")
+if (!exists(".wilson"))    source("utils.R")
 if (!exists(".ppc_rows"))  source("diagnostics.R")
 
 #' @param p_star optional ndraws x N_obs matrix of the latent per-observation
