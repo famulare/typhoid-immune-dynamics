@@ -92,7 +92,7 @@ the narrative "Step 1 / 1.5 / 2 / 3" ladder disagree.**
 >   what individualizing Darton buys. It could not previously be figured at all
 >   (item 9.2).
 > - `t1-indiv` + `grand_overdispersion_rho` — designed and LOCKED
->   (`CALIBRATION_WORKFLOW.md` Step 2, `joint_inference_plan.md` §5.5), **not
+>   (`CALIBRATION_WORKFLOW.md` Step 2, `../joint_inference_plan.md` §5.5), **not
 >   implemented**: the `.stan` has no such parameter.
 > - `t2-grouped`, `t2-indiv` — **DECLARED AND BLOCKED.** Not "not started". The
 >   registry carries the reason and `fit_tier.R` refuses them without
@@ -124,7 +124,7 @@ the narrative "Step 1 / 1.5 / 2 / 3" ladder disagree.**
 >    non-monotone (1.00@1e3, **0.62@1e4**, 0.94@1.82e4, 0.92@2e4). Because η
 >    multiplies `P_inf` and shares `N50_inf` in its exponent, a misfit **moves the
 >    biological parameters instead of failing visibly.**
-> 5. **Prior question — OPEN.** `joint_inference_plan.md` §2.6 *excludes* Oxford
+> 5. **Prior question — OPEN.** `../joint_inference_plan.md` §2.6 *excludes* Oxford
 >    shedding on treatment-truncation grounds while the Tier 2 design *restores* it
 >    with an η correction. Those are in tension and this lock does not resolve it.
 >
@@ -171,14 +171,14 @@ Counts as of 2026-07-31 [observed]: (`tier1_active`, TRUE) = 80;
 ## What this lock does NOT decide
 
 1. `CALIBRATION_WORKFLOW.md` Step 2 calls `grand_overdispersion_rho` a "single shared
-   **concentration**", while three lines later — and in `joint_inference_plan.md`
+   **concentration**", while three lines later — and in `../joint_inference_plan.md`
    §5.5 — ρ is defined as the **ICC** with `k = (1-ρ)/ρ` derived, and the same
    section argues explicitly *against* attaching "overdispersion" to a concentration.
    A self-contradiction inside a lock. [Mike] to reword.
 2. That lock has no end marker, so its scope is undecidable. Process suggestion:
    delimit locks with `>` blockquotes, as `cohort_random_effects_design.md` and this
    file do.
-3. `joint_inference_plan.md` disagrees with itself in the section that claims its
+3. `../joint_inference_plan.md` disagrees with itself in the section that claims its
    counts are verified: one place says 24 grouped observations, another 25 active,
    another "19 to 25". Which was right in March, and against which row set, is
    [Mike]'s to settle.

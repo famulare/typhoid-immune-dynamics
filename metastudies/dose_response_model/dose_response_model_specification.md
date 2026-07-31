@@ -402,7 +402,7 @@ It thus only makes sense practically to keep nonlinear cascades when they are ne
 ### 6.5 Specific Simplifications
 
 Status 2026-07-31: the practical model is `calibration/typhoid_dose_response.stan`;
-Tier 2 design is `calibration/joint_inference_plan.md`. This table records what was
+Tier 2 design is `joint_inference_plan.md`. This table records what was
 actually adopted, so the reference model and the fitted model stay reconcilable.
 
 | Reference Model Component | Simplification adopted | Justification / where |
@@ -483,7 +483,7 @@ likelihood term at all — §1.2 and §1.3 remain aspirational for those.
 ## 8. Calibration Setup
 
 Implemented in `calibration/typhoid_dose_response.stan`; Tier 2 design and locked
-decisions in `calibration/joint_inference_plan.md`. This section is kept in sync with
+decisions in `joint_inference_plan.md`. This section is kept in sync with
 that plan — if they disagree, the plan is authoritative and this is stale.
 
 ### 8.1 Likelihood Structure

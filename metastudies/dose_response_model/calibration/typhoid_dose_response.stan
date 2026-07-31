@@ -41,7 +41,7 @@
 // Implements: cascaded beta-Poisson (infection x fever|infection),
 //   cross-era delta bridge, Maryland mixture, dose-dependent phi(T,D),
 //   individual-subject cascade endpoints, eta-correction for Oxford shedding bias.
-// Reference: joint_inference_plan.md Sections 2.1-2.7, Section 7 (priors)
+// Reference: ../joint_inference_plan.md Sections 2.1-2.7, Section 7 (priors)
 // Authors: Mike Famulare, Claude (Opus 4.6 draft; Opus 4.8 refactor)
 // =============================================================================
 
@@ -209,7 +209,6 @@ data {
   real pr_phi0_b_mu;             real<lower=0> pr_phi0_b_sd;    // half-normal (logit slope per degC, >=0)
   real<lower=0> pr_eta_lo_a;     real<lower=0> pr_eta_lo_b;     // beta
   real pr_kappa_mu;              real<lower=0> pr_kappa_sd;
-  real pr_sigma_study_mu;        real<lower=0> pr_sigma_study_sd; // half-normal (sigma_study>=0)
 }
 
 parameters {
@@ -238,7 +237,6 @@ parameters {
   real<lower=0> kappa;            // dose-scaling for eta
 
   // ---- Study-level overdispersion ----
-  real<lower=0> sigma_study;      // study-level random effect SD (INERT in Tier 1)
 }
 
 transformed parameters {
@@ -266,7 +264,6 @@ transformed parameters {
   lprior += normal_lpdf(phi0_b            | pr_phi0_b_mu,            pr_phi0_b_sd);   // half-normal via lower=0
   lprior += beta_lpdf(eta_lo              | pr_eta_lo_a,             pr_eta_lo_b);
   lprior += lognormal_lpdf(kappa          | pr_kappa_mu,             pr_kappa_sd);
-  lprior += normal_lpdf(sigma_study       | pr_sigma_study_mu,       pr_sigma_study_sd); // half-normal via lower=0
 }
 
 model {
@@ -295,7 +292,18 @@ generated quantities {
   // hornick_cond are one table factorized; combine them into one loo unit).
   vector[N_obs] p_pred;
   array[N_obs] int y_rep;
-  vector[N_obs] log_lik;
+  // log_lik covers the WHOLE likelihood: N_obs dose-response rows followed by the
+  // N_ladder phi0(T) threshold binomials, in that order (the layout is recorded in
+  // each run's run_manifest.json as data.log_lik_layout).
+  //
+  // Why the tail is here: the ladder terms contribute to `target` in the model block
+  // but used to appear in NEITHER log_lik NOR lprior, so target != lprior +
+  // sum(log_lik). Two consequences, both silent: priorsense power-scales exactly
+  // those two objects, so the reported likelihood-sensitivity of phi0_a/phi0_b
+  // omitted the three binomials that IDENTIFY them; and loo dropped them from every
+  // unit. They are genuine observations (16/10/8 of 20 TD+ Darton placebo subjects
+  // crossing >=38/38.5/39 degC) and belong in both.
+  vector[N_obs + N_ladder] log_lik;
   for (i in 1:N_obs) {
     p_pred[i]  = obs_prob(group[i], dose[i], CoP[i], T_thresh[i], stratum[i],
                           N50_inf, N50_fevginf, alpha_inf, alpha_fevginf,
@@ -305,6 +313,9 @@ generated quantities {
     y_rep[i]   = binomial_rng(n[i], p_pred[i]);
     log_lik[i] = binomial_lpmf(y[i] | n[i], p_pred[i]);
   }
+  for (k in 1:N_ladder)
+    log_lik[N_obs + k] = binomial_lpmf(ladder_count[k] | ladder_N,
+                                       phi0_fn(ladder_T[k], T_ref, phi0_a, phi0_b));
 
   // ---- Reference-dose derived quantities (naive Oxford, bicarb frame) -------
   real p_inf_1e3_naive = beta_poisson(1e3, N50_inf, alpha_inf, 1.0, gamma_inf);

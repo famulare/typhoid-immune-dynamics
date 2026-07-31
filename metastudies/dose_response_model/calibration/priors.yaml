@@ -12,7 +12,7 @@
 #   beta         -> a, b                    (Stan: pr_<p>_a,  pr_<p>_b)
 #   exponential  -> rate    (lower=0)       (Stan: pr_<p>_rate; param declared <lower=0>)
 #
-# Values are joint_inference_plan.md Section 7. All flagged TO BE EXAMINED there.
+# Values are ../joint_inference_plan.md Section 7. All flagged TO BE EXAMINED there.
 
 # ---- Biological parameters ----
 log10_N50_inf:     { family: normal,      mu: 2.5,  sd: 1.0 }   # ~300 bicarb CFU
@@ -45,7 +45,7 @@ log10_delta:       { family: normal,      mu: 3.5,  sd: 0.7 }   # ~1000-30000x
 # used as the mixing weight of a mixture whose components are indexed on the anti-Vi CoP
 # scale. Gilman p.721 and Levine 1976 p.427 both report that O and Vi antibody did NOT
 # correlate with protection in this population, while H did -- so the axis the weight
-# comes from is not the axis the components live on. joint_inference_plan.md:211 notes
+# comes from is not the axis the components live on. ../joint_inference_plan.md:211 notes
 # this ("H-antibody, NOT Vi"); recorded here so the prior's justification carries it too.
 # CONCORDANCE, NOT A SUBSTITUTE [Mike 2026-07-31]: Woodward 1980 Table C p.555 reports
 # 200 non-veterans / 105 TAB-vaccinated veterans at 10^5 = 0.66 non-immune, close to

@@ -1,6 +1,6 @@
 # Stan model structure — `typhoid_dose_response.stan`
 
-Updated 2026-07-15 from [typhoid_dose_response.stan](typhoid_dose_response.stan)
+Updated 2026-07-15 from [typhoid_dose_response.stan](calibration/typhoid_dose_response.stan)
 (Tier 2 machinery; C3 dose-dependent phi + issue-#15 cascade). Two views:
 
 1. **Program dataflow** — how the Stan blocks feed each other.

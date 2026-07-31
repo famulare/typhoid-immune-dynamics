@@ -112,7 +112,7 @@ TIER_SPECS <- list(
       "DECREASING in dose while eta_fixed_optC is non-monotone (1.00@1e3, 0.62@1e4,",
       "0.94@1.82e4, 0.92@2e4). Because eta multiplies P_inf and shares N50_inf in its",
       "exponent, a misfit moves the BIOLOGICAL parameters instead of failing visibly.",
-      "(b) joint_inference_plan.md Sec 2.6 EXCLUDES Oxford shedding on",
+      "(b) ../joint_inference_plan.md Sec 2.6 EXCLUDES Oxford shedding on",
       "treatment-truncation grounds while the Tier 2 design restores it with eta --",
       "unresolved tension. (c) psi (Sec 2.8, adopted 34aac76) is unimplemented, and",
       "psi_stool is confounded with eta at the single Darton dose.",

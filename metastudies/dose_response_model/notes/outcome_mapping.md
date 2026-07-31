@@ -1,18 +1,18 @@
 # Outcome Mapping: Observed Data → Model Variables
 
-This document provides decision rules for mapping observed outcomes in the literature to the model variables defined in `dose_response_model_specification.md` (Section 1.4).
+This document provides decision rules for mapping observed outcomes in the literature to the model variables defined in `../dose_response_model_specification.md` (Section 1.4).
 
 **Purpose**: Practical extraction guide for handling ambiguous cases during data coding.
 
 **Related documents**:
-- `dose_response_model_specification.md` - Formal definitions of latent states, observables, and observations
+- `../dose_response_model_specification.md` - Formal definitions of latent states, observables, and observations
 - `cross_cutting_observations.md` - Patterns across the extraction corpus
 
 ---
 
 ## Model Variables (Summary)
 
-See `dose_response_model_specification.md` Section 1.4 for full definitions.
+See `../dose_response_model_specification.md` Section 1.4 for full definitions.
 
 ### Core Latent States
 | Variable | Description |
@@ -145,4 +145,4 @@ Different studies use different fever thresholds. For pooled analysis:
 - This document is updated as new outcome types are encountered during extraction
 - Final mappings locked during Phase 4 joint review
 - Ambiguous mappings may require sensitivity analysis (flag in Section 8 of specification)
-- Cross-reference `dose_response_model_specification.md` Section 1.4 for formal probability statements
+- Cross-reference `../dose_response_model_specification.md` Section 1.4 for formal probability statements

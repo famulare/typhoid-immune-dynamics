@@ -85,7 +85,7 @@ compute_loo_units <- function(fit, obs) {
   # disjoint H-strata and no cross-tab exists to separate them.
   # NOTE this corrects MODEL COMPARISON only. The posterior itself still treats
   # Lev-F-k and Lev-I-k as independent binomials on the same men -- a known and
-  # tolerated double-count. See joint_inference_plan.md Sec 6.5 / Sec 8.1.
+  # tolerated double-count. See ../joint_inference_plan.md Sec 6.5 / Sec 8.1.
   unit <- ifelse(obs$n == 1L,
                  paste0(obs$cohort_id, "::subj-", sub("^.*-", "", obs$obs_id)),
                  obs$cohort_id)

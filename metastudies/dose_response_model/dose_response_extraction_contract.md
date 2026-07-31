@@ -15,7 +15,7 @@ We are fitting a modified beta-Poisson dose-response model with immunity scaling
 - $\alpha$: Shape parameter (aggregates heterogeneity)
 - $\gamma$: Immunity scaling exponent
 
-*See `notes/dose_response_model_specification.md` for full mathematical formulation and causal structure.*
+*See `dose_response_model_specification.md` for full mathematical formulation and causal structure.*
 
 ### The Challenge
 
@@ -199,7 +199,7 @@ A paper extraction is complete when:
 
 **Purpose**: Define the most elaborate model the literature supports—what we would fit with optimal data and unlimited precision. This serves as a benchmark for reasoning clearly about which simplifications are forced by data limitations versus chosen for parsimony.
 
-**3.1 Write reference model document** (`notes/dose_response_model_specification.md`):
+**3.1 Write reference model document** (`dose_response_model_specification.md`):
 
 - Latent biological processes (infection cascade, outcome hierarchy)
 - Full immunity representation (humoral, mucosal, cellular; dynamics)
@@ -246,7 +246,7 @@ Based on Phase 4 data review, document:
 - Which reference model components are estimable vs must be simplified
 - Specific simplifications chosen and justification (data limitation vs parsimony)
 - Working model specification (the model we'll actually fit)
-- Update `notes/dose_response_model_specification.md` Sections 7-8 with simplification table and data mapping
+- Update `dose_response_model_specification.md` Sections 7-8 with simplification table and data mapping
 
 **5.2 Design YAML schema** (informed by working model)
 

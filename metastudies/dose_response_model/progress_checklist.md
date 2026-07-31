@@ -8,8 +8,8 @@
 ## Current status (2026-06-23)
 
 Phases 1–3 complete. Phases 4–7 were carried out in **consolidated form** inside
-`calibration/joint_inference_plan.md` (+ `reviewer2_response.md`, the data
-`notes/verification/` set, and `notes/meeting_famulare_buffalo_dose_response_identifiability*.md`)
+`joint_inference_plan.md` (+ `reviewer2_response.md`, a data verification pass
+(completed, removed — see git history), and `notes/meeting_famulare_buffalo_dose_response_identifiability*.md`)
 rather than as the separately-named files the original checklist anticipated — so
 some boxes below are unchecked even though the work exists; pointers are annotated
 inline.
@@ -98,7 +98,7 @@ Next structural step: wire the study RE (Step 2 / repo-canonical Tier 1).
 
 ### Deliverables
 
-- [x] `notes/dose_response_model_specification.md` written with full prose + equations
+- [x] `dose_response_model_specification.md` written with full prose + equations
 - [x] DAG created showing latent processes → observables
 - [ ] Explicit list of simplifications needed to reach practical model (Section 6.5, after Phase 4)
 - [ ] Mapping from reference model components to available data (Section 7, after Phase 4)
@@ -134,14 +134,14 @@ Next structural step: wire the study RE (Step 2 / repo-canonical Tier 1).
 ## Phase 5: Normalization & Schema Design
 
 > **Done in consolidated form**, not as separate files: the working model lives in
-> `calibration/joint_inference_plan.md` (§2) and `notes/yolo_working_model_notes.md`;
+> `joint_inference_plan.md` (§2) and `notes/yolo_working_model_notes.md`;
 > the YAML-schema step was skipped in favor of building the analysis CSV directly.
 
 - [~] Reference model collapsed to working model (in `joint_inference_plan.md` §2, not `notes/working_model.md`)
   - [x] Estimable vs simplified components documented (`joint_inference_plan.md` §2, Table at §11)
   - [x] Simplifications justified (data limitation vs parsimony)
   - [x] Working model specification written (consolidated into `joint_inference_plan.md`)
-  - [ ] `notes/dose_response_model_specification.md` Sections 7-8 updated
+  - [ ] `dose_response_model_specification.md` Sections 7-8 updated
 - [ ] YAML schema designed — **skipped** (CSV built directly)
 - [ ] All extracts converted to YAML — **skipped**
 - [x] Analysis-ready CSV compiled (`calibration/dose_response_data.csv`, 37 obs)
@@ -151,7 +151,7 @@ Next structural step: wire the study RE (Step 2 / repo-canonical Tier 1).
 
 ## Phase 6: Calibration Problem Design
 
-> **Done in consolidated form** inside `calibration/joint_inference_plan.md` and the
+> **Done in consolidated form** inside `joint_inference_plan.md` and the
 > identifiability meeting notes.
 
 - [~] `notes/outcome_mapping.md` finalized (definition mapping in `joint_inference_plan.md` §2.5)
@@ -202,7 +202,7 @@ Workflow ladder + status: see `calibration/CALIBRATION_WORKFLOW.md`.
 | 2026-02-03 | Inserted Phase 3 (Reference Model Specification); renumbered phases 3-7 → 4-8 | Contract/checklist updated | Begin Phase 3 reference model |
 | 2026-02-03 | Added Phase 5.1 (collapse reference model to working model); created `notes/reference_model.md` draft | Contract/checklist updated | Begin Phase 3 reference model |
 | 2026-02-04 | Completed Phase 3 model specification; renamed to `dose_response_model_specification.md`; cleaned contract/spec separation; aligned `outcome_mapping.md`; added README | Phase 3 complete | Phase 4 joint review |
-| 2026-02–05 (bridge, from git history) | Phases 4–7 consolidated into `calibration/joint_inference_plan.md`: data verification (`notes/verification/`), Reviewer 2 response, Darton S1 individual-level extraction, removal of fabricated Waddington 10⁵ arm, Oxford-shedding exclusion, identifiability meeting; canonical `dose_response_data.csv` (37 obs) committed; untested Tier-2 Stan skeleton committed | Plan + data + skeleton in place | Run the Stan inference |
+| 2026-02–05 (bridge, from git history) | Phases 4–7 consolidated into `joint_inference_plan.md`: data verification (`notes/verification/`), Reviewer 2 response, Darton S1 individual-level extraction, removal of fabricated Waddington 10⁵ arm, Oxford-shedding exclusion, identifiability meeting; canonical `dose_response_data.csv` (37 obs) committed; untested Tier-2 Stan skeleton committed | Plan + data + skeleton in place | Run the Stan inference |
 | 2026-06-23 | **Resurrection + pathology diagnosis.** Installed cmdstanr/CmdStan 2.39; fixed 3 defects so the model compiles & samples (`_lp` rename, Hornick double-count, `prior_only` flag); wrote driver `fit_dose_response.R`. First Tier-1 fit: ~99% divergent. Root-caused to the ordering-constraint density cliff (L132) by elimination (removing it → 0/4000). Separately root-caused the constant-φ misspecification (φ=0.25 is the low-dose asymptote applied as a dose-constant; caps Hornick high-dose fever below the data). Docs: `tier1_pathology_diagnosis.md`, `CALIBRATION_WORKFLOW.md`. Branch `dose-response-tier1-resurrection`. | Phase 8 blocked on 2 root-caused defects; workflow-improvement step in progress | Reparameterize constraint (`<lower=0>` offset); implement dose-dependent φ; re-fit Step 1 |
 | 2026-06-23 | **Buffalo-style workflow upgrade + divergence fix.** Adopted Vince Buffalo's Stan-workflow patterns R-native (plan `please-plan-a-b-smooth-ritchie.md`). Stan refactor: unified `obs_prob()` (one source for all 5 likelihood groups), flat per-obs data, `lprior` accumulator, per-obs `p_pred`/`y_rep`/`log_lik` in GQ, prior-preserving N50 reparam (`d_fev<lower=0>`). New R-native infra: `diagnostics.R` (bayesplot/posterior battery + PPC from Stan p_pred + priorsense), `simulate_recovery.R` (known-truth recovery + SBC-lite + cliff-vs-reparam attribution), `run_scenarios.R` (cross-run comparison + loo on grouped units), `priors.yaml`/`priors.R` (single-source priors as Stan data), `data_prep.R`. Parity-gated (`test_obs_prob_parity.R`). **Result: Tier-1 now 0/4000 divergences (was 99%); attribution confirms it's the N50 geometry alone.** Independent codex review incorporated. | Step 1 unblocked & clean; φ-cap + δ-tension remain as science decisions | Implement dose-dependent φ (MC1); wire study RE (Step 2); decide η option (Step 3); run full SBC (k≥40) |
 | 2026-06-23 | **Floated φ as estimated scalar.** Replaced fixed per-obs φ (0.25/0.65 data) with a single estimated `phi_md ~ Beta(5,5)` (plan §7), bounded [0,1]; routed through `obs_prob()`, the `lprior` accumulator, priors.yaml/data_prep, and interp_pars. Chose a single global scalar over dose-dependent φ (cheaper on thin ID; Hornick plateau identifies it; Gilman/Levine single-dose can't). Re-fit Tier 1: **0/4000 div, R-hat ≤ 1.002, ESS > 1700; φ̂ ≈ 0.89, δ̂ ≈ 200× (log10 2.3, up from 1.6), `alpha_fevginf` re-identified.** High-dose Hornick now fittable; φ-cap and δ-tension confirmed to be the same artifact. | Step 1 clean with φ+δ floated | Loosen `phi_md` prior (Beta(1,1)/(2,2)); wire study RE (Step 2); decide global-vs-per-study φ |

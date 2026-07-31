@@ -22,7 +22,7 @@ Provenance tags: [observed] measured/in-fit, [inferred], [Mike], [from paper].
   high-dose Hornick (H-F-8/9) underfit.
 
 ## E1 — Why φ=0.25 is there, and why it's wrong (provenance)
-- φ=0.25 derivation [from `joint_inference_plan.md` §2.5]: extrapolated temperature
+- φ=0.25 derivation [from `../joint_inference_plan.md` §2.5]: extrapolated temperature
   sensitivity at Hornick's ≥103°F/39.4°C threshold (~0.30, *extrapolated past the
   end of the Oxford ladder*) × a duration penalty (~0.83) ≈ 0.25.
 - What φ *is*: definition-sensitivity = fraction of the inclusive Oxford-composite
@@ -414,7 +414,7 @@ Consolidated (no new modeling increment):
   at low titre (3.7–60), Jin anchors the high end (141/563) on the composite curve and
   sits on the ribbon; the P_inf and P_fev|inf slopes are shallow and near-identical →
   the γ-split is titre-range-limited. Motivates +Jin-digitize.
-- **model_structure.md** mermaid diagram refreshed (groups 1..7, phi(T,D), ladder, cascade).
+- **../stan_model_structure.md** mermaid diagram refreshed (groups 1..7, phi(T,D), ladder, cascade).
 - Harness handoff (`tier1.5_harness_handoff.md`) closed out.
 
 **NEXT SESSION — +Jin-digitize (issue #15 stretch) [b, tomorrow]:**

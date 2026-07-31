@@ -14,7 +14,7 @@ Estimate how the probability of infection and fever depends on:
 |----------|---------|
 | `dose_response_extraction_contract.md` | Project contract: goals, workflow, decision conventions |
 | `progress_checklist.md` | Phase-by-phase progress tracking |
-| `notes/dose_response_model_specification.md` | Model specification: biology, causal structure, equations |
+| `dose_response_model_specification.md` | Model specification: biology, causal structure, equations |
 | `notes/outcome_mapping.md` | Decision rules for mapping observed outcomes to model variables |
 | `notes/paper_triage.md` | Paper-by-paper inclusion/exclusion decisions |
 | `notes/cross_cutting_observations.md` | Patterns across the literature corpus |
@@ -23,9 +23,10 @@ Estimate how the probability of infection and fever depends on:
 
 ```
 dose_response_model/
+├── dose_response_model_specification.md   # Model specification
 ├── input_papers/       # Source PDFs (21 papers)
 ├── extracts/           # Markdown extracts per paper (Phase 2 output)
-├── notes/              # Model specification but also working notes
+├── notes/              # Working notes
 ├── schemas/            # YAML schemas (Phase 5)
 ├── analysis_data/      # Final CSV for calibration (Phase 5)
 └── calibration/        # Likelihood design, priors (Phases 6-7)

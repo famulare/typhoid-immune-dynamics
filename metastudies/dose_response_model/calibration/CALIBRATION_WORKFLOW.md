@@ -2,7 +2,7 @@
 
 How the dose-response Stan calibration is meant to be built up, in deliberate
 steps. Each step must sample cleanly and pass diagnostics before the next is
-added. Terminology reconciles with `joint_inference_plan.md` (which defines
+added. Terminology reconciles with `../joint_inference_plan.md` (which defines
 **Tier 1** = 25 obs / 11 params incl. one overdispersion parameter, and **Tier 2** = +6 Oxford
 shedding / +η, 13 params).
 
@@ -201,7 +201,7 @@ any-time stool, and Gilman's late shedding 4-30 d. Anchored by a decoupled binom
 on the Darton cross-tab (19 of 26 `bact_or_stool` were stool-positive -> psi ~ 0.73),
 mirroring how the Darton temperature ladder pins `phi0`. Confounded with η at Oxford
 (both multiply P_inf; the ladder is measured at one dose) and `psi_late` is
-prior-carried. See joint_inference_plan.md Sec 2.8.
+prior-carried. See ../joint_inference_plan.md Sec 2.8.
 
 
 Restore the 6 Oxford shedding rows (`tier2_active==1`, `N_ox_inf>0`). **Decide
