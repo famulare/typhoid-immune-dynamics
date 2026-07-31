@@ -1,4 +1,4 @@
-#' Suite 2 -- the fever-severity / definition map phi(T, D).
+#' Suite 2 -- the fever-threshold sensitivity / definition map phi(T, D).
 #'
 #' This is an entire fitted sub-likelihood with, before this file, ZERO visual
 #' representation anywhere in the repo: phi0_a / phi0_b are identified solely by
@@ -57,8 +57,8 @@ plot_phi_severity <- function(fit, stan_data, outfile, n_spaghetti = 100,
     annotate("text", x = T_max_data + 0.05, y = 0.95, hjust = 0, size = 2.6,
              colour = "grey25", label = "extrapolation:\nno ladder data") +
     coord_cartesian(ylim = c(0, 1)) +
-    labs(x = "strict fever threshold T (deg C)", y = "phi0(T)",
-         title = "A. phi0(T): low-dose definition sensitivity",
+    labs(x = "strict fever threshold T (deg C)", y = "fever-threshold sensitivity",
+         title = "A. Low-dose fever-threshold sensitivity",
          subtitle = sprintf("red: Darton ladder %s of %d TD+ (Wilson 95%%)\nthe only data identifying phi0",
                             paste(stan_data$ladder_count, collapse = "/"), stan_data$ladder_N)) +
     theme_minimal(base_size = 10)
@@ -77,8 +77,8 @@ plot_phi_severity <- function(fit, stan_data, outfile, n_spaghetti = 100,
     scale_colour_viridis_d(option = "C", end = 0.85,
                            name = "bicarb-equivalent\ndose (CFU)") +
     coord_cartesian(ylim = c(0, 1)) +
-    labs(x = "strict fever threshold T (deg C)", y = "phi(T, D)",
-         title = "B. The dose lift flattens phi in T",
+    labs(x = "strict fever threshold T (deg C)", y = "fever-threshold sensitivity",
+         title = "B. Dose dependence of fever-threshold sensitivity",
          subtitle = "phi(T,D) = phi0(T) + (1-phi0(T))*P_fev_naive(D)\nbeta_phi PINNED to 1: the lift shape is inherited, not fitted") +
     theme_minimal(base_size = 10)
 
@@ -96,8 +96,8 @@ plot_phi_severity <- function(fit, stan_data, outfile, n_spaghetti = 100,
     .fig_scale_dose() + coord_cartesian(ylim = c(0, 1)) +
     scale_colour_brewer(palette = "Dark2", name = "threshold") +
     scale_fill_brewer(palette = "Dark2", name = "threshold") +
-    labs(x = "bicarb-equivalent dose D/delta (CFU)", y = "phi(T, D)",
-         title = "C. What multiplies the Maryland fever likelihood",
+    labs(x = "bicarb-equivalent dose D/delta (CFU)", y = "fever-threshold sensitivity",
+         title = "C. Fever-threshold sensitivity in the Maryland likelihood",
          subtitle = "grey spaghetti: posterior draws at the Hornick 39.4 C threshold") +
     theme_minimal(base_size = 10)
 
@@ -138,7 +138,7 @@ plot_phi_severity <- function(fit, stan_data, outfile, n_spaghetti = 100,
 
   # ---- assemble as one faceted-looking column of four ------------------------
   p <- .stack4(pa, pb, pc, pd,
-    title = sprintf("%s: fever severity and the study-definition map phi(T, D)", label))
+    title = sprintf("%s: fever-threshold sensitivity and the study-definition map phi(T, D)", label))
   .fig_save(p, outfile, 14, 13)
   invisible(p)
 }

@@ -20,7 +20,8 @@ if (!exists("mm_pars")) source("model_math.R")
 if (!exists(".wilson")) source("utils.R")
 
 #' @param fit cmdstanr fit; @param stan_data list with attr "obs"; @param outfile png path
-plot_dose_response_fit <- function(fit, stan_data, outfile) {
+#' @param show_points whether to overlay observed-rate and Stan-fitted point markers
+plot_dose_response_fit <- function(fit, stan_data, outfile, show_points = TRUE) {
   obs <- attr(stan_data, "obs")
   T_ref_val <- if (!is.null(stan_data$T_ref)) stan_data$T_ref else 38.0
   T_curve   <- 39.4   # draw the Maryland fever curve at the Hornick threshold (spans dose)
@@ -62,21 +63,33 @@ plot_dose_response_fit <- function(fit, stan_data, outfile) {
     geom_ribbon(aes(ymin = lo, ymax = hi), fill = "steelblue", alpha = 0.2) +
     geom_line(aes(y = med), color = "steelblue", linewidth = 0.7) +
     geom_errorbar(data = pts, aes(ymin = lo, ymax = hi), width = 0.08, color = "grey50") +
-    geom_point(data = pts, aes(y = obs_rate, color = study), size = 2.4) +
-    geom_point(data = pts, aes(y = fitted), shape = 4, size = 2, stroke = 0.8) +  # x = Stan fitted
+    {if (show_points) geom_point(data = pts, aes(y = obs_rate, color = study), size = 2.4)} +
+    {if (show_points) geom_point(data = pts, aes(y = fitted), shape = 4, size = 2, stroke = 0.8)} +  # x = Stan fitted
     facet_wrap(~panel, ncol = 1, scales = "free_x") +
     scale_x_log10(breaks = 10^(2:10),
                   labels = scales::trans_format("log10", scales::math_format(10^.x))) +
     coord_cartesian(ylim = c(0, 1)) +
     labs(x = "challenge dose (CFU)", y = "probability",
-         color = "study",
-         title = "Tier 1 posterior dose-response vs data",
-         subtitle = "line+ribbon: posterior median & 90% (population curve);  point: observed (Wilson 95% CI);  x: Stan p_pred") +
+         color = if (show_points) "study" else NULL,
+         title = if (show_points)
+           "Tier 1 posterior dose-response vs data"
+         else
+           "Tier 1 posterior dose-response with observed uncertainty",
+         subtitle = if (show_points)
+           "line+ribbon: posterior median & 90% (population curve);  point: observed (Wilson 95% CI);  x: Stan p_pred"
+         else
+           "line+ribbon: posterior median & 90% (population curve);  error bars: observed Wilson 95% CI") +
     theme_minimal(base_size = 11) + theme(legend.position = "bottom")
 
   ggsave(outfile, p, width = 8.5, height = 10, dpi = 150)
   message("dose-response figure: ", outfile)
   invisible(p)
+}
+
+# The adopted t1-indiv phi-rho display omits point overlays because they are
+# misleading in this figure; retain the population curves and observed CIs.
+show_dose_response_points <- function(out_dir) {
+  !identical(basename(normalizePath(out_dir, mustWork = FALSE)), "t1-indiv__phi-rho")
 }
 
 #' Titre -> protection (CoP-axis) figure: the view that shows the immunity slope,
@@ -149,6 +162,7 @@ if (sys.nframe() == 0) {
   run_dir <- if (length(args)) args[1] else tier_out_dir(tier_spec("t1-indiv"))
   fit <- readRDS(file.path(run_dir, "fit.rds"))
   sd  <- resolve_run_stan_data(run_dir)
-  plot_dose_response_fit(fit, sd, file.path(run_dir, "dose_response_fit.png"))
+  plot_dose_response_fit(fit, sd, file.path(run_dir, "dose_response_fit.png"),
+                         show_points = show_dose_response_points(run_dir))
   plot_titre_protection(fit, sd, file.path(run_dir, "titre_protection.png"))
 }

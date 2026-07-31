@@ -44,7 +44,8 @@ make_model_figures <- function(fit, stan_data, out_dir, label = basename(out_dir
 
   plot_calibration_targets(fit, stan_data, file.path(out_dir, "calibration_targets.png"),
                            label = label)
-  plot_dose_response_fit(fit, stan_data, file.path(out_dir, "dose_response_fit.png"))
+  plot_dose_response_fit(fit, stan_data, file.path(out_dir, "dose_response_fit.png"),
+                         show_points = show_dose_response_points(out_dir))
   plot_titre_protection(fit, stan_data, file.path(out_dir, "titre_protection.png"))
   plot_grouping_grid(fit, stan_data, out_dir, specs, ngrid, n_spaghetti,
                      ndraw_ribbon, seed, label, write_columns)

@@ -33,7 +33,7 @@ CURVE_ROWS <- tibble::tribble(
   "p_inf_obs", "eta(D) x P(inf | D)",
   "p_fev",     "P(fever | D)",
   "p_fevginf", "P(fever | inf, D)",
-  "phi",       "phi(T, D)",
+  "phi",       "fever-threshold sensitivity",
   "cascade",   "cascade"
 )
 

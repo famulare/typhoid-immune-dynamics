@@ -6,8 +6,9 @@
 #' parameter uncertainty and the curve-shape correlation are visible rather than
 #' summarized away by a pointwise ribbon.
 #'
-#' Rows: P(inf|D), P(fev|D), P(fev|inf,D), phi(T,D), and the cascade factorization
-#' (rows 1-4 are the factors; row 5 overlays them down to the observed quantity).
+#' Rows: P(inf|D), P(fev|D), P(fev|inf,D), fever-threshold sensitivity, and the
+#' cascade factorization (rows 1-4 are the factors; row 5 overlays them down to
+#' the observed quantity).
 #'
 #' All curve math comes from model_math.R via curve_specs.R::mm_curve(); this file
 #' arranges, it does not derive. curve_parity_check() re-asserts at figure time that
@@ -224,6 +225,10 @@ plot_curve_grid <- function(gd, keys = gd$specs$col_key, title = NULL, subtitle 
     scale_colour_manual(values = c("P_inf" = "#1b7837", "P_fev|inf" = "#762a83",
                                    "P_inf x P_fev|inf" = "#7f7f7f", "phi(T,D)" = "#d95f02",
                                    "observed-scale P(fever)" = "#111111"),
+                        labels = c("P_inf" = "P_inf", "P_fev|inf" = "P_fev|inf",
+                                   "P_inf x P_fev|inf" = "P_inf x P_fev|inf",
+                                   "phi(T,D)" = "fever-threshold sensitivity",
+                                   "observed-scale P(fever)" = "observed-scale P(fever)"),
                         breaks = CASCADE_FACTORS, name = "cascade factor") +
     scale_fill_brewer(palette = "Set2", name = "study (observed)") +
     labs(x = "challenge dose (CFU)", y = NULL, title = title, subtitle = subtitle) +
@@ -237,7 +242,7 @@ plot_curve_grid <- function(gd, keys = gd$specs$col_key, title = NULL, subtitle 
   "Rows are the model's factors; the last row overlays them. blue spaghetti: individual posterior draws (THE SAME draws in every panel, so one draw can be traced across the grid);  ",
   "blue band+line: 90%% and median;  grey band: 10-90%% of observed per-subject titres (population spread, not parameter uncertainty);  ",
   "filled point: observed (Wilson 95%%);  x: Stan p_pred\n",
-  "phi(T,D) is the fitted fever-DEFINITION map. It multiplies the Maryland fever likelihood; for Oxford, phi==1 by construction ",
+  "fever-threshold sensitivity (phi(T,D)) is the fitted fever-DEFINITION map. It multiplies the Maryland fever likelihood; for Oxford, phi==1 by construction ",
   "(the composite TD endpoint at T_ref=%.1fC IS the reference definition), so the Oxford phi row shows what fraction of TD+ subjects would cross a strict %.1fC threshold -- not a likelihood factor.\n",
   "TWO THINGS THE GRID EXPOSES: (1) the model has no definition map for INFECTION, so P(infection|D) is identical across the Hornick / Levine / Gilman columns although their infection endpoints genuinely differ ",
   "(stool+blood culture vs any-time stool vs late shedding).\n",
