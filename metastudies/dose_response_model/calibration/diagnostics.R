@@ -17,6 +17,7 @@ suppressPackageStartupMessages({
   library(ggplot2); library(dplyr); library(tidyr)
 })
 if (!exists("calib_dir")) source("utils.R")   # calib_path(), knitr_table(), %||%
+if (!exists("run_manifest")) source("provenance.R")
 
 # Mike-native theming: theme_bw() everywhere (ggplot + bayesplot), small titles.
 .dr_theme <- ggplot2::theme_bw(base_size = 11) +
@@ -409,7 +410,11 @@ write_summary_md <- function(out_dir, model_name, health, tab, corr, ps_tab) {
   writeLines(L, file.path(out_dir, "summary.md"))
 }
 
-write_results_json <- function(out_dir, model_name, health, tab, corr, elapsed_s) {
+#' @param tier,n_obs the only provenance fields kept here rather than in
+#'   run_manifest.json, so summarize_scenarios() can show them without learning the
+#'   manifest schema. Everything else about "what went in" lives in the manifest.
+write_results_json <- function(out_dir, model_name, health, tab, corr, elapsed_s,
+                               tier = NA_character_, n_obs = NA_integer_) {
   params <- setNames(lapply(seq_len(nrow(tab)), function(i) {
     r <- tab[i, ]
     base <- list(mean = r$mean, median = r$median, sd = r$sd, ci90 = c(r$q5, r$q95),
@@ -417,7 +422,8 @@ write_results_json <- function(out_dir, model_name, health, tab, corr, elapsed_s
     if ("true" %in% names(tab)) { base$true <- r$true; base$recovered_90 <- r$recovered_90 }
     base
   }), tab$variable)
-  res <- list(model = model_name, wall_time_s = elapsed_s,
+  res <- list(model = model_name, tier = tier, n_obs = n_obs,
+              wall_time_s = elapsed_s,
               sampler = list(n_divergent = health$n_div, n_draws = health$n_draws,
                              div_rate = health$div_rate, n_max_treedepth = health$n_max_td,
                              ebfmi_min = suppressWarnings(min(health$ebfmi))),
@@ -461,12 +467,28 @@ strong_correlations <- function(fit, pars, threshold = 0.7) {
 #'   wrapped in tryCatch so a figure bug can never lose a fit. This is the hook
 #'   that makes the bespoke suite regenerate for EVERY run dir (posterior, prior,
 #'   scenarios, recovery) instead of only the one a callsite happens to name.
+#' @param stan_data the Stan data list (with attr "obs"/"tier"). Supplying it makes
+#'   the run REGENERABLE (writes stan_data.rds) and lets the manifest record the tier
+#'   even when the caller passes no manifest. `obs` defaults to attr(stan_data,"obs").
+#' @param manifest a run_manifest() to write into the run dir. Left NULL, a minimal
+#'   one is still written (kind "unknown", manifest_incomplete) -- default-on with
+#'   degradation, so a caller that forgets cannot produce an anonymous directory.
 diagnose_fit <- function(fit, out_dir, pars, true_params = NULL, obs = NULL,
                          priors = NULL, model_name = "fit", elapsed_s = NA_real_,
                          corr_exclude = c("N50_inf", "N50_fevginf", "delta"),
                          ref_points = load_reference_points(),
-                         extra_plots = NULL) {
+                         extra_plots = NULL,
+                         stan_data = NULL, manifest = NULL) {
   dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
+  if (is.null(obs) && !is.null(stan_data)) obs <- attr(stan_data, "obs")
+
+  # A requested parameter that the model does not have was silently dropped here,
+  # which is how a stale name list stays invisible. Say so, and record it in the
+  # manifest -- but do not stop, so a legacy fit can still be re-diagnosed.
+  pars_dropped <- setdiff(pars, fit$metadata()$stan_variables)
+  if (length(pars_dropped))
+    message("  [note] not in this fit, dropped from diagnostics: ",
+            paste(pars_dropped, collapse = ", "))
   pars <- intersect(pars, fit$metadata()$stan_variables)
 
   health <- sampler_health(fit)
@@ -481,11 +503,23 @@ diagnose_fit <- function(fit, out_dir, pars, true_params = NULL, obs = NULL,
     tryCatch(extra_plots(fit, out_dir),
              error = function(e) message("  [skip] extra_plots: ", conditionMessage(e)))
 
+  tier <- if (!is.null(stan_data)) attr(stan_data, "tier") else NULL
   write_summary_md(out_dir, model_name, health, tab, corr, ps_tab)
-  write_results_json(out_dir, model_name, health, tab, corr, elapsed_s)
+  write_results_json(out_dir, model_name, health, tab, corr, elapsed_s,
+                     tier = tier$key %||% NA_character_,
+                     n_obs = if (!is.null(obs)) nrow(obs) else NA_integer_)
   tryCatch(fit$save_object(file.path(out_dir, "fit.rds")), error = function(e) NULL)
+  save_stan_data(stan_data, out_dir)   # regenerability, for figure-less runs too
   if (!is.null(ppc_df)) readr::write_csv(ppc_df, file.path(out_dir, "ppc.csv"))
   readr::write_csv(tab, file.path(out_dir, "summary.csv"))
+
+  # Last, so it can enumerate what is actually on disk.
+  if (is.null(manifest))
+    manifest <- run_manifest("unknown", tier = tier, stan_data = stan_data,
+                             priors = priors, model_name = model_name,
+                             extra = list(manifest_incomplete = TRUE))
+  manifest_write(manifest, out_dir, fit = fit, health = health, tab = tab,
+                 pars_dropped = pars_dropped)
 
   cat(sprintf("\nResults saved to: %s/\n", normalizePath(out_dir)))
   cat("  summary.md / summary.csv / results.json — diagnostics + parameter tables\n")
