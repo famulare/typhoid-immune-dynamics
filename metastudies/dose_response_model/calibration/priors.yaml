@@ -91,4 +91,3 @@ eta_lo:            { family: beta,        a: 5,     b: 5 }       # ~0.5
 kappa:             { family: lognormal,   meanlog: 0.0,  sdlog: 1.0 }
 
 # ---- Study-level overdispersion (INERT in Tier 1) ----
-sigma_study:       { family: half_normal, mu: 0.0,  sd: 0.5 }

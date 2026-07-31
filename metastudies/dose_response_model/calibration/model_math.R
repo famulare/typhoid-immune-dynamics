@@ -27,8 +27,7 @@
 # names(mod$variables()$parameters); assert_fitted_params_match() enforces it.
 MM_RAW_PARS <- c("log10_N50_inf", "d_fev", "alpha_inf", "alpha_fevginf",
                  "gamma_inf", "gamma_fevginf", "log10_delta", "pi_susc",
-                 "CoP_imm", "CoP_susc", "phi0_a", "phi0_b", "eta_lo", "kappa",
-                 "sigma_study")
+                 "CoP_imm", "CoP_susc", "phi0_a", "phi0_b", "eta_lo", "kappa")
 
 # ---- shape helpers -----------------------------------------------------------
 

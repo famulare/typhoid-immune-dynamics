@@ -14,10 +14,10 @@
 #' tier1_active observations" while fitting 80 -- because build_stan_data() defaults
 #' to individualize_darton = TRUE and nothing overrode it.
 #'
-#' INERT at every spec: `sigma_study` -- declared in the .stan with a prior and used
-#' in ZERO likelihood terms; there is no study index in the Stan data at all. The
-#' cohort random effect it was for is LOCKED-WITHDRAWN
-#' (cohort_random_effects_design.md).
+#' `sigma_study` was DELETED 2026-07-31: declared with a prior, used in ZERO
+#' likelihood terms at every tier, and there was no study index in the Stan data at
+#' all. The cohort random effect it was for is LOCKED-WITHDRAWN
+#' (cohort_random_effects_design.md), which already called for its deletion.
 #' INERT until a group-2 (`ox_inf`) row is active, i.e. in every `t1-*` spec:
 #' `eta_lo`, `kappa`. `beta_phi` is pinned to 1 in code. `phi_md` does NOT exist --
 #' retired at C3 (d1880a8), replaced by `phi0_a`/`phi0_b`.

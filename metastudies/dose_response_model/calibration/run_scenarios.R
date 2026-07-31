@@ -70,8 +70,23 @@ run_scenario <- function(spec, mod, data_csv = "dose_response_data.csv",
 compute_loo_units <- function(fit, obs) {
   if (!requireNamespace("loo", quietly = TRUE)) return(NULL)
   if (!"log_lik" %in% fit$metadata()$stan_variables) return(NULL)
-  ll_arr <- fit$draws("log_lik")                          # iter x chain x N_obs (col order = obs rows)
-  ll <- posterior::as_draws_matrix(ll_arr)                 # (iter*chain) x N_obs
+  ll_arr <- fit$draws("log_lik")
+  ll_all <- posterior::as_draws_matrix(ll_arr)
+  # log_lik is [N_obs dose-response rows, then N_ladder phi0 threshold binomials].
+  # SLICE EXPLICITLY: `unit` below has length nrow(obs), and indexing a wider matrix
+  # with a shorter logical RECYCLES it -- which would silently fold ladder columns
+  # into the first few units rather than erroring.
+  n_obs <- nrow(obs)
+  if (ncol(ll_all) < n_obs)
+    stop("log_lik has ", ncol(ll_all), " columns for ", n_obs, " observations",
+         call. = FALSE)
+  ll <- ll_all[, seq_len(n_obs), drop = FALSE]
+  # The ladder tail is deliberately NOT a LOO unit. Those three binomials are counts
+  # over the SAME 20 Darton placebo TD+ subjects who already appear as ox_fevginf_indiv
+  # rows, so they are not independent of existing units, and an aggregate threshold
+  # count cannot be split per subject to merge properly. They belong in log_lik (so
+  # target == lprior + sum(log_lik) and priorsense power-scales the whole likelihood)
+  # but not in model comparison.
   # LOO units must be INDEPENDENT, and rows that share volunteers are not. Group by
   # who the people are, not by which row they came from:
   #   - grouped rows (n > 1): the cohort. Lev-F-k and Lev-I-k are the same men, as are

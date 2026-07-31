@@ -12,7 +12,9 @@
 #'                  CoP_ViPS = 2.0 while the likelihood uses 152.16 / 38.11 on the
 #'                  VaccZyme EU/mL scale, AND compares a control at dose 1e4
 #'                  against vaccinated arms at 2e4. Fix the .stan before plotting.
-#'   sigma_study -- declared and given a prior, used in ZERO likelihood terms.
+#'   sigma_study -- DELETED 2026-07-31. It was declared with a prior and used in
+#'     ZERO likelihood terms at every tier (no study index existed in the Stan data);
+#'     the cohort random effect it was for is LOCKED-WITHDRAWN.
 
 suppressPackageStartupMessages({library(dplyr); library(ggplot2)})
 if (!exists("mm_pars"))   source("model_math.R")

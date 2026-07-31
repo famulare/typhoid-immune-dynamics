@@ -71,7 +71,16 @@ obs_prob_R <- function(row, p) {
     bp(row$dose_cfu, N50i, p$alpha_inf, row$CoP, p$gamma_inf)
   } else if (g == 7L) {                           # ox_fevginf_indiv: individual P(fever | infected)
     bp(row$dose_cfu, N50f, p$alpha_fevginf, row$CoP, p$gamma_fevginf)
-  } else stop("group 2 (ox_inf) not in Tier 1 parity set")
+  } else if (g == 2L) {                           # ox_inf: eta-corrected Oxford shedding
+    # Raw dose (Oxford is the bicarbonate frame, so no /delta). eta is the
+    # treatment-truncation / detection factor: 1 at zero dose, decaying to eta_lo as
+    # dose rises, on the SAME N50_inf scale as the infection curve -- which is why a
+    # misfit here can be absorbed by N50_inf instead of failing visibly, and why this
+    # branch is the one that most needs an independent check.
+    D <- row$dose_cfu
+    eta <- p$eta_lo + (1 - p$eta_lo) * exp(-p$kappa * D / N50i)
+    eta * bp(D, N50i, p$alpha_inf, row$CoP, p$gamma_inf)
+  } else stop("obs_prob_R: unhandled likelihood group ", g)
 }
 
 # ---- Build data + compile -----------------------------------------------------
@@ -83,12 +92,20 @@ mod <- cmdstan_model("typhoid_dose_response.stan")
 # ---- Parameter vectors to test (constrained scale; must cover the model's params) ----
 PARAM_NAMES <- c("log10_N50_inf","d_fev","alpha_inf","alpha_fevginf","gamma_inf",
                  "gamma_fevginf","log10_delta","pi_susc","CoP_imm","CoP_susc",
-                 "phi0_a","phi0_b","eta_lo","kappa","sigma_study")
-vecs <- list(                          # phi0_a,phi0_b replace phi_md (beta_phi pinned=1)
-  c(2.5, 0.3, 0.30, 0.35, 0.60, 0.90, 3.5, 0.65, 3.0, 1.0, 1.4, 1.8, 0.5, 1.0, 0.3),
-  c(2.0, 0.0, 0.15, 0.50, 0.20, 1.50, 2.0, 0.40, 5.0, 1.1, 0.5, 1.0, 0.4, 0.7, 0.1),  # d_fev=0 edge
-  c(3.1, 1.2, 0.50, 0.20, 1.00, 0.30, 4.5, 0.80, 2.0, 0.9, 2.0, 0.5, 0.6, 1.5, 0.5)
-)
+                 "phi0_a","phi0_b","eta_lo","kappa")
+# NAMED, then indexed by PARAM_NAMES: these were positional over the name vector,
+# so a reordering of parameters{} would have silently permuted the gate's inputs.
+vecs <- lapply(list(                   # phi0_a,phi0_b replace phi_md (beta_phi pinned=1)
+  c(log10_N50_inf=2.5, d_fev=0.3, alpha_inf=0.30, alpha_fevginf=0.35, gamma_inf=0.60,
+    gamma_fevginf=0.90, log10_delta=3.5, pi_susc=0.65, CoP_imm=3.0, CoP_susc=1.0,
+    phi0_a=1.4, phi0_b=1.8, eta_lo=0.5, kappa=1.0),
+  c(log10_N50_inf=2.0, d_fev=0.0, alpha_inf=0.15, alpha_fevginf=0.50, gamma_inf=0.20,
+    gamma_fevginf=1.50, log10_delta=2.0, pi_susc=0.40, CoP_imm=5.0, CoP_susc=1.1,
+    phi0_a=0.5, phi0_b=1.0, eta_lo=0.4, kappa=0.7),   # d_fev=0 edge
+  c(log10_N50_inf=3.1, d_fev=1.2, alpha_inf=0.50, alpha_fevginf=0.20, gamma_inf=1.00,
+    gamma_fevginf=0.30, log10_delta=4.5, pi_susc=0.80, CoP_imm=2.0, CoP_susc=0.9,
+    phi0_a=2.0, phi0_b=0.5, eta_lo=0.6, kappa=1.5)
+), function(v) v[PARAM_NAMES])
 truth <- posterior::as_draws_matrix(do.call(rbind, lapply(vecs, function(v) setNames(v, PARAM_NAMES))))
 
 # ---- New-model p_pred / log_lik via generate_quantities -----------------------
@@ -98,20 +115,34 @@ p_stan  <- posterior::as_draws_matrix(gq$draws("p_pred"))    # ndraws x N_obs
 ll_stan <- posterior::as_draws_matrix(gq$draws("log_lik"))
 
 # ---- Compare ------------------------------------------------------------------
-max_dp <- 0; max_dl <- 0
+# log_lik is [N_obs dose-response rows, then N_ladder phi0 threshold binomials]. The
+# ladder terms were folded in so that target == lprior + sum(log_lik) (priorsense
+# power-scales exactly those two objects, and previously omitted the three binomials
+# that identify phi0_a/phi0_b). Check the two blocks separately.
+stopifnot(ncol(ll_stan) == nrow(obs) + sd$N_ladder)
+n_obs <- nrow(obs)
+max_dp <- 0; max_dl <- 0; max_dlad <- 0
 for (di in seq_len(nrow(p_stan))) {
-  p <- as.list(setNames(vecs[[di]], PARAM_NAMES))
-  p_ref  <- vapply(seq_len(nrow(obs)), function(i) obs_prob_R(obs[i, ], p), numeric(1))
+  p <- as.list(vecs[[di]])
+  p_ref  <- vapply(seq_len(n_obs), function(i) obs_prob_R(obs[i, ], p), numeric(1))
   ll_ref <- dbinom(obs$y, obs$n, p_ref, log = TRUE)
   max_dp <- max(max_dp, max(abs(p_stan[di, ] - p_ref)))
-  max_dl <- max(max_dl, max(abs(ll_stan[di, ] - ll_ref)))
+  max_dl <- max(max_dl, max(abs(ll_stan[di, seq_len(n_obs)] - ll_ref)))
+  # independent transcription of the ladder sub-likelihood: phi0(T) is logit-linear,
+  # centered at T_ref, and each threshold is a binomial over the TD+ subjects.
+  phi0_ref <- plogis(p$phi0_a - p$phi0_b * (sd$ladder_T - T_REF))
+  lad_ref  <- dbinom(sd$ladder_count, sd$ladder_N, phi0_ref, log = TRUE)
+  max_dlad <- max(max_dlad, max(abs(ll_stan[di, n_obs + seq_len(sd$N_ladder)] - lad_ref)))
 }
-cat(sprintf("Parity over %d param vectors x %d rows:\n", nrow(p_stan), nrow(obs)))
-cat(sprintf("  max |p_pred_stan - p_ref|   = %.3e\n", max_dp))
-cat(sprintf("  max |log_lik_stan - ll_ref| = %.3e\n", max_dl))
+cat(sprintf("Parity over %d param vectors x %d rows (+%d ladder terms):\n",
+            nrow(p_stan), n_obs, sd$N_ladder))
+cat(sprintf("  max |p_pred_stan - p_ref|        = %.3e\n", max_dp))
+cat(sprintf("  max |log_lik_stan - ll_ref|      = %.3e\n", max_dl))
+cat(sprintf("  max |log_lik ladder - lad_ref|   = %.3e\n", max_dlad))
 failures <- character()
 if (!(max_dp < TOL_P)) failures <- c(failures, "A: Stan vs independent R on real rows (p)")
 if (!(max_dl < TOL_LL)) failures <- c(failures, "A: Stan vs independent R on real rows (log_lik)")
+if (!(max_dlad < TOL_LL)) failures <- c(failures, "A: Stan vs independent R on the phi0 ladder terms")
 
 # ==============================================================================
 # ARM B — model_math.R, the implementation the FIGURES run, gated against Stan.
@@ -179,13 +210,13 @@ for (nm in names(cases)) {
     p_mm <- as.vector(mm_obs_prob(grp, rows$dose_cfu, rows$CoP, rows$T_thresh,
                                   rows$gilman_stratum, par_bundles[[di]]))
     d_mm <- max(d_mm, max(abs(p_s[di, ] - p_mm)))
-    k <- which(grp != 2L)                    # obs_prob_R() deliberately excludes ox_inf
-    if (length(k)) {
-      pl <- as.list(setNames(vecs[[di]], PARAM_NAMES))
-      r  <- rows; r$group <- grp
-      p_rr <- vapply(k, function(i) obs_prob_R(r[i, ], pl), numeric(1))
-      d_rr <- max(d_rr, max(abs(p_rr - p_mm[k])))
-    }
+    # obs_prob_R() now covers all 7 groups including ox_inf, so eta gets the same
+    # THREE-implementation check (Stan / model_math / independent R) as every other
+    # branch. It previously had only two, on exactly the branch Tier 2 turns on.
+    pl <- as.list(vecs[[di]])
+    r  <- rows; r$group <- grp
+    p_rr <- vapply(seq_len(nrow(r)), function(i) obs_prob_R(r[i, ], pl), numeric(1))
+    d_rr <- max(d_rr, max(abs(p_rr - p_mm)))
   }
   cat(sprintf("model_math parity [%s: %d rows x %d param vectors]\n", nm, nrow(rows), nrow(p_s)))
   cat(sprintf("  max |p_pred_stan - p_model_math| = %.3e\n", d_mm))
