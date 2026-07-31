@@ -205,11 +205,17 @@ recover_repeated <- function(mod, stan_data, priors, k = 20,
                          attr(stan_data, "tier")$key %||% "unknown-tier",
                          "coverage.csv")
   dir.create(dirname(out_csv), showWarnings = FALSE, recursive = TRUE)
-  pars <- c("log10_N50_inf","d_fev","alpha_inf","alpha_fevginf","gamma_inf",
-            "gamma_fevginf","log10_delta","pi_susc","CoP_imm","CoP_susc")
   # Simulate at a truth covering EVERY model parameter, derived from the .stan
   # rather than a hardcoded list, so SBC stays correct as the parameter block evolves.
   model_pars <- names(mod$variables()$parameters)
+  tier <- attr(stan_data, "tier")
+  inert_pars <- if (!is.null(tier)) tier$inert_pars %||% character() else character()
+  # Judge every parameter that enters this tier's likelihood. Inert parameters
+  # remain prior-like by construction and are excluded rather than counted as
+  # recovery misses. Keep this derived from the model/tier so new active params
+  # (notably phi0_a/phi0_b) cannot silently fall out of the coverage report.
+  pars <- setdiff(model_pars, inert_pars)
+  if (!length(pars)) stop("recover_repeated: no active parameters to report")
   rng <- set.seed(seed0)
   rows <- list()
   for (rep in seq_len(k)) {
