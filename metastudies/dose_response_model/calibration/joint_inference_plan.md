@@ -641,29 +641,64 @@ These provide additional 10⁵ control data with the same likelihood structure a
 > and the analysis behind it: `cohort_random_effects_design.md`.
 
 $$
-y_j \sim \text{BetaBinomial}\left(n_j,\; p_j \cdot \kappa_{\text{od}},\; (1-p_j) \cdot \kappa_{\text{od}}\right)
+y_j \sim \text{BetaBinomial}\left(n_j,\; p_j \cdot k,\; (1-p_j) \cdot k\right),
+\qquad k = \frac{1 - \rho}{\rho}
 $$
 
 $p_j$ is unchanged — it is exactly the `obs_prob()` value the binomial likelihood
-uses today. $\kappa_{\text{od}}$ is a single concentration parameter shared across all
-grouped observations. $\kappa_{\text{od}} \to \infty$ recovers the binomial.
+uses today. The **sampled** parameter is the intraclass correlation
+$\rho \equiv$ `grand_overdispersion_rho`; the beta-binomial concentration
+$k \equiv$ `grand_concentration_k` is derived from it.
 
-**Naming**: `kappa_od`, NOT `kappa` — `kappa` is already the η dose-scaling parameter
-(Section 2.7). Reusing it would silently collide.
+$$
+\rho \sim \text{Beta}(1,\,49), \qquad \rho \in [0,1], \qquad \rho = 0 \iff \text{binomial}
+$$
+
+**Why the ICC and not the concentration.** Sampling $\rho$ rather than $k$ (or $1/k$)
+gets three things at once:
+1. **Direction is correct.** $\rho$ rises with dispersion. A name containing
+   "overdispersion" attached to a *concentration* would be read backwards, since
+   concentration rises as dispersion falls.
+2. **The binomial is attainable.** $\rho = 0$ is a boundary of a bounded parameter,
+   not a limit at $k \to \infty$. Given that the motivating heterogeneity is not
+   statistically distinguishable from zero (below), the no-overdispersion case must be
+   interior to the prior's support and carry real mass.
+3. **It is readable per observation.** The variance inflation is the standard design
+   effect $1 + (n_j - 1)\rho$.
+
+**Anchor.** The excess logit-scale variance across the five Maryland 10⁵ cohorts is
+≈0.069 ($\sigma \approx 0.26$ at $\bar p = 0.40$), giving $k \approx 61$ and
+$\rho \approx 0.016$. `Beta(1,49)` brackets it (mean 0.020, 95% below 0.059).
+Resulting design effects: $n{=}16 \to 1.24$, $n{=}36 \to 1.57$, $n{=}116 \to 2.87$.
+The largest inflation landing on `H-F-5` is correct — that row is a documented pool of
+many challenges across years, not a single cohort.
+
+**Naming**: do NOT put "overdispersion" and "k" on the same object, and do not reuse
+`kappa` — that is already the η dose-scaling parameter (Section 2.7).
 
 **Scope**: grouped rows only ($n_j > 1$). The Darton per-subject rows are $n=1$
 Bernoulli, where overdispersion is not identified; they keep a plain binomial.
 
-**Prior**: parameterize by the reciprocal so that *no overdispersion* is interior to
-the support and carries real mass:
+**Relation to the withdrawn random effect**: this is not a different model, it is the
+random effect *integrated out*. Exactly: if each observation group carries its own
+probability $p_j^\ast \sim \text{Beta}\!\left(p_j k,\, (1-p_j) k\right)$ — a
+**beta-distributed** group effect on the probability scale — then marginally
+$y_j \sim \text{BetaBinomial}(n_j, p_j k, (1-p_j) k)$. So the group-to-group variation
+is still in the model with $\mathbb{E}[p_j^\ast] = p_j$ and
+$\text{Var}(p_j^\ast) = p_j(1-p_j)\rho$; what is gone is the set of per-group *free
+parameters* that made it unidentifiable at 16 cohorts / 24 observations. (The
+withdrawn §5.5 form was a logit-normal effect, so the two are close but not identical
+— beta on the probability scale vs normal on the logit scale.)
 
-$$
-\kappa_{\text{od}} = 1/\iota, \qquad \iota \sim \text{HalfNormal}(0,\, 0.05)
-$$
-
-Anchor: the excess logit-scale variance measured across the five Maryland 10⁵
-cohorts is ≈0.069, i.e. $\sigma \approx 0.26$, which corresponds to
-$\kappa_{\text{od}} \approx 60$ ($\iota \approx 0.017$, about 0.33 sd under this prior).
+Two consequences worth stating, because they are what the integration costs:
+- **No per-cohort estimates.** You cannot read off "which cohort was hot"; only how
+  much spread there is overall. That is the intended trade — per-cohort offsets are
+  what competed with the dose-response.
+- **No correlation between rows sharing volunteers.** `Lev-F-1` and `Lev-I-1` are the
+  same 26 men but stay independent under this likelihood, because the effect is
+  integrated out per *row*, not per cohort. $\rho$ is therefore extra-binomial
+  variation within an observation row, NOT a within-cohort correlation — which is why
+  `cohort_id` remains provenance only and is not read by the likelihood.
 
 **Why one parameter and not a random effect** (full argument in
 `cohort_random_effects_design.md`):
@@ -760,7 +795,7 @@ This directly constrains the contrast between the mixture components, providing 
 **Within Maryland**:
 - Batch-to-batch variation in challenge preparation (Levine controls: 25-55% at same dose)
 - Temporal shifts in prison population immunity
-- Modeled as: single beta-binomial overdispersion parameter `kappa_od` (LOCKED
+- Modeled as: single beta-binomial overdispersion parameter `grand_overdispersion_rho` (LOCKED
   2026-07-31; the study/cohort random effect is withdrawn -- see Section 5.5)
 
 **Within Oxford**:
@@ -926,7 +961,7 @@ For each observation in the data:
 | Oxford vaccine VE (~55%) | From predicted CoP shift | Tests γ extrapolation |
 | Jin Vi-TT VE at fever+subsequent bacteraemia (~87%) | Predicted from differential γ_inf vs γ_fev\|inf | Tests whether cascade model captures stronger VE at stricter endpoints |
 | Jin control fever+subsequent bacteraemia (42%) | Predicted from P_inf × P_fev\|inf at ~10⁴ | Tests cascade model internal consistency (Table S1 data not in likelihood) |
-| Levine trial-to-trial variability | Within overdispersion bounds | Tests `kappa_od` (was σ_study) |
+| Levine trial-to-trial variability | Within overdispersion bounds | Tests `grand_overdispersion_rho` (was σ_study) |
 | **Gibani rechallenge subgroups (HOLD-OUT)** | **Model should predict prior-disease → higher rechallenge risk** | **Critical test of γ interpretation** |
 
 **Gibani paradox hold-out (added per Reviewer 2)**: Fit the model excluding the Gibani 2020 rechallenge arms. Then predict the split: prior disease (25/37 = 68%) vs no prior disease (10/38 = 26%). Under the adaptive immunity model (γ > 0), the model should predict that subjects with prior disease are MORE protected (lower attack rate). The data show the opposite. If the model predicts the wrong direction, this is strong evidence for innate susceptibility classes and a fundamental limitation of the single-γ framework. This test should be run at Stage 1 (Oxford only) and again at Stage 3 (full model).
@@ -1065,7 +1100,7 @@ For quick reference, every binomial observation:
 **Active observations (Tier 2 / η-correction)**: Restores 6 Oxford shedding rows (W-I-3, W-I-4, D-I-plac, J-I-ctrl, J-I-ViTT, J-I-ViPS) with η correction = **31 active calibration observations** + 2 parameters (η_lo, κ) or 0 (Option C fixed η).
 **Available but excluded**: 4 Hornick vaccine rows (CoP unmappable), 8 Oxford shedding rows (Tier 1 only; restored in Tier 2).
 **Effective independent observations** (per Reviewer 2): Tier 1 ~27-29; Tier 2 ~31-33, after correcting for within-group correlation.
-**Total parameters**: Tier 1: 6 biological + 4 nuisance + 1 overdispersion (`kappa_od`) = 11. Tier 2: +2 (η_lo, κ) = 13.
+**Total parameters**: Tier 1: 6 biological + 4 nuisance + 1 overdispersion (`grand_overdispersion_rho`) = 11. Tier 2: +2 (η_lo, κ) = 13.
 **Data-to-parameter ratio**: Tier 1 ~2.3:1; Tier 2 ~2.4:1. Both require informative priors. Tier 2 is preferred for γ_inf identification.
 **Canonical data source**: `dose_response_data.csv` in this directory. All observation counts verified against this file.
 **Definition warnings**: (1) Oxford shedding **EXCLUDED** (Section 2.6): treatment-truncation bias makes shedding < diagnosis at all doses ≥10⁴. Oxford contributes fever only. (2) Levine/Gilman/Hornick fever definitions **RESOLVED** (Section 2.5): study-specific φ(T) values derived from Oxford threshold ladder — Hornick φ≈0.25, Levine φ≈0.65, Gilman φ≈0.65. No extra parameters needed. (3) Darton S1 fever thresholds (T38, T39) are 1-2 subjects lower than published Table 2 — likely a minor definition difference in how the S1 encodes temperature events vs the publication's analysis.

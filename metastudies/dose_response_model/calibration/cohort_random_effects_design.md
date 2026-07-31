@@ -6,7 +6,8 @@ Written 2026-07-31. Triggered by the Gilman residual surfaced in
 > ## RESOLVED — LOCKED 2026-07-31 [Mike]
 >
 > **The study/cohort random effect is WITHDRAWN, not deferred.** Tier 2 extra-binomial
-> variation is handled by **one overdispersion parameter (beta-binomial `kappa_od`)**.
+> variation is handled by **one overdispersion parameter: the beta-binomial ICC `grand_overdispersion_rho`**
+> (concentration `grand_concentration_k = (1-rho)/rho` derived; rho = 0 is exactly the binomial).
 >
 > Applied to: `joint_inference_plan.md` §5.5 and the note at §4.2;
 > `CALIBRATION_WORKFLOW.md` Step 2 and the tier ladder. `sigma_study` should be
