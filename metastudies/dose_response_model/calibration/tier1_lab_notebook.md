@@ -603,3 +603,66 @@ concentration-vs-ICC wording inside the Step-2 lock; that lock's missing end mar
 should be fit at all given that §2.6 excludes Oxford shedding while the Tier 2 design
 restores it with η; and whether Levine's paired endpoints get factorized (the one place
 the repo's own no-double-counting rule is not applied).
+
+## Step 2 IMPLEMENTED — grand_overdispersion_rho, all four gates pass (2026-07-31)
+
+Picked up the LOCKED-but-not-implemented Step 2 design (`cohort_random_effects_design.md`
+§6b, `CALIBRATION_WORKFLOW.md` Step 2). Fresh session, repo restructured underneath
+(tier registry, `model_math.R`, generated `TIER_LADDER.md` — reread everything before
+touching code; see the "Tier coherence lock" entry above for what changed).
+
+**Implementation.** `grand_overdispersion_rho ~ Beta(1,49)` (ICC), `grand_concentration_k
+= (1-rho)/rho` derived. Applied to **every** flat `obs_prob()` row via
+`beta_binomial(n, p*k, (1-p)*k)`, not gated to `n>1` by a branch: proved
+`beta_binomial(1, p*k, (1-p)*k) == binomial(1,p)` exactly for any `k>0` (both give
+`P(Y=1)=p`), so the Darton `n=1` cascade rows are unaffected without needing an
+if/else — simpler than the design sketch and provably equivalent on the rows it
+mattered for. The φ0 ladder binomial (Darton temperature sub-model) is deliberately
+LEFT un-overdispersed — different sub-model, not the Maryland replication ρ targets.
+`sigma_study` deleted from the `.stan` (parameters{} + data{} + lprior).
+
+**Files touched:** `typhoid_dose_response.stan` (data/parameters/transformed
+parameters/model/generated quantities), `priors.yaml` (+rho, Beta(1,49), anchored to
+the design doc's sigma~0.26→k~61→rho~0.016), `model_math.R` (`MM_RAW_PARS`, `mm_pars()`
+derives `grand_concentration_k`, `mm_thin()` carries it), `tier_specs.R` (all 4 stage
+tokens: `phi`→`phi-rho`, `phi-eta`→`phi-rho-eta`; `DERIVED_LINEAR_PARS` +k),
+`test_obs_prob_parity.R` (PARAM_NAMES/vecs + `dbetabinom_log()`, a hand-written
+beta-binomial log density since base `dbinom` no longer matches once rho>0),
+`simulate_recovery.R` (PARAM_NAMES/TIER1_REPORT_PARS/TRUTH_REALISTIC, rho=0.02 truth).
+
+**Baseline captured BEFORE editing the `.stan`** (so no retired-model refit was
+needed): read `results/t1-indiv__phi/{summary.csv,fit.rds,stan_data.rds}` directly —
+`log10_N50_inf` mean 1.904, `alpha_inf` mean 0.293, and ran `compute_loo_units()` on
+the on-disk fit: `elpd_loo = -94.0` (se 16.4), `p_loo = 8.81`, `data_keys_md5 =
+7c6d5a8...` (46 units, 80 rows).
+
+**Parity gate GREEN** (all arms, all 4 tiers + 684-row synthetic grid): max
+|Δlog_lik| = 4.9e-7 vs the independent R beta-binomial transcription.
+
+**Fit** (`t1-indiv`, stage `phi-rho`, 4×1000): 0/4000 divergences, R-hat ≤ 1.00 on all
+18 params, min E-BFMI 0.89. **ρ̂ = 0.031** (median 0.028, 90% CI [0.0075, 0.062]) —
+clearly away from 0, above the prior mean 0.02. Median k≈34.
+
+**Gates — all four PASS:**
+1. **N50_inf/alpha_inf stability**: `log10_N50_inf` 1.904→1.79 (~0.28 sd),
+   `alpha_inf` 0.293→0.278 (~0.18 sd). Not material; CIs overlap almost entirely.
+2. **priorsense on rho**: prior 0.204 vs likelihood 0.0995 — **prior-leaning**, as the
+   gate anticipated. Genuinely data-informed (posterior moved from 0.02 to 0.031) but
+   the prior still dominates the power-scaling read. Said so, per the gate's own ask.
+3. **LOO improved**: -94.0 → -90.5 (Δ+3.5, ~0.23 SE — real but modest), same 46-unit
+   set (data_keys_md5 matched). `p_loo` 8.81→5.48 is the cleaner signal: ρ absorbing
+   replication variance directly means the other params need less effective
+   flexibility to explain held-out points.
+4. **Gilman residual persists** (not a gate, pre-registered): `Gil-F-Hlo` observed
+   0.611 vs fitted 0.406 [0.324, 0.497] — still outside the interval, the within-cohort
+   stratum contrast a shared ρ cannot reach, exactly as the design doc predicted.
+
+**Verdict: adopted.** Full narrative + tables in `CALIBRATION_WORKFLOW.md` Step 2.
+Pre-ρ fit preserved at `results/t1-indiv__phi/`. Registry now derives stage `phi-rho`
+(or `phi-rho-eta` for the blocked t2-* tiers) for every configuration automatically —
+`TIER_LADDER.md` regenerated. Not yet committed; not yet validated by Mike.
+
+**Next (open items, unchanged from before this entry):** `+vaccine-terms` (M01ZH09/
+Ty21a, designed in `tier1.5_plan.md`); `+Jin-digitize` (higher-fidelity Fig S3
+scatter, deferred to +Jin-CoP-anchor); Step 3 `t2-*` blockers (η Option A/C, §2.6
+Oxford-shedding-exclusion tension, ψ unimplemented).

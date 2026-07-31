@@ -210,6 +210,64 @@ improve on the existing `compute_loo_units()` grouping. The `Gil-F-Hlo` residual
 **not** a gate — it is a within-cohort stratum contrast and is expected to persist.
 This is repo-canonical Tier 1.
 
+### IMPLEMENTED 2026-07-31 — all four gates pass; `t1-indiv` stage is now `phi-rho`
+
+**Implementation note vs the sketch above:** applied to *every* flat `obs_prob()` row,
+not gated to `n_j > 1` by a branch. `beta_binomial(n, p*k, (1-p)*k)` is algebraically
+**identical** to `binomial(n, p)` at `n = 1` for any `k > 0` (both reduce to
+`P(Y=1) = p`), so the Darton individual rows are provably unaffected — a branch would
+have been a no-op with extra surface area. The φ0 ladder binomial (Darton temperature
+sub-likelihood) is deliberately left un-overdispersed; it is a different sub-model, not
+the Maryland cohort replication ρ targets. `sigma_study` deleted from the `.stan`.
+
+**Fit:** `t1-indiv`, stage `phi-rho`, 4×1000, adapt_delta 0.9. **0/4000 divergences**,
+R-hat ≤ 1.00 on all 18 reported params, min E-BFMI 0.89, "no problems detected."
+
+**ρ̂ = 0.031** (median 0.028, 90% CI [0.0075, 0.062]) — clearly away from 0, above the
+`Beta(1,49)` prior mean of 0.02. Median `k` ≈ 34 (the mean, 127, is pulled by the
+reciprocal's right tail — read the median). Design effect at `H-F-5` (n=116):
+`1+(115)(0.028) ≈ 4.2` (vs the anchor's 2.87 at the anchor ρ=0.016 — the data wants
+somewhat more dispersion there than the anchor assumed).
+
+**Gate 1 — `log10_N50_inf`/`alpha_inf` stability, PASS.**
+| param | pre-ρ (`t1-indiv__phi`) | post-ρ (`t1-indiv__phi-rho`) | shift |
+|---|---|---|---|
+| `log10_N50_inf` | mean 1.904, sd 0.346 | mean 1.79, sd 0.408 | ~0.28 sd |
+| `alpha_inf` | mean 0.293, sd 0.082 | mean 0.278, sd 0.082 | ~0.18 sd |
+
+Both within a third of a posterior SD — not a material move; the credible intervals
+overlap almost entirely. ρ is absorbing extra-binomial variance, not competing with
+the dose-response shape.
+
+**Gate 2 — priorsense on ρ, PASS (prior-leaning, as expected; saying so).**
+`grand_overdispersion_rho`: prior-sensitivity 0.204, likelihood-sensitivity 0.0995 —
+prior roughly 2x likelihood. Genuinely data-informed (posterior mean 0.031 moved up
+from the prior mean 0.02, away from the design anchor's 0.016) but the prior still
+dominates the power-scaling diagnostic. This is an uncertainty-honesty device more than
+a sharp finding, exactly the caveat the gate asked for.
+
+**Gate 3 — LOO, PASS (improved).** Same 46-unit, 80-row observation set confirmed by
+identical `data_keys_md5` before/after.
+| | elpd_loo | se | p_loo | pareto k > 0.7 |
+|---|---|---|---|---|
+| pre-ρ | -94.0 | 16.4 | 8.81 | 0 |
+| post-ρ | -90.5 | 15.0 | 5.48 | 0 |
+
+Δelpd = +3.5, about 0.23 SE — a real but modest improvement, not one that would clear
+a formal significance bar on its own. `p_loo` dropping 8.81 → 5.48 is the more legible
+signal: with ρ available to absorb replication variance directly, the other parameters
+need less effective flexibility to explain held-out points.
+
+**Gate 4 — Gilman residual, PASS (persists, as pre-registered, not a gate).**
+`Gil-F-Hlo`: observed 0.611 vs fitted median 0.406 (90% CI [0.324, 0.497]) — still
+outside the interval, same within-cohort stratum contrast the design doc predicted a
+single shared ρ cannot reach.
+
+**Verdict: adopted.** `t1-indiv` (and all four registry tiers) now run stage `phi-rho`.
+Pre-ρ fit preserved at `results/t1-indiv__phi/` for comparison. Baseline captured before
+editing the `.stan` (`compute_loo_units()` on the on-disk pre-ρ `fit.rds`) so no
+re-fit of the retired model was needed for the comparison.
+
 ## Step 3 — Tier 2 (Oxford shedding + η + ψ infection-definition map)
 **ψ adopted 2026-07-31 [Mike]**, accepting that it will be only partly identified.
 `psi_stool` / `psi_late` give infection the definition map that fever already has via

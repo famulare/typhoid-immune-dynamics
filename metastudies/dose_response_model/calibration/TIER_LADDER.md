@@ -3,7 +3,7 @@
 # Tier ladder — generated from tier_specs.R
 
 Generated 2026-07-31 from `tier_specs.R` + `dose_response_data.csv` +
-`../analysis_data/darton_individual_endpoints.csv` at git `d6160d7`.
+`../analysis_data/darton_individual_endpoints.csv` at git `05031d1`.
 
 Counts are **computed** by calling `build_stan_data()` for each spec and counting
 the rows it returns; the generator hard-errors when a computed count disagrees
@@ -13,10 +13,10 @@ states a tier observation count.**
 
 | key | tier_col | individualize_darton | N_obs | grouped | individual | stage | status |
 |---|---|---|---|---|---|---|---|
-| t1-grouped   | tier1_active | FALSE        | 25           | 25           |  0           | phi          | runnable     |
-| t1-indiv     | tier1_active | TRUE         | 80           | 24           | 56           | phi          | runnable     |
-| t2-grouped   | tier2_active | FALSE        | 31           | 31           |  0           | phi-eta      | blocked      |
-| t2-indiv     | tier2_active | TRUE         | 85           | 29           | 56           | phi-eta      | blocked      |
+| t1-grouped   | tier1_active | FALSE        | 25           | 25           |  0           | phi-rho      | runnable     |
+| t1-indiv     | tier1_active | TRUE         | 80           | 24           | 56           | phi-rho      | runnable     |
+| t2-grouped   | tier2_active | FALSE        | 31           | 31           |  0           | phi-rho-eta  | blocked      |
+| t2-indiv     | tier2_active | TRUE         | 85           | 29           | 56           | phi-rho-eta  | blocked      |
 
 ## Likelihood groups per tier
 
@@ -31,10 +31,10 @@ states a tier observation count.**
 
 | key | run_dir |
 |---|---|
-| t1-grouped              | results/t1-grouped__phi |
-| t1-indiv              | results/t1-indiv__phi |
-| t2-grouped                  | results/t2-grouped__phi-eta |
-| t2-indiv                  | results/t2-indiv__phi-eta |
+| t1-grouped                  | results/t1-grouped__phi-rho |
+| t1-indiv                  | results/t1-indiv__phi-rho |
+| t2-grouped                      | results/t2-grouped__phi-rho-eta |
+| t2-indiv                      | results/t2-indiv__phi-rho-eta |
 
 ## Naming rule
 

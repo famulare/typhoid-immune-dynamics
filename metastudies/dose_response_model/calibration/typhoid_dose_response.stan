@@ -38,9 +38,21 @@
 //   as a proper cascade -- group 6 (ox_inf_indiv, P_inf at subject anti-Vi) for all
 //   30, group 7 (ox_fevginf_indiv, P_fev|inf) for the infected -- replacing the C1
 //   composite-fever rows. Splits gamma_inf vs gamma_fevginf via the titre spread.
+// Update 2026-07-31 (Step 2, LOCKED cohort_random_effects_design.md): ONE beta-binomial
+//   overdispersion parameter, grand_overdispersion_rho (the ICC; rho=0 IS the binomial),
+//   with concentration grand_concentration_k = (1-rho)/rho derived. Replaces sigma_study
+//   (deleted 2026-07-31: declared, used in ZERO likelihood terms at any tier). A per-cohort
+//   random effect was evaluated and WITHDRAWN (16 cohorts / 24 group-level obs, 10
+//   singletons; Hornick's 5 cohorts ARE the dose ladder, so a free per-cohort offset
+//   competes with N50_inf/alpha_inf for the same variance) -- see the design doc. Applied
+//   to every flat obs_prob() row (beta_binomial(n, p*k, (1-p)*k) is EXACTLY binomial(n,p)
+//   at n=1, so this is a no-op for the Darton individual rows without a branch); the phi0
+//   ladder binomial is deliberately NOT overdispersed (a different sub-model, not the
+//   Maryland replication this parameter targets).
 // Implements: cascaded beta-Poisson (infection x fever|infection),
 //   cross-era delta bridge, Maryland mixture, dose-dependent phi(T,D),
-//   individual-subject cascade endpoints, eta-correction for Oxford shedding bias.
+//   individual-subject cascade endpoints, one beta-binomial overdispersion parameter,
+//   eta-correction for Oxford shedding bias.
 // Reference: ../joint_inference_plan.md Sections 2.1-2.7, Section 7 (priors)
 // Authors: Mike Famulare, Claude (Opus 4.6 draft; Opus 4.8 refactor)
 // =============================================================================
@@ -209,6 +221,8 @@ data {
   real pr_phi0_b_mu;             real<lower=0> pr_phi0_b_sd;    // half-normal (logit slope per degC, >=0)
   real<lower=0> pr_eta_lo_a;     real<lower=0> pr_eta_lo_b;     // beta
   real pr_kappa_mu;              real<lower=0> pr_kappa_sd;
+  real<lower=0> pr_grand_overdispersion_rho_a;   // beta (ICC; rho=0 is the binomial)
+  real<lower=0> pr_grand_overdispersion_rho_b;
 }
 
 parameters {
@@ -236,7 +250,8 @@ parameters {
   real<lower=0, upper=1> eta_lo;  // minimum shedding detection prob at high dose
   real<lower=0> kappa;            // dose-scaling for eta
 
-  // ---- Study-level overdispersion ----
+  // ---- Overdispersion (Step 2, LOCKED 2026-07-31) ----
+  real<lower=0, upper=1> grand_overdispersion_rho;  // beta-binomial ICC (0 = binomial)
 }
 
 transformed parameters {
@@ -244,6 +259,9 @@ transformed parameters {
   real<lower=0> N50_inf = pow(10.0, log10_N50_inf);
   real<lower=0> N50_fevginf = pow(10.0, log10_N50_fevginf);
   real<lower=0> delta = pow(10.0, log10_delta);
+  // beta-binomial concentration (Step 2). rho -> 0 drives k -> inf, recovering the
+  // binomial exactly; rho is the ICC / design-effect driver (1 + (n-1)*rho).
+  real<lower=0> grand_concentration_k = (1.0 - grand_overdispersion_rho) / grand_overdispersion_rho;
 
   // ---- lprior accumulator (priors written ONCE; hyperparameters from data) --
   // Reproduces the original three-term N50 prior exactly under the (Jacobian=1)
@@ -264,6 +282,8 @@ transformed parameters {
   lprior += normal_lpdf(phi0_b            | pr_phi0_b_mu,            pr_phi0_b_sd);   // half-normal via lower=0
   lprior += beta_lpdf(eta_lo              | pr_eta_lo_a,             pr_eta_lo_b);
   lprior += lognormal_lpdf(kappa          | pr_kappa_mu,             pr_kappa_sd);
+  lprior += beta_lpdf(grand_overdispersion_rho | pr_grand_overdispersion_rho_a,
+                                                  pr_grand_overdispersion_rho_b);
 }
 
 model {
@@ -271,13 +291,19 @@ model {
 
   if (prior_only == 0) {
     for (i in 1:N_obs) {
-      y[i] ~ binomial(n[i], obs_prob(group[i], dose[i], CoP[i], T_thresh[i], stratum[i],
-                                     N50_inf, N50_fevginf, alpha_inf, alpha_fevginf,
-                                     gamma_inf, gamma_fevginf, delta, pi_susc,
-                                     CoP_susc, CoP_imm, eta_lo, kappa,
-                                     T_ref, phi0_a, phi0_b));
+      real p = obs_prob(group[i], dose[i], CoP[i], T_thresh[i], stratum[i],
+                       N50_inf, N50_fevginf, alpha_inf, alpha_fevginf,
+                       gamma_inf, gamma_fevginf, delta, pi_susc,
+                       CoP_susc, CoP_imm, eta_lo, kappa,
+                       T_ref, phi0_a, phi0_b);
+      // Guard the beta_binomial's alpha/beta > 0 requirement (binomial tolerates
+      // p in {0,1}; beta_binomial does not). At n=1 this is exactly binomial(1,p).
+      real pc = fmin(fmax(p, 1e-12), 1.0 - 1e-12);
+      y[i] ~ beta_binomial(n[i], pc * grand_concentration_k,
+                           (1.0 - pc) * grand_concentration_k);
     }
-    // Darton placebo temperature ladder -> phi0(T) (decoupled from dose-response).
+    // Darton placebo temperature ladder -> phi0(T) (decoupled from dose-response;
+    // NOT overdispersed -- a different sub-model than the Maryland replication rho targets).
     for (k in 1:N_ladder) {
       ladder_count[k] ~ binomial(ladder_N, phi0_fn(ladder_T[k], T_ref, phi0_a, phi0_b));
     }
@@ -310,8 +336,13 @@ generated quantities {
                           gamma_inf, gamma_fevginf, delta, pi_susc,
                           CoP_susc, CoP_imm, eta_lo, kappa,
                           T_ref, phi0_a, phi0_b);
-    y_rep[i]   = binomial_rng(n[i], p_pred[i]);
-    log_lik[i] = binomial_lpmf(y[i] | n[i], p_pred[i]);
+    {
+      real pc = fmin(fmax(p_pred[i], 1e-12), 1.0 - 1e-12);
+      real a = pc * grand_concentration_k;
+      real b = (1.0 - pc) * grand_concentration_k;
+      y_rep[i]   = beta_binomial_rng(n[i], a, b);
+      log_lik[i] = beta_binomial_lpmf(y[i] | n[i], a, b);
+    }
   }
   for (k in 1:N_ladder)
     log_lik[N_obs + k] = binomial_lpmf(ladder_count[k] | ladder_N,

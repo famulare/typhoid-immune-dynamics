@@ -65,7 +65,7 @@ TIER_SPECS <- list(
     doc_ref = "CALIBRATION_WORKFLOW.md Step 1",
     tier_col = "tier1_active", individualize_darton = FALSE,
     drop_obs = character(), keep_obs = NULL,
-    stage = "phi",
+    stage = "phi-rho",
     expect = list(N_obs = 25L,
                   groups = c(ox_fev = 7L, md_fev = 11L, md_inf = 6L,
                              hornick_cond = 1L)),
@@ -82,7 +82,7 @@ TIER_SPECS <- list(
     doc_ref = "CALIBRATION_WORKFLOW.md Step 1.5",
     tier_col = "tier1_active", individualize_darton = TRUE,
     drop_obs = character(), keep_obs = NULL,
-    stage = "phi",
+    stage = "phi-rho",
     expect = list(N_obs = 80L,
                   groups = c(ox_fev = 6L, md_fev = 11L, md_inf = 6L,
                              hornick_cond = 1L, ox_inf_indiv = 30L,
@@ -99,7 +99,7 @@ TIER_SPECS <- list(
     doc_ref = "CALIBRATION_WORKFLOW.md Step 3",
     tier_col = "tier2_active", individualize_darton = FALSE,
     drop_obs = character(), keep_obs = NULL,
-    stage = "phi-eta",
+    stage = "phi-rho-eta",
     expect = list(N_obs = 31L,
                   groups = c(ox_fev = 7L, ox_inf = 6L, md_fev = 11L, md_inf = 6L,
                              hornick_cond = 1L)),
@@ -125,7 +125,7 @@ TIER_SPECS <- list(
     doc_ref = "no prose-doc equivalent; this registry is the definition",
     tier_col = "tier2_active", individualize_darton = TRUE,
     drop_obs = character(), keep_obs = NULL,
-    stage = "phi-eta",
+    stage = "phi-rho-eta",
     expect = list(N_obs = 85L,
                   groups = c(ox_fev = 6L, ox_inf = 5L, md_fev = 11L, md_inf = 6L,
                              hornick_cond = 1L, ox_inf_indiv = 30L,
@@ -149,7 +149,8 @@ TIER_SPECS <- list(
 #' distinct lists -- so eta_lo/kappa now migrate from inert to reported by themselves
 #' when a t2-* tier is fit, which was the whole point.
 DERIVED_REPORT_PARS <- "log10_N50_fevginf"                    # transformed, log scale
-DERIVED_LINEAR_PARS <- c("N50_inf", "N50_fevginf", "delta")   # redundant log<->linear
+DERIVED_LINEAR_PARS <- c("N50_inf", "N50_fevginf", "delta",
+                         "grand_concentration_k")             # redundant log<->linear
 
 tier_spec <- function(key) {
   if (!is.character(key) || length(key) != 1L || !key %in% names(TIER_SPECS))

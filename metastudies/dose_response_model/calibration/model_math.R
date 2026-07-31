@@ -27,7 +27,8 @@
 # names(mod$variables()$parameters); assert_fitted_params_match() enforces it.
 MM_RAW_PARS <- c("log10_N50_inf", "d_fev", "alpha_inf", "alpha_fevginf",
                  "gamma_inf", "gamma_fevginf", "log10_delta", "pi_susc",
-                 "CoP_imm", "CoP_susc", "phi0_a", "phi0_b", "eta_lo", "kappa")
+                 "CoP_imm", "CoP_susc", "phi0_a", "phi0_b", "eta_lo", "kappa",
+                 "grand_overdispersion_rho")
 
 # ---- shape helpers -----------------------------------------------------------
 
@@ -72,6 +73,8 @@ mm_pars <- function(raw, T_ref = 38.0) {
   p$N50_inf           <- 10^p$log10_N50_inf
   p$N50_fevginf       <- 10^p$log10_N50_fevginf
   p$delta             <- 10^p$log10_delta
+  # beta-binomial concentration (Step 2); mirrors the .stan's transformed parameters{}.
+  p$grand_concentration_k <- (1 - p$grand_overdispersion_rho) / p$grand_overdispersion_rho
   p$.ndraws <- length(p$log10_N50_inf)
   p$.draw   <- seq_len(p$.ndraws)
   p$T_ref   <- T_ref
@@ -97,7 +100,8 @@ mm_thin <- function(p, ndraw, seed = 1) {
   off <- sample.int(max(1L, n %/% ndraw), 1L) - 1L      # jitter the phase, not the spacing
   idx <- unique(pmin(n, round(seq(1, n, length.out = ndraw)) + off))
   q <- p
-  for (nm in c(MM_RAW_PARS, "log10_N50_fevginf", "N50_inf", "N50_fevginf", "delta", ".draw"))
+  for (nm in c(MM_RAW_PARS, "log10_N50_fevginf", "N50_inf", "N50_fevginf", "delta",
+              "grand_concentration_k", ".draw"))
     q[[nm]] <- p[[nm]][idx]
   q$.ndraws <- length(idx)
   q

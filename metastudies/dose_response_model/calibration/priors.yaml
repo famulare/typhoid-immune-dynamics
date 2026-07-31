@@ -90,4 +90,14 @@ phi0_b:            { family: half_normal, mu: 0.0,  sd: 2.0 }
 eta_lo:            { family: beta,        a: 5,     b: 5 }       # ~0.5
 kappa:             { family: lognormal,   meanlog: 0.0,  sdlog: 1.0 }
 
-# ---- Study-level overdispersion (INERT in Tier 1) ----
+# ---- Overdispersion (Step 2, LOCKED 2026-07-31; cohort_random_effects_design.md) ----
+# grand_overdispersion_rho = the beta-binomial ICC (0 = exactly the binomial). Applied
+# to every flat obs_prob() row -- beta_binomial(n,p*k,(1-p)*k) is EXACTLY binomial(n,p)
+# at n=1, so this is a no-op for the Darton individual rows, no branch needed. Replaces
+# a per-cohort random effect (WITHDRAWN: 16 cohorts / 24 group-level obs, 10 singletons;
+# Hornick's 5 cohorts ARE the dose ladder -- a free per-cohort offset would compete with
+# N50_inf/alpha_inf for the same variance).
+# Anchor: measured excess logit variance across the five Maryland 1e5 cohorts (Levine x4
+# + Gilman) gives sigma ~ 0.26 -> k ~ 61 -> rho ~ 0.016. Beta(1,49) has mean 1/50 = 0.02,
+# bracketing the anchor while leaving rho free to move (weakly-informative, not fixed).
+grand_overdispersion_rho: { family: beta, a: 1, b: 49 }   # mean 0.02, matches sigma~0.26 anchor

@@ -14,8 +14,8 @@ source("priors.R"); source("data_prep.R")
 if (!exists("tier_keys")) source("tier_specs.R")
 
 # Tolerances at the floating-point / implementation-difference level (Stan pow &
-# exact-lgamma binomial_lpmf vs R ^ & saddlepoint dbinom). A real logic error in
-# obs_prob() would produce O(0.01-1) differences, far above these.
+# exact-lgamma beta_binomial_lpmf vs R ^ & lbeta-based dbetabinom_log, Step 2). A real
+# logic error in obs_prob() would produce O(0.01-1) differences, far above these.
 TOL_P  <- 1e-7   # probabilities (O(1) values)
 TOL_LL <- 1e-3   # pointwise log-likelihood
 
@@ -28,6 +28,14 @@ TOL_LL <- 1e-3   # pointwise log-likelihood
 bp <- function(D, N50, alpha, CoP, gamma) {
   scale <- (2^(1 / alpha) - 1) / N50
   1 - (1 + D * scale)^(-alpha / CoP^gamma)
+}
+
+# Beta-binomial log density (Step 2), by hand: base R's dbinom no longer matches once
+# rho > 0. lbeta() is base R. At n=1 this is IDENTICAL to dbinom(y,1,p,log=TRUE) for any
+# k > 0 -- the reason the .stan applies it uniformly with no n==1 branch.
+dbetabinom_log <- function(y, n, p, k) {
+  a <- p * k; b <- (1 - p) * k
+  lchoose(n, y) + lbeta(y + a, n - y + b) - lbeta(a, b)
 }
 md_mix <- function(D, N50, alpha, gamma, pi, CoPs, CoPi)
   pi * bp(D, N50, alpha, CoPs, gamma) + (1 - pi) * bp(D, N50, alpha, CoPi, gamma)
@@ -93,19 +101,19 @@ mod <- cmdstan_model("typhoid_dose_response.stan")
 # ---- Parameter vectors to test (constrained scale; must cover the model's params) ----
 PARAM_NAMES <- c("log10_N50_inf","d_fev","alpha_inf","alpha_fevginf","gamma_inf",
                  "gamma_fevginf","log10_delta","pi_susc","CoP_imm","CoP_susc",
-                 "phi0_a","phi0_b","eta_lo","kappa")
+                 "phi0_a","phi0_b","eta_lo","kappa","grand_overdispersion_rho")
 # NAMED, then indexed by PARAM_NAMES: these were positional over the name vector,
 # so a reordering of parameters{} would have silently permuted the gate's inputs.
-vecs <- lapply(list(                   # phi0_a,phi0_b replace phi_md (beta_phi pinned=1)
+vecs <- lapply(list(                   # grand_overdispersion_rho added (Step 2)
   c(log10_N50_inf=2.5, d_fev=0.3, alpha_inf=0.30, alpha_fevginf=0.35, gamma_inf=0.60,
     gamma_fevginf=0.90, log10_delta=3.5, pi_susc=0.65, CoP_imm=3.0, CoP_susc=1.0,
-    phi0_a=1.4, phi0_b=1.8, eta_lo=0.5, kappa=1.0),
+    phi0_a=1.4, phi0_b=1.8, eta_lo=0.5, kappa=1.0, grand_overdispersion_rho=0.02),
   c(log10_N50_inf=2.0, d_fev=0.0, alpha_inf=0.15, alpha_fevginf=0.50, gamma_inf=0.20,
     gamma_fevginf=1.50, log10_delta=2.0, pi_susc=0.40, CoP_imm=5.0, CoP_susc=1.1,
-    phi0_a=0.5, phi0_b=1.0, eta_lo=0.4, kappa=0.7),   # d_fev=0 edge
+    phi0_a=0.5, phi0_b=1.0, eta_lo=0.4, kappa=0.7, grand_overdispersion_rho=0.10),   # d_fev=0 edge
   c(log10_N50_inf=3.1, d_fev=1.2, alpha_inf=0.50, alpha_fevginf=0.20, gamma_inf=1.00,
     gamma_fevginf=0.30, log10_delta=4.5, pi_susc=0.80, CoP_imm=2.0, CoP_susc=0.9,
-    phi0_a=2.0, phi0_b=0.5, eta_lo=0.6, kappa=1.5)
+    phi0_a=2.0, phi0_b=0.5, eta_lo=0.6, kappa=1.5, grand_overdispersion_rho=0.005)
 ), function(v) v[PARAM_NAMES])
 truth <- posterior::as_draws_matrix(do.call(rbind, lapply(vecs, function(v) setNames(v, PARAM_NAMES))))
 
@@ -126,7 +134,9 @@ max_dp <- 0; max_dl <- 0; max_dlad <- 0
 for (di in seq_len(nrow(p_stan))) {
   p <- as.list(vecs[[di]])
   p_ref  <- vapply(seq_len(n_obs), function(i) obs_prob_R(obs[i, ], p), numeric(1))
-  ll_ref <- dbinom(obs$y, obs$n, p_ref, log = TRUE)
+  k_ref  <- (1 - p$grand_overdispersion_rho) / p$grand_overdispersion_rho
+  p_refc <- pmin(pmax(p_ref, 1e-12), 1 - 1e-12)
+  ll_ref <- dbetabinom_log(obs$y, obs$n, p_refc, k_ref)
   max_dp <- max(max_dp, max(abs(p_stan[di, ] - p_ref)))
   max_dl <- max(max_dl, max(abs(ll_stan[di, seq_len(n_obs)] - ll_ref)))
   # independent transcription of the ladder sub-likelihood: phi0(T) is logit-linear,

@@ -10,7 +10,7 @@
 #' that; run it first.
 #'
 #' Functions:
-#'   make_truth()                  - 1-row draws_matrix of all 13 params (constrained)
+#'   make_truth()                  - 1-row draws_matrix of all PARAM_NAMES (constrained)
 #'   draw_truth_from_prior()       - 1 draw from the prior over the model's params{}
 #'   augment_truth_derived()       - append transformed-parameter truths to a truth vec
 #'   simulate_y()                  - draw synthetic y at a truth via generate_quantities
@@ -28,7 +28,7 @@ source("figures.R")   # bespoke model figure suite, via diagnose_fit(extra_plots
 
 PARAM_NAMES <- c("log10_N50_inf","d_fev","alpha_inf","alpha_fevginf","gamma_inf",
                  "gamma_fevginf","log10_delta","pi_susc","CoP_imm","CoP_susc",
-                 "phi0_a","phi0_b","eta_lo","kappa")
+                 "phi0_a","phi0_b","eta_lo","kappa","grand_overdispersion_rho")
 
 # Per-tier recovery report config. REPORT = active/identifiable params the
 # recovery table judges; INERT = params that do NOT enter this tier's likelihood
@@ -37,17 +37,20 @@ PARAM_NAMES <- c("log10_N50_inf","d_fev","alpha_inf","alpha_fevginf","gamma_inf"
 # diagnostics need no change because the likelihood lives only in the .stan.
 TIER1_REPORT_PARS <- c("log10_N50_inf","d_fev","log10_N50_fevginf","alpha_inf",
                        "alpha_fevginf","gamma_inf","gamma_fevginf","log10_delta",
-                       "pi_susc","CoP_imm","CoP_susc","phi0_a","phi0_b")
+                       "pi_susc","CoP_imm","CoP_susc","phi0_a","phi0_b",
+                       "grand_overdispersion_rho")
 TIER1_INERT_PARS  <- c("eta_lo","kappa")
 
 # A realistic truth for point recovery, on the EU/mL titre scale (Tier 1.5 / C3):
 # delta~10^2.5, CoP_imm~10 (Exp mean 13.5), gamma~0.2, alpha_inf~0.4. phi(T,D) truth:
 # phi0_a=1.4 (phi0(38)~0.80, Darton), phi0_b=1.8/degC (beta_phi pinned=1 in model).
+# grand_overdispersion_rho=0.02 (Step 2): the cohort_random_effects_design.md anchor
+# (sigma~0.26 -> k~61 -> rho~0.016), rounded.
 TRUTH_REALISTIC <- c(log10_N50_inf = 2.3, d_fev = 1.5, alpha_inf = 0.4,
                      alpha_fevginf = 0.35, gamma_inf = 0.2, gamma_fevginf = 0.2,
                      log10_delta = 2.5, pi_susc = 0.6, CoP_imm = 10.0, CoP_susc = 1.0,
                      phi0_a = 1.4, phi0_b = 1.8,
-                     eta_lo = 0.5, kappa = 1.0)
+                     eta_lo = 0.5, kappa = 1.0, grand_overdispersion_rho = 0.02)
 
 #' Build a draws_matrix of true parameter values (constrained scale).
 #' @param values named numeric over PARAM_NAMES (defaults to TRUTH_REALISTIC).
