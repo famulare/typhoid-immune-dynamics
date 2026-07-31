@@ -50,6 +50,19 @@ T_REF <- 38.0
 # Per-study strict fever threshold (degC) for the Maryland fever obs. The dose-
 # response is threshold-free; only the phi(T,D) definition map reads T. Hornick
 # >=103F/24-36h ~ 39.4; Levine >=101F ~ 38.3; Gilman fever+culture ~ 38.3.
+#
+# PROVENANCE [2026-07-31]: Hornick and Levine are EXTRACTED; Gilman is an ASSUMPTION.
+#   Levine 1976 p.426 defines the endpoint numerically: "acute illness with oral
+#     temperature of >=101 F accompanied by isolation of S. typhi from blood or stool"
+#     -> 38.3 C, extracted.
+#   Gilman 1977 p.719 NEVER numerically defines fever in its case definition. It says
+#     "For purposes of therapy, typhoid fever was defined as the presence of fever and
+#     a blood or stool culture positive for S. typhi", then gives 39.4/38.3/37.8 C as
+#     CHLORAMPHENICOL TREATMENT TRIGGERS (>103F 1 day, >101F 3 days, >100F 5 days),
+#     not as the case definition. The 38.3 below is imported from Levine on the
+#     assumption that the two Maryland programs used the same operational threshold.
+#     It propagates into phi(T,D) for Gil-F-Hlo/Hhi/rest.
+#   -> If that assumption matters, the sensitivity to run is Gilman in {37.8, 38.3, 39.4}.
 STUDY_FEVER_THRESHOLD_C <- c(Hornick = 39.4, Levine = 38.3, Gilman = 38.3)
 # Darton placebo temperature-ladder thresholds fed to the phi0(T) sub-likelihood.
 LADDER_THRESHOLDS_C <- c(38.0, 38.5, 39.0)
@@ -111,6 +124,40 @@ apply_prior_overrides <- function(priors, overrides = list()) {
   priors
 }
 
+#' Assemble the flat Stan data list from an arbitrary covariate frame.
+#'
+#' Factored out of build_stan_data() so that test_obs_prob_parity.R can gate the
+#' model over a SYNTHETIC covariate grid through the same production assembly
+#' path the real fit uses -- a change to how stratum/CoP defaults are coerced is
+#' then automatically reflected in the gate instead of drifting away from it.
+#'
+#' @param rows data frame with likelihood_group, dose_cfu, n, y, CoP,
+#'   gilman_stratum, T_thresh (already resolved; see STUDY_FEVER_THRESHOLD_C).
+#' @param priors Parsed priors (from load_priors()).
+#' @param ladder Darton phi0 ladder list (from darton_phi0_ladder()).
+#' @return the flat Stan data list (no "obs" attribute; callers attach it).
+stan_data_from_rows <- function(rows, priors, ladder, T_ref = T_REF, prior_only = 0L) {
+  grp <- unname(.GROUP_CODE[rows$likelihood_group])
+  if (anyNA(grp)) stop("unmapped likelihood_group: ",
+                       paste(unique(rows$likelihood_group[is.na(grp)]), collapse = ", "))
+  stan_data <- list(
+    N_obs    = nrow(rows),
+    group    = as.integer(grp),
+    n        = as.integer(rows$n),
+    y        = as.integer(rows$y),
+    dose     = as.numeric(rows$dose_cfu),
+    CoP      = ifelse(is.na(rows$CoP), 1.0, as.numeric(rows$CoP)),   # used by ox groups only
+    stratum  = ifelse(is.na(rows$gilman_stratum), 0L, as.integer(rows$gilman_stratum)),
+    T_thresh = as.numeric(rows$T_thresh),
+    T_ref    = T_ref,
+    prior_only = as.integer(prior_only)
+  )
+  stan_data <- c(stan_data, ladder, priors_to_stan_data(priors))
+  stopifnot(!anyNA(unlist(stan_data[c("dose", "CoP", "n", "y", "group", "stratum",
+                                      "T_thresh", "ladder_count")])))
+  stan_data
+}
+
 #' @param data_csv Path to dose_response_data.csv.
 #' @param priors Parsed priors (from load_priors()), optionally override-mutated.
 #' @param tier_col Which activation column selects rows ("tier1_active" or "tier2_active").
@@ -136,38 +183,20 @@ build_stan_data <- function(data_csv, priors,
   }
   dat <- dat %>% arrange(match(likelihood_group, names(.GROUP_CODE)), obs_id)
 
-  grp <- unname(.GROUP_CODE[dat$likelihood_group])
-  if (anyNA(grp)) stop("unmapped likelihood_group: ",
-                       paste(unique(dat$likelihood_group[is.na(grp)]), collapse = ", "))
-
   # phi(T,D) reads a strict fever threshold only for Maryland fever obs; elsewhere
   # T_thresh is unused, set to T_REF as a harmless default.
   is_md_fever <- dat$likelihood_group %in% c("md_fev", "hornick_cond")
-  T_thresh <- ifelse(is_md_fever,
-                     unname(STUDY_FEVER_THRESHOLD_C[dat$study]), T_REF)
-  if (anyNA(T_thresh)) stop("no fever threshold mapped for Maryland study: ",
-                            paste(unique(dat$study[is_md_fever & is.na(T_thresh)]), collapse = ", "))
+  dat$T_thresh <- ifelse(is_md_fever,
+                         unname(STUDY_FEVER_THRESHOLD_C[dat$study]), T_REF)
+  if (anyNA(dat$T_thresh)) stop("no fever threshold mapped for Maryland study: ",
+                                paste(unique(dat$study[is_md_fever & is.na(dat$T_thresh)]), collapse = ", "))
 
-  stan_data <- list(
-    N_obs    = nrow(dat),
-    group    = as.integer(grp),
-    n        = as.integer(dat$n),
-    y        = as.integer(dat$y),
-    dose     = as.numeric(dat$dose_cfu),
-    CoP      = ifelse(is.na(dat$CoP), 1.0, as.numeric(dat$CoP)),      # used by ox groups only
-    stratum  = ifelse(is.na(dat$gilman_stratum), 0L, as.integer(dat$gilman_stratum)),
-    T_thresh = as.numeric(T_thresh),
-    T_ref    = T_REF,
-    prior_only = as.integer(prior_only)
-  )
-  stan_data <- c(stan_data, darton_phi0_ladder(data_csv))
-  stan_data <- c(stan_data, priors_to_stan_data(priors))
-
-  stopifnot(!anyNA(unlist(stan_data[c("dose", "CoP", "n", "y", "group", "stratum",
-                                      "T_thresh", "ladder_count")])))
+  stan_data <- stan_data_from_rows(dat, priors, darton_phi0_ladder(data_csv),
+                                   T_ref = T_REF, prior_only = prior_only)
   attr(stan_data, "obs") <- dat %>%
-    mutate(T_thresh = as.numeric(T_thresh)) %>%
-    transmute(obs_id, study, likelihood_group, group = grp,
+    mutate(T_thresh = as.numeric(T_thresh),
+           group = as.integer(unname(.GROUP_CODE[likelihood_group]))) %>%
+    transmute(obs_id, study, likelihood_group, group,
               dose_cfu, n, y, obs_rate = y / n, CoP, phi, T_thresh, gilman_stratum)
   stan_data
 }

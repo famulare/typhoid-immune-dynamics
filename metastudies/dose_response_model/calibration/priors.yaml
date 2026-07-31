@@ -39,7 +39,19 @@ gamma_fevginf:     { family: lognormal,   meanlog: -1.6, sdlog: 0.7 }   # median
 
 # ---- Nuisance parameters ----
 log10_delta:       { family: normal,      mu: 3.5,  sd: 0.7 }   # ~1000-30000x
-pi_susc:           { family: beta,        a: 7,     b: 4 }       # ~0.65 (Gilman 36/53)
+# pi_susc PROVENANCE [documented 2026-07-31]: the 36/53 = 0.68 that motivates Beta(7,4)
+# is the prevalence of UNDETECTABLE H (flagellar) AGGLUTININ in Gilman's controls
+# (Gilman 1977 Table 5: 36 at <1:20, 17 at >=1:20). It is an H-antibody prevalence being
+# used as the mixing weight of a mixture whose components are indexed on the anti-Vi CoP
+# scale. Gilman p.721 and Levine 1976 p.427 both report that O and Vi antibody did NOT
+# correlate with protection in this population, while H did -- so the axis the weight
+# comes from is not the axis the components live on. joint_inference_plan.md:211 notes
+# this ("H-antibody, NOT Vi"); recorded here so the prior's justification carries it too.
+# Independent corroboration of the WEIGHT (not the axis): Woodward 1980 p.555 reports
+# 200 non-veterans / 105 TAB-vaccinated veterans = 0.66 non-immune, close to 0.68.
+# CONSEQUENCE: pi_susc's posterior agreeing with Gilman's 36/53 is near-circular and is
+# not evidence the mixture weight is identified by the challenge data.
+pi_susc:           { family: beta,        a: 7,     b: 4 }       # ~0.65 (Gilman 36/53, H-agglutinin)
 # CoP units are DEFINITIONAL: anti-Vi IgG (VaccZyme EU/mL) relative to naive (=1).
 # These latent Maryland CoPs are anti-Vi-EQUIVALENT (anti-Vi not measured pre-VaccZyme).
 # CoP_imm [Mike 2026-07-15]: max-entropy Exponential with mean 50 EU/mL ABSOLUTE =

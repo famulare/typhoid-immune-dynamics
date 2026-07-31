@@ -5,20 +5,19 @@
 #' dose-response curve (median + 90% ribbon) over a dose grid against the observed
 #' attack rates (with Wilson 95% CIs) and the per-observation fitted `p_pred`.
 #'
-#' The curves are computed in R from posterior parameter draws, mirroring the
-#' `obs_prob()` math in the .stan. This is a *visualization* mirror only — the
-#' inference-side PPC (`p_pred`, plotted here as points) still comes from Stan, and
-#' the likelihood's single-source guarantee (test_obs_prob_parity.R) is untouched.
+#' The curves are computed in R from posterior parameter draws via model_math.R,
+#' which is gated against Stan by test_obs_prob_parity.R. The inference-side PPC
+#' (`p_pred`, plotted here as points) still comes from Stan.
+#'
+#' 2026-07-31: the local `.bp()` beta-Poisson mirror was DELETED. It was a third,
+#' ungated transcription of the model math and every panel re-derived the Maryland
+#' fever product inline. All model algebra now lives in model_math.R.
 
 suppressPackageStartupMessages({
   library(posterior); library(dplyr); library(tidyr); library(ggplot2)
 })
+if (!exists("mm_pars")) source("model_math.R")
 
-# Beta-Poisson and Maryland mixture, vectorized over posterior draws (D_eff scalar).
-.bp <- function(D, N50, alpha, CoP, gamma) {
-  scale <- (2^(1 / alpha) - 1) / N50
-  1 - (1 + D * scale)^(-alpha / CoP^gamma)
-}
 .wilson <- function(y, n, z = 1.96) {  # Wilson score interval
   p <- y / n; d <- 1 + z^2 / n
   ctr <- (p + z^2 / (2 * n)) / d
@@ -29,41 +28,27 @@ suppressPackageStartupMessages({
 #' @param fit cmdstanr fit; @param stan_data list with attr "obs"; @param outfile png path
 plot_dose_response_fit <- function(fit, stan_data, outfile) {
   obs <- attr(stan_data, "obs")
-  dr  <- as_draws_df(fit$draws(c("N50_inf", "N50_fevginf", "alpha_inf", "alpha_fevginf",
-                                 "gamma_inf", "gamma_fevginf", "delta",
-                                 "pi_susc", "CoP_imm", "CoP_susc",
-                                 "phi0_a", "phi0_b")))
   T_ref_val <- if (!is.null(stan_data$T_ref)) stan_data$T_ref else 38.0
   T_curve   <- 39.4   # draw the Maryland fever curve at the Hornick threshold (spans dose)
+  pars <- mm_draws(fit, T_ref = T_ref_val)
 
-  # population dose-response over a grid, per panel (median + 90% ribbon across draws)
-  grid_curve <- function(doses, fn) {
-    q <- vapply(doses, function(d) quantile(fn(d), c(.05, .5, .95)), numeric(3))
-    tibble(dose_cfu = doses, lo = q[1, ], med = q[2, ], hi = q[3, ])
+  gc_ <- function(mat, doses) {
+    q <- mm_quantiles(mat, doses)
+    tibble(dose_cfu = q$x, lo = q$lo, med = q$med, hi = q$hi)
   }
-  with(dr, {
-    ox  <- 10^seq(2.3, 4.7, length.out = 60)
-    md  <- 10^seq(2.7, 9.7, length.out = 80)
+  ox <- 10^seq(2.3, 4.7, length.out = 60)
+  md <- 10^seq(2.7, 9.7, length.out = 80)
+  De <- mm_by_grid(md, pars$.ndraws, length(md)) / mm_by_draw(pars$delta, pars$.ndraws, length(md))
+
+  curves <- bind_rows(
     # naive Oxford fever (CoP=1, delta=1)
-    cur_ox <- grid_curve(ox, function(d)
-      .bp(d, N50_inf, alpha_inf, 1, gamma_inf) * .bp(d, N50_fevginf, alpha_fevginf, 1, gamma_fevginf))
-    # Maryland fever = phi(T,D) * mixture of (P_inf * P_fev|inf), milk frame.
-    # phi(T,D) drawn at Hornick threshold 39.4: phi0(T) + (1-phi0)*P_fev_naive(De)^beta.
-    cur_mf <- grid_curve(md, function(d) { De <- d / delta
-      pf <- function(C) .bp(De, N50_inf, alpha_inf, C, gamma_inf) * .bp(De, N50_fevginf, alpha_fevginf, C, gamma_fevginf)
-      phi0 <- plogis(phi0_a - phi0_b * (T_curve - T_ref_val))
-      p_fev_naive <- .bp(De, N50_inf, alpha_inf, 1, gamma_inf) * .bp(De, N50_fevginf, alpha_fevginf, 1, gamma_fevginf)
-      phi <- phi0 + (1 - phi0) * p_fev_naive   # beta_phi pinned = 1
-      phi * (pi_susc * pf(CoP_susc) + (1 - pi_susc) * pf(CoP_imm)) })
+    gc_(mm_p_fev(ox, 1, pars), ox) %>% mutate(panel = "Oxford fever (bicarb, naive)"),
+    # Maryland fever = phi(T,D) * mixture of (P_inf * P_fev|inf), milk frame
+    gc_(mm_phi_td(T_curve, De, pars) * mm_md_mix(De, pars, "fev"), md) %>%
+      mutate(panel = "Maryland fever (milk, mixture x phi(39.4,D))"),
     # Maryland infection = mixture of P_inf, milk frame
-    cur_mi <- grid_curve(md, function(d) { De <- d / delta
-      pi_susc * .bp(De, N50_inf, alpha_inf, CoP_susc, gamma_inf) +
-        (1 - pi_susc) * .bp(De, N50_inf, alpha_inf, CoP_imm, gamma_inf) })
-    curves <<- bind_rows(
-      cur_ox %>% mutate(panel = "Oxford fever (bicarb, naive)"),
-      cur_mf %>% mutate(panel = "Maryland fever (milk, mixture x phi(39.4,D))"),
-      cur_mi %>% mutate(panel = "Maryland infection (milk, mixture)"))
-  })
+    gc_(mm_md_mix(De, pars, "inf"), md) %>%
+      mutate(panel = "Maryland infection (milk, mixture)"))
 
   panel_of <- c(ox_fev = "Oxford fever (bicarb, naive)",
                 md_fev = "Maryland fever (milk, mixture x phi(39.4,D))",
@@ -111,23 +96,17 @@ plot_dose_response_fit <- function(fit, stan_data, outfile) {
 #' @param D_ref Oxford challenge dose to evaluate the curves at (Darton 18200 ~ Jin 2e4).
 plot_titre_protection <- function(fit, stan_data, outfile, D_ref = 2e4,
                                   naive_ref = 3.7) {
-  obs <- attr(stan_data, "obs")
-  dr  <- as_draws_df(fit$draws(c("N50_inf", "N50_fevginf", "alpha_inf",
-                                 "alpha_fevginf", "gamma_inf", "gamma_fevginf")))
-  cop <- 10^seq(log10(0.9), log10(200), length.out = 80)
-  gc <- function(fn) {
-    q <- vapply(cop, function(c) quantile(fn(c), c(.05, .5, .95)), numeric(3))
-    tibble(eu = cop * naive_ref, lo = q[1, ], med = q[2, ], hi = q[3, ])
+  obs  <- attr(stan_data, "obs")
+  pars <- mm_draws(fit, T_ref = if (!is.null(stan_data$T_ref)) stan_data$T_ref else 38.0)
+  cop  <- 10^seq(log10(0.9), log10(200), length.out = 80)
+  gc_ <- function(mat) {
+    q <- mm_quantiles(mat, cop * naive_ref)
+    tibble(eu = q$x, lo = q$lo, med = q$med, hi = q$hi)
   }
-  with(dr, {
-    ci <- gc(function(C) .bp(D_ref, N50_inf, alpha_inf, C, gamma_inf))
-    cg <- gc(function(C) .bp(D_ref, N50_fevginf, alpha_fevginf, C, gamma_fevginf))
-    cf <- gc(function(C) .bp(D_ref, N50_inf, alpha_inf, C, gamma_inf) *
-                         .bp(D_ref, N50_fevginf, alpha_fevginf, C, gamma_fevginf))
-    curves <<- bind_rows(ci %>% mutate(panel = "P(infection)"),
-                         cg %>% mutate(panel = "P(fever | infection)"),
-                         cf %>% mutate(panel = "P(fever) composite"))
-  })
+  curves <- bind_rows(
+    gc_(mm_p_inf(D_ref, cop, pars))     %>% mutate(panel = "P(infection)"),
+    gc_(mm_p_fevginf(D_ref, cop, pars)) %>% mutate(panel = "P(fever | infection)"),
+    gc_(mm_p_fev(D_ref, cop, pars))     %>% mutate(panel = "P(fever) composite"))
   panel_lv <- c("P(infection)", "P(fever | infection)", "P(fever) composite")
   curves$panel <- factor(curves$panel, panel_lv)
 

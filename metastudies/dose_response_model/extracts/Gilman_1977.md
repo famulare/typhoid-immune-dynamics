@@ -61,8 +61,28 @@ Gilman RH, Hornick RB, Woodward WE, DuPont HL, Snyder MJ, Levine MM, Libonati JP
 - Titer of antibody to O antigen was rarely elevated prior to vaccination (p.720)
 - H antibody base-line titer >= 1:20 associated with reduced seroconversion to vaccination (Table 3, p.720)
 - In unvaccinated controls, pre-existing H antibody (>= 1:20) correlated with lower attack rate: 24% vs 61% in those without H antibody (P = 0.02) (Table 5, p.721)
+- **O and Vi antibody did NOT correlate with protection, in either controls or vaccinees** (p.721,
+  verbatim): "in vaccinees the presence of H antibody was not associated with protection from typhoid
+  fever, nor was the presence of O or Vi antibody correlated with protection of vaccinees or controls."
+  Added 2026-07-31 -- this sentence was previously absent from the extract. It is the most
+  decision-relevant line in the paper for the calibration, because the model's CoP axis IS anti-Vi.
+  Levine 1976 p.427 reports the same null for O and Vi independently. Neither paper publishes the
+  O/Vi cross-tabulations, so the null cannot be quantified and is plausibly small-N plus a compressed
+  baseline titre range rather than a biological null.
 
-**[ASSISTANT-PROPOSED]** The H antibody-protection correlation in controls is notable but was not observed in vaccinees, suggesting different protective mechanisms.
+**[ASSISTANT-PROPOSED]** The H antibody-protection correlation in controls is notable but was not observed in vaccinees.
+
+**[AUTHORS, p.722 -- do not attribute the above reading to them]** Gilman et al. draw the OPPOSITE
+inference from the same discordance, and use it to doubt the effect: "Prior antibody to H antigen in
+unvaccinated control volunteers was directly correlated with subsequent protection... This effect,
+however, may not have been specifically due to H antibody since vaccinated volunteers with high H
+titers were not preferentially protected. Indeed, humoral antibodies may be quite irrelevant to
+immunity to typhoid fever, which could be due to local or cell-mediated phenomena."
+
+**[SCOPE NOTE, Mike 2026-07-31]** Gilman's objection is about humoral antibody as a MECHANISTIC
+correlate, and on that he is right. It does not bear on whether a titre is a useful PREDICTIVE
+correlate, which is the only sense the dose-response model uses. Keep the two claims separate:
+the authors' mechanistic scepticism is not an argument against a predictive CoP.
 
 ## Outcome Definitions
 
@@ -166,7 +186,11 @@ Table 5 cross-tabulates clinical outcome (Well/Ill) by baseline H-antibody statu
 - Large control group (N=64 combined) at 10^5 dose
 - Well-documented disease definition with explicit temperature thresholds
 - Pre-challenge antibody status recorded
-- Prospective randomized design with concurrent controls
+- Concurrent unvaccinated controls challenged alongside vaccinees
+  - NOT randomized: the word "random" does not appear in the paper. p.719 says only
+    "all available vaccinees and a comparable number of unvaccinated men serving as
+    controls were fed 10^5 virulent S. typhi". Corrected 2026-07-31 (was "Prospective
+    randomized design", which was ASSISTANT-INFERRED and unsupported).
 - Same research group/methods as other Maryland CHIM studies (enables cross-study comparison)
 
 ### Limitations
@@ -199,7 +223,10 @@ Table 5 cross-tabulates clinical outcome (Well/Ill) by baseline H-antibody statu
 
 **[ASSISTANT-PROPOSED]** **SUPPORT** - Limited utility for primary dose-response modeling due to single challenge dose. However, provides valuable data points:
 1. Additional control group data at 10^5 dose (N=64)
-2. Evidence of H antibody-mediated protection in naive individuals
+2. An H-antibody/protection ASSOCIATION in unvaccinated controls (not "H antibody-mediated
+   protection": post-hoc, RR 2.60 with 95% CI 1.06-6.36, Fisher p = 0.018, and the authors
+   explicitly decline the causal reading. The analysis was prompted externally -- p.717 thanks
+   "Dr. R. Edelman ... for drawing our attention to H antibody and disease protection.")
 3. Suppressed antibody response in vaccinees suggests oral tolerance
 4. Cross-validation data for Maryland CHIM program consistency
 

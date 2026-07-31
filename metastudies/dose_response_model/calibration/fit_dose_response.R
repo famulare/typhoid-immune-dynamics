@@ -26,7 +26,7 @@ get_script_dir <- function() {
 calib_dir <- get_script_dir()
 setwd(calib_dir)
 source("priors.R"); source("data_prep.R"); source("diagnostics.R")
-source("dose_response_curves.R")  # bespoke model PPC: dose-response curves vs data
+source("figures.R")  # bespoke model figure suite (sources dose_response_curves.R)
 
 stan_file   <- "typhoid_dose_response.stan"
 data_file   <- "dose_response_data.csv"
@@ -49,14 +49,18 @@ mod <- cmdstan_model(stan_file)
 
 # ---- Prior predictive --------------------------------------------------------
 cat("\n=== PRIOR PREDICTIVE ===\n")
+# modifyList() drops attributes; re-attach "obs" so the figure suite can use it.
+stan_data_prior <- modifyList(stan_data, list(prior_only = 1L))
+attr(stan_data_prior, "obs") <- obs
 fit_prior <- mod$sample(
-  data = modifyList(stan_data, list(prior_only = 1L)),
+  data = stan_data_prior,
   chains = 2, parallel_chains = 2, iter_warmup = 500, iter_sampling = 500,
   seed = 1234, refresh = 0, show_messages = FALSE
 )
 diagnose_fit(fit_prior, file.path(results_dir, "tier1_prior"),
              pars = setdiff(interp_pars, c("N50_inf", "N50_fevginf", "delta")),
-             obs = obs, priors = priors, model_name = "tier1_prior")
+             obs = obs, priors = priors, model_name = "tier1_prior",
+             extra_plots = model_figures_hook(stan_data_prior, label = "Tier 1 PRIOR"))
 
 # ---- Posterior ---------------------------------------------------------------
 cat("\n=== POSTERIOR ===\n")
@@ -73,12 +77,11 @@ fit$cmdstan_diagnose()
 
 diag <- diagnose_fit(fit, file.path(results_dir, "tier1"),
                      pars = interp_pars, obs = obs, priors = priors,
-                     model_name = "tier1", elapsed_s = elapsed)
-
-# Bespoke model PPC: posterior dose-response curves vs observed.
-plot_dose_response_fit(fit, stan_data, file.path(results_dir, "tier1", "dose_response_fit.png"))
-# Titre -> protection (CoP-axis): the immunity-slope view (Darton individuals + Jin groups).
-plot_titre_protection(fit, stan_data, file.path(results_dir, "tier1", "titre_protection.png"))
+                     model_name = "tier1", elapsed_s = elapsed,
+                     extra_plots = model_figures_hook(stan_data, label = "Tier 1"))
+# The whole bespoke figure suite (dose-response, titre-protection, permutation
+# grid, phi severity, mixture, delta bridge, dose x CoP) is emitted by the
+# extra_plots hook above, for BOTH the prior and posterior run directories.
 
 cat("\n=== INTERPRETABLE PARAMETERS ===\n")
 print(diag$table, n = Inf)

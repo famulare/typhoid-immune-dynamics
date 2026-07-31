@@ -197,13 +197,77 @@ plot_prior_posterior <- function(fit, out_dir, priors, true_params = NULL,
            w = 11, h = 2.5 * ceiling(length(pp) / 4))
 }
 
+#' Shared label for a pooled set of individual rows: the common obs_id prefix,
+#' trimmed of the trailing subject-id characters ("D-I-plac-102", "D-I-plac-706"
+#' -> "D-I-plac"). Falls back to the likelihood_group if no usable prefix exists.
+.ppc_pool_label <- function(ids, fallback) {
+  if (length(ids) == 1L) return(ids)
+  ch <- strsplit(ids, "", fixed = TRUE)
+  k <- 0L
+  while (k < min(lengths(ch)) &&
+         length(unique(vapply(ch, `[`, character(1), k + 1L))) == 1L) k <- k + 1L
+  lab <- sub("[^A-Za-z]+$", "", substr(ids[1], 1L, k))   # drop the shared id digits/dashes
+  if (nchar(lab)) lab else fallback
+}
+
+#' One PPC row per plotted marker, plus the un-pooled rows for the CSV.
+#'
+#' Individual-level likelihood groups (`*_indiv`, one subject per row) have no
+#' interpretable observed rate -- y/n is exactly 0 or 1 -- so drawing them beside
+#' grouped-binomial arms puts two incommensurate representations on one axis.
+#' Pool them to arm level instead: observed = sum(y)/sum(n) over the arm, fitted =
+#' the n-weighted mean of the per-subject p_pred WITHIN each draw, i.e. the
+#' model-implied expected attack rate for the arm. That is exactly the quantity
+#' p_pred already reports for a grouped row, so pooled and grouped markers are on
+#' the same footing. Pooling averages over the arm's CoP spread, which is the whole
+#' point of the individual rows -- the titre gradient is checked in
+#' titre_protection.png, not here.
+#'
+#' Individual rows are retained in the returned frame (level == "individual") so
+#' ppc.csv keeps the full detail; only level == "arm" is plotted.
+.ppc_rows <- function(obs, pp) {
+  probs <- c(0.05, 0.5, 0.95)
+  q <- t(apply(pp, 2, stats::quantile, probs = probs))
+  base <- obs |>
+    dplyr::mutate(fit_lo = q[, 1], fit_med = q[, 2], fit_hi = q[, 3],
+                  level = ifelse(grepl("_indiv$", likelihood_group), "individual", "arm"),
+                  n_pooled = 1L,
+                  .row = dplyr::row_number())
+  indiv <- dplyr::filter(base, level == "individual")
+  if (!nrow(indiv)) return(dplyr::select(base, -.row))
+
+  pooled <- indiv |>
+    dplyr::group_by(study, likelihood_group, group, dose_cfu) |>
+    dplyr::group_modify(function(g, key) {
+      w <- g$n / sum(g$n)
+      qq <- stats::quantile(as.numeric(pp[, g$.row, drop = FALSE] %*% w),
+                            probs = probs, names = FALSE)
+      dplyr::tibble(
+        obs_id = sprintf("%s (n=%d)", .ppc_pool_label(g$obs_id, key$likelihood_group),
+                         sum(g$n)),
+        n = sum(g$n), y = sum(g$y), obs_rate = sum(g$y) / sum(g$n),
+        CoP = stats::median(g$CoP), phi = g$phi[1], T_thresh = g$T_thresh[1],
+        gilman_stratum = g$gilman_stratum[1],
+        fit_lo = qq[1], fit_med = qq[2], fit_hi = qq[3],
+        level = "arm", n_pooled = nrow(g))
+    }) |>
+    dplyr::ungroup()
+
+  dplyr::bind_rows(dplyr::select(base, -.row), pooled)
+}
+
 #' Rate-space grouped-binomial PPC, fed by Stan p_pred (replaces the R mirror).
+#' Every marker is one arm: individual-level groups are pooled (see .ppc_rows()).
 plot_ppc <- function(fit, out_dir, obs, true_params = NULL) {
   if (is.null(obs) || !"p_pred" %in% fit$metadata()$stan_variables) return(invisible())
   pp <- posterior::as_draws_matrix(fit$draws("p_pred"))   # ndraws x N_obs
-  q <- t(apply(pp, 2, quantile, probs = c(0.05, 0.5, 0.95)))
-  df <- dplyr::bind_cols(obs, fit_lo = q[, 1], fit_med = q[, 2], fit_hi = q[, 3])
-  p <- ggplot(df, aes(obs_rate, fit_med, colour = likelihood_group)) +
+  if (ncol(pp) != nrow(obs))
+    stop("plot_ppc: obs (", nrow(obs), " rows) does not match p_pred (",
+         ncol(pp), " columns) -- wrong stan_data for this fit?", call. = FALSE)
+  df <- .ppc_rows(obs, pp)
+  plot_df <- dplyr::filter(df, level == "arm")
+  n_pooled_groups <- sum(plot_df$n_pooled > 1L)
+  p <- ggplot(plot_df, aes(obs_rate, fit_med, colour = likelihood_group)) +
     geom_abline(slope = 1, intercept = 0, linetype = 2, colour = "grey50") +
     geom_linerange(aes(ymin = fit_lo, ymax = fit_hi), alpha = 0.5) +
     geom_point(size = 2) +
@@ -212,8 +276,25 @@ plot_ppc <- function(fit, out_dir, obs, true_params = NULL) {
     coord_equal(xlim = c(0, 1), ylim = c(0, 1)) +
     labs(x = "Observed attack rate (y/n)",
          y = "Posterior fitted probability (median, 90% CI)",
-         title = "Posterior predictive check (rate space)", colour = "group")
+         title = "Posterior predictive check (rate space)", colour = "group",
+         caption = if (n_pooled_groups) paste(
+           "Individual-level (n=1) groups pooled to arm level:",
+           "observed = sum(y)/sum(n);",
+           "\nfitted = n-weighted mean of the per-subject p_pred within each draw.",
+           "\nPer-subject rows are kept in ppc.csv (level = 'individual').") else NULL) +
+    theme(plot.caption = element_text(hjust = 0, size = 7, lineheight = 1.1))
   .save_gg(p, file.path(out_dir, "ppc.png"), w = 8, h = 6)
+  invisible(df)
+}
+
+#' Rebuild ppc.png / ppc.csv for a saved run directory, without refitting.
+#' Mirrors figures_from_dir() in figures.R; needs the run dir's fit.rds and the
+#' stan_data.rds that produced it (obs row order IS the p_pred column order).
+ppc_from_dir <- function(run_dir) {
+  fit <- readRDS(file.path(run_dir, "fit.rds"))
+  sd  <- readRDS(file.path(run_dir, "stan_data.rds"))
+  df  <- plot_ppc(fit, run_dir, attr(sd, "obs"))
+  if (!is.null(df)) readr::write_csv(df, file.path(run_dir, "ppc.csv"))
   invisible(df)
 }
 
@@ -280,6 +361,14 @@ write_summary_md <- function(out_dir, model_name, health, tab, corr, ps_tab) {
   L <- c(L, "", "## Figures", "",
          vapply(sort(basename(Sys.glob(file.path(out_dir, "*.png")))),
                 function(f) sprintf("![%s](%s)\n", tools::file_path_sans_ext(f), f), character(1)))
+  # one level of subdirectories (figures.R writes the per-grouping panels to grid/)
+  for (sub in sort(basename(list.dirs(out_dir, recursive = FALSE)))) {
+    png_sub <- sort(basename(Sys.glob(file.path(out_dir, sub, "*.png"))))
+    if (length(png_sub))
+      L <- c(L, "", sprintf("### %s/", sub), "",
+             vapply(png_sub, function(f)
+               sprintf("![%s](%s/%s)\n", tools::file_path_sans_ext(f), sub, f), character(1)))
+  }
   writeLines(L, file.path(out_dir, "summary.md"))
 }
 
@@ -330,10 +419,16 @@ strong_correlations <- function(fit, pars, threshold = 0.7) {
 #' @param ref_points hand-tuned reference points for the prior-vs-posterior overlay.
 #'   Defaults to load_reference_points() so every regenerated plot shows them; pass
 #'   NULL to suppress.
+#' @param extra_plots optional function(fit, out_dir) drawing model-specific
+#'   figures. Called before write_summary_md() so the summary picks them up, and
+#'   wrapped in tryCatch so a figure bug can never lose a fit. This is the hook
+#'   that makes the bespoke suite regenerate for EVERY run dir (posterior, prior,
+#'   scenarios, recovery) instead of only the one a callsite happens to name.
 diagnose_fit <- function(fit, out_dir, pars, true_params = NULL, obs = NULL,
                          priors = NULL, model_name = "fit", elapsed_s = NA_real_,
                          corr_exclude = c("N50_inf", "N50_fevginf", "delta"),
-                         ref_points = load_reference_points()) {
+                         ref_points = load_reference_points(),
+                         extra_plots = NULL) {
   dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
   pars <- intersect(pars, fit$metadata()$stan_variables)
 
@@ -345,6 +440,9 @@ diagnose_fit <- function(fit, out_dir, pars, true_params = NULL, obs = NULL,
   plot_battery(fit, out_dir, pars, true_params)
   if (!is.null(priors)) plot_prior_posterior(fit, out_dir, priors, true_params, ref_points)
   ppc_df <- plot_ppc(fit, out_dir, obs, true_params)
+  if (is.function(extra_plots))
+    tryCatch(extra_plots(fit, out_dir),
+             error = function(e) message("  [skip] extra_plots: ", conditionMessage(e)))
 
   write_summary_md(out_dir, model_name, health, tab, corr, ps_tab)
   write_results_json(out_dir, model_name, health, tab, corr, elapsed_s)

@@ -461,3 +461,15 @@ published logistic result to inform the γ prior.**
 **If we later want the actual scatter:** WebPlotDigitizer pass (human) or locate deposited
 TyVAC/VAST trial data; wire extracted points as individual rows (I integrate, don't invent).
 Tracked under issue #15 (+Jin-digitize remains open as the higher-fidelity option).
+
+## +vaccine-terms — Darton VE pulled + design documented (2026-07-31) [Mike]
+
+Pulled Darton 2016 Table 2 vaccine efficacies (M01ZH09, Ty21a); full table + increment
+design in `tier1.5_plan.md` ("+vaccine-terms increment (planned)"). Headline [from extract]:
+M01ZH09 weak/non-significant (VE 13–28%, CIs cross 0); **Ty21a moderate + significant** on
+infection/bacteraemia (bact-or-stool 38% [12,57]); and **adjusting for baseline anti-Vi
+barely changes VE** → protection is non-anti-Vi-mediated. Proposed: add the two arms as
+cascade rows (groups 6/7) with a separate per-vaccine factor `V_v` in the exponent
+(`−alpha/(CoP^gamma·V_v)`), keeping vaccine protection OUT of γ; Ty21a CoP=1 (anti-Vi NA).
+Verdict: parked — it does NOT extend the anti-Vi axis (no γ-split help); real value is the
+anti-Vi-vs-cell-mediated protection *decomposition*, a distinct aim.

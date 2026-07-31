@@ -16,6 +16,7 @@
 suppressPackageStartupMessages({library(cmdstanr); library(posterior); library(dplyr)
                                 library(ggplot2); library(tidyr)})
 source("priors.R"); source("data_prep.R"); source("diagnostics.R")
+source("figures.R")   # bespoke model figure suite, via diagnose_fit(extra_plots=)
 
 `%||%` <- function(a, b) if (is.null(a)) b else a
 
@@ -35,7 +36,7 @@ SCENARIOS <- list(
 run_scenario <- function(spec, mod, data_csv = "dose_response_data.csv",
                          priors0 = load_priors(),
                          chains = 4, warmup = 800, sampling = 800,
-                         adapt_delta = 0.9, seed = 2024) {
+                         adapt_delta = 0.9, seed = 2024, figures = TRUE) {
   priors <- apply_prior_overrides(priors0, spec$prior_overrides %||% list())
   stan_data <- build_stan_data(data_csv, priors,
                                tier_col = spec$tier_col %||% "tier1_active",
@@ -55,7 +56,8 @@ run_scenario <- function(spec, mod, data_csv = "dose_response_data.csv",
                pars = c("log10_N50_inf","d_fev","log10_N50_fevginf","alpha_inf",
                         "alpha_fevginf","gamma_inf","gamma_fevginf","log10_delta",
                         "pi_susc","CoP_imm","CoP_susc"),
-               obs = obs, priors = priors, model_name = spec$label, elapsed_s = elapsed)
+               obs = obs, priors = priors, model_name = spec$label, elapsed_s = elapsed,
+               extra_plots = if (isTRUE(figures)) model_figures_hook(stan_data, label = spec$label))
 
   lj <- compute_loo_units(fit, obs)
   if (!is.null(lj)) jsonlite::write_json(lj, file.path(out_dir, "loo.json"),

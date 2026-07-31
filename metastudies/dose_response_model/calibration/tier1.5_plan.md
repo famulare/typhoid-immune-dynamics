@@ -87,3 +87,87 @@ Individual-level Darton sub-likelihood over all 91 per-protocol subjects:
 - Bespoke dose-response figure with 30 individual Darton points + Jin EU/mL spanning
   the titre axis; post-fit γ_fev sanity vs the Darton per-log₁₀ slope (validation).
 - Preserve the prior Tier-1 fit for comparison (don't overwrite `results/tier1`).
+
+---
+
+## Later increments — status + designs
+
+- **+cascade — DONE** (commit `0088b9e`): Darton placebo per-subject infection
+  (`bact_or_stool`, group 6 `ox_inf_indiv`) + fever|infection (`fever_td` among infected,
+  group 7 `ox_fevginf_indiv`). Result: the γ_inf/γ_fevginf split is titre-range-limited
+  (Darton clusters at low anti-Vi), slopes near-identical (~0.15–0.20).
+- **+Jin — resolved as CoP-anchor** (commit `9c5126e`): Jin's published logistic OR
+  (0.37/log₁₀ anti-Vi, verified) informs the γ prior in lieu of digitizing Fig S3.
+  Higher-fidelity +Jin-digitize (WebPlotDigitizer/human or deposited trial data) stays open.
+- **+vaccine-terms — PLANNED** (design below).
+
+## +vaccine-terms increment (planned — design + Darton VE, 2026-07-31)
+
+Add Darton's two non-anti-Vi vaccine arms (currently extracted but unused). Motivation and
+the exact published efficacy, so the design rests on numbers not memory.
+
+### The unused data (Darton 2016, individual endpoints CSV)
+| arm | n | infection (bact_or_stool) | fever (TD) | anti-Vi median (max) | mechanism |
+|---|---|---|---|---|---|
+| Placebo (in fit) | 30 | 0.87 | 0.67 | 3.7 (62) | — |
+| **M01ZH09** | 31 | 0.68 | 0.58 | 3.7 (204) | live oral, Ty2 ΔaroC ΔssaV |
+| **Ty21a** | 30 | 0.53 | 0.43 | **NA (not assayed)** | live oral, **Vi-negative** |
+
+### Darton published vaccine efficacy (Table 2, p.10) [from extract]
+| endpoint | VE M01ZH09 [95% CI] | VE Ty21a [95% CI] |
+|---|---|---|
+| Primary TD (unadjusted) | 13% [−29, 41] | 35% [−5, 60] |
+| Primary TD (**adj. for baseline anti-Vi**) | 19% [−17, 43] | 31% [−8, 55] |
+| Fever ≥38.0 °C (adj.) | 19% [−27, 48] | **48% [4, 72]** |
+| Any bacteraemia (adj.) | 28% [−7, 52] | **41% [2, 64]** |
+| Bacteraemia or stool positive (unadj.) | 22% [−3, 41] | **38% [12, 57]** |
+
+**Key findings** [observed]: (1) **M01ZH09 is weak / non-significant** on every endpoint
+(all CIs cross 0) — matches Darton's headline. (2) **Ty21a is moderate and SIGNIFICANT** on
+the infection/bacteraemia endpoints (bact-or-stool 38% [12,57]; adj. bacteraemia 41% [2,64];
+adj. fever≥38 48% [4,72]). (3) **Adjusting for baseline anti-Vi barely changes the VE**
+(Ty21a TD 35%→31%, M01ZH09 13%→19%) → the protection is **demonstrably NOT anti-Vi-mediated**.
+This is the clean justification for a *separate* protection channel.
+
+### The confounding problem (why they can't just be added)
+Ty21a is protected (infection 0.53 vs placebo 0.87) while sitting at **naive anti-Vi**. On the
+CoP = anti-Vi/3.7 axis they land at CoP≈1 with low attack rates; pooled into the cascade the
+model would flatten **γ** (mis-attribute cell-mediated protection to the anti-Vi slope) or
+inflate the baseline. So the arms need a per-vaccine term that absorbs their protection.
+
+### Proposed parameterization
+- Add M01ZH09 (31) + Ty21a (30) as individual cascade rows, **same groups as placebo**
+  (6 = infection `bact_or_stool`; 7 = fever|inf `fever_td` among infected). +61 subjects.
+- **Per-vaccine protection factor `V_v`, a separate channel from CoP^γ:**
+  `exponent = −alpha / (CoP^gamma · V_v)`, with `V_placebo = 1`, `V_v ≥ 1` protective,
+  `log V_v ~ Normal(·)` weakly-informative. Mirrors the CoP^γ form (protection divides the
+  exponent → lowers the attack rate) but as an **independent** per-vaccine magnitude, so it
+  **stays out of γ** (the whole point). Ty21a: `CoP = 1` (anti-Vi NA) → `V_Ty21a` carries all
+  its protection; M01ZH09: `CoP = measured × V_M01ZH09`.
+- **Params:** +2 (`V_M01ZH09`, `V_Ty21a`); optionally per-endpoint (+2) if inf vs fever VE
+  diverge (Ty21a bacteraemia 41% vs fever≥38 48% — thin at n≈30; start single, split only if
+  a residual demands it).
+- **Priors:** weakly-informative — each arm's own attack-rate contrast vs placebo identifies
+  `V_v` cleanly (61 subjects, no cross-arm confound). Optionally anchor on the Darton VE the
+  way +Jin anchored γ.
+- **Harness:** groups 6/7 are already in the parity gate + `model_math.R`. Adding `V_v` needs
+  a `vaccine_id` covariate + the V lookup in `obs_prob`, plus `PARAM_NAMES`/`vecs`/`TRUTH`
+  and `priors.yaml`; the `assert_fitted_params_match` guard flags the stale lists.
+
+### Wrinkles
+- **Ty21a anti-Vi = NA** → it *must* be a pure vaccine effect (CoP=1); asymmetric with
+  M01ZH09 (which has a measured, mostly-naive titre). This is a data fact, not a choice.
+- Treatment-truncation (η) ignored at Tier 1, same as placebo.
+- Distinct from the model's placeholder `VE_fev_ViTT/ViPS` GQ (those are anti-Vi *Vi*-vaccines;
+  this is the orthogonal non-anti-Vi case).
+
+### Value / priority [honest]
+- **Does NOT extend the anti-Vi axis** (both arms ~naive) → **zero help to the γ-split or the
+  immunity slope** — the reason it's ranked below +Jin.
+- **Does buy:** (a) +61 backbone subjects at the Oxford dose; (b) non-anti-Vi VE as a model
+  quantity to validate against Darton Table 2; (c) enables the **anti-Vi-vs-cell-mediated
+  protection decomposition** — a *distinct scientific aim* (Ty21a's significant,
+  anti-Vi-independent protection is a clean natural experiment), arguably its own analysis
+  rather than part of the dose-response/CoP calibration.
+- **Verdict:** park unless the decomposition question is the goal. If pursued it's low-risk
+  (`V_v` well-identified by its own arm) and self-contained — no threat to the existing fit.

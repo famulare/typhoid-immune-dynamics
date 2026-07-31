@@ -20,6 +20,11 @@ TOL_LL <- 1e-3   # pointwise log-likelihood
 T_REF  <- 38.0   # phi0(T) logit center (must match data_prep.R T_REF)
 
 # ---- Independent R reference (transcribed from the model block) ----------------
+# DO NOT refactor the functions in this section to call model_math.R. They are a
+# SEPARATE, hand-transcribed implementation, and that independence is the entire
+# value of this gate: model_math.R is the code the figures actually run, and it is
+# checked against BOTH Stan and this transcription below. DRYing these together
+# would silently collapse three implementations into one and delete the check.
 bp <- function(D, N50, alpha, CoP, gamma) {
   scale <- (2^(1 / alpha) - 1) / N50
   1 - (1 + D * scale)^(-alpha / CoP^gamma)
@@ -105,9 +110,132 @@ for (di in seq_len(nrow(p_stan))) {
 cat(sprintf("Parity over %d param vectors x %d rows:\n", nrow(p_stan), nrow(obs)))
 cat(sprintf("  max |p_pred_stan - p_ref|   = %.3e\n", max_dp))
 cat(sprintf("  max |log_lik_stan - ll_ref| = %.3e\n", max_dl))
-if (max_dp < TOL_P && max_dl < TOL_LL) {
+failures <- character()
+if (!(max_dp < TOL_P)) failures <- c(failures, "A: Stan vs independent R on real rows (p)")
+if (!(max_dl < TOL_LL)) failures <- c(failures, "A: Stan vs independent R on real rows (log_lik)")
+
+# ==============================================================================
+# ARM B — model_math.R, the implementation the FIGURES run, gated against Stan.
+#
+# Rationale: obs_prob_R() above guards the .stan against its own refactors, but
+# nothing guarded the plotting-side math (the deleted `.bp()` in
+# dose_response_curves.R was an ungated third transcription). model_math.R is now
+# the single plotting-side implementation, so it gets its own gate, three ways:
+#   B1  Stan <-> mm_obs_prob() on real Tier-1 AND Tier-2 rows (Tier 2 is the only
+#       thing that exercises group 2 / eta through the likelihood path).
+#   B2  Stan <-> mm_obs_prob() on a SYNTHETIC covariate grid ~700 rows wide,
+#       covering dose decades, titres beyond any observed value, thresholds
+#       outside STUDY_FEVER_THRESHOLD_C, and all three Gilman strata.
+#   B3  independent R <-> model_math at ~machine epsilon (two transcriptions of
+#       the same arithmetic in the same engine have no excuse to differ).
+#   B4  the sub-kernels obs_prob() does NOT expose -- phi0(T), phi(T,D), eta(D)
+#       -- gated against the generated-quantities scalars Stan already emits.
+#       This is why the .stan needs no new phi_pred output.
+# ==============================================================================
+source("model_math.R")
+TOL_RR <- 1e-11   # R vs R; a loose tolerance here would mask a real formula difference
+TOL_GQ <- 1e-7    # R vs Stan generated quantities
+
+stopifnot(identical(MM_RAW_PARS, PARAM_NAMES))   # model_math must track parameters{}
+
+par_bundles <- lapply(vecs, function(v) mm_pars(as.list(setNames(v, PARAM_NAMES)), T_ref = T_REF))
+
+#' Synthetic covariate grid: structured per group rather than a full cross, so
+#' every covariate a group actually READS is varied and none are wasted.
+parity_grid <- function() {
+  doses <- 10^seq(2, 9.7, length.out = 12)
+  cops  <- c(1, 2.16, 38.11, 152.16, 500)          # incl. beyond any observed titre
+  Ts    <- c(37.5, 38.0, 38.3, 39.0, 39.4, 40.5)   # incl. outside the study thresholds
+  cols  <- c("likelihood_group", "dose_cfu", "CoP", "T_thresh", "gilman_stratum")
+  ox <- expand.grid(likelihood_group = c("ox_fev", "ox_inf", "ox_inf_indiv", "ox_fevginf_indiv"),
+                    dose_cfu = doses, CoP = cops, stringsAsFactors = FALSE)
+  ox$T_thresh <- T_REF; ox$gilman_stratum <- 0L
+  md <- expand.grid(likelihood_group = c("md_fev", "hornick_cond"), dose_cfu = doses,
+                    T_thresh = Ts, gilman_stratum = 0:2, stringsAsFactors = FALSE)
+  md$CoP <- 1
+  mi <- data.frame(likelihood_group = "md_inf", dose_cfu = doses, CoP = 1,
+                   T_thresh = T_REF, gilman_stratum = 0L, stringsAsFactors = FALSE)
+  g <- rbind(ox[cols], md[cols], mi[cols])
+  g$n <- 1L; g$y <- 0L
+  g$obs_id <- sprintf("grid-%04d", seq_len(nrow(g)))
+  g
+}
+
+ladder <- darton_phi0_ladder("dose_response_data.csv")
+cases <- list(
+  tier1 = obs,
+  tier2 = attr(build_stan_data("dose_response_data.csv", priors, tier_col = "tier2_active"), "obs"),
+  grid  = parity_grid()
+)
+
+for (nm in names(cases)) {
+  rows <- cases[[nm]]
+  sd_c <- stan_data_from_rows(rows, priors, ladder, T_ref = T_REF)
+  gq_c <- mod$generate_quantities(fitted_params = truth, data = sd_c, seed = 1)
+  p_s  <- posterior::as_draws_matrix(gq_c$draws("p_pred"))
+  grp  <- as.integer(.GROUP_CODE[rows$likelihood_group])
+
+  d_mm <- 0; d_rr <- 0
+  for (di in seq_len(nrow(p_s))) {
+    p_mm <- as.vector(mm_obs_prob(grp, rows$dose_cfu, rows$CoP, rows$T_thresh,
+                                  rows$gilman_stratum, par_bundles[[di]]))
+    d_mm <- max(d_mm, max(abs(p_s[di, ] - p_mm)))
+    k <- which(grp != 2L)                    # obs_prob_R() deliberately excludes ox_inf
+    if (length(k)) {
+      pl <- as.list(setNames(vecs[[di]], PARAM_NAMES))
+      r  <- rows; r$group <- grp
+      p_rr <- vapply(k, function(i) obs_prob_R(r[i, ], pl), numeric(1))
+      d_rr <- max(d_rr, max(abs(p_rr - p_mm[k])))
+    }
+  }
+  cat(sprintf("model_math parity [%s: %d rows x %d param vectors]\n", nm, nrow(rows), nrow(p_s)))
+  cat(sprintf("  max |p_pred_stan - p_model_math| = %.3e\n", d_mm))
+  cat(sprintf("  max |p_indep_R   - p_model_math| = %.3e\n", d_rr))
+  if (!(d_mm < TOL_P))  failures <- c(failures, sprintf("B: Stan vs model_math (%s)", nm))
+  if (!(d_rr < TOL_RR)) failures <- c(failures, sprintf("B: independent R vs model_math (%s)", nm))
+}
+
+# ---- B4: sub-kernels obs_prob() does not expose, vs Stan generated quantities --
+gq_s  <- mod$generate_quantities(fitted_params = truth, data = sd, seed = 1)
+gqv   <- function(v) as.vector(posterior::as_draws_matrix(gq_s$draws(v)))
+p_all <- mm_pars(as.data.frame(do.call(rbind, lapply(vecs, function(v) setNames(v, PARAM_NAMES)))),
+                 T_ref = T_REF)
+delta <- p_all$delta
+kern <- list(
+  phi0_38_3        = list(gq = gqv("phi0_38_3"),        mm = as.vector(mm_phi0(38.3, p_all))),
+  phi0_39_4        = list(gq = gqv("phi0_39_4"),        mm = as.vector(mm_phi0(39.4, p_all))),
+  phi_hornick_1e3  = list(gq = gqv("phi_hornick_1e3"),  mm = as.vector(mm_phi_td(39.4, cbind(1e3 / delta), p_all))),
+  phi_hornick_1e5  = list(gq = gqv("phi_hornick_1e5"),  mm = as.vector(mm_phi_td(39.4, cbind(1e5 / delta), p_all))),
+  phi_hornick_1e9  = list(gq = gqv("phi_hornick_1e9"),  mm = as.vector(mm_phi_td(39.4, cbind(1e9 / delta), p_all))),
+  eta_1e3          = list(gq = gqv("eta_1e3"),          mm = as.vector(mm_eta(1e3, p_all))),
+  eta_1e4          = list(gq = gqv("eta_1e4"),          mm = as.vector(mm_eta(1e4, p_all))),
+  p_inf_1e3_naive  = list(gq = gqv("p_inf_1e3_naive"),  mm = as.vector(mm_p_inf(1e3, 1, p_all))),
+  p_inf_1e4_naive  = list(gq = gqv("p_inf_1e4_naive"),  mm = as.vector(mm_p_inf(1e4, 1, p_all))),
+  p_fev_1e3_naive  = list(gq = gqv("p_fev_1e3_naive"),  mm = as.vector(mm_p_fev(1e3, 1, p_all))),
+  p_fev_1e4_naive  = list(gq = gqv("p_fev_1e4_naive"),  mm = as.vector(mm_p_fev(1e4, 1, p_all))),
+  delta_fold       = list(gq = gqv("delta_fold"),       mm = delta)
+)
+# RELATIVE difference: most of these are probabilities (O(1)) but delta_fold is
+# O(1e3), where an absolute 1e-7 tolerance is below cmdstan's CSV output precision.
+d_k <- vapply(kern, function(z) max(abs(z$gq - z$mm) / pmax(1, abs(z$gq))), numeric(1))
+cat("sub-kernel parity vs Stan generated quantities (phi0, phi(T,D), eta, reference doses):\n")
+cat(sprintf("  max relative over %d quantities = %.3e   (worst: %s)\n",
+            length(d_k), max(d_k), names(which.max(d_k))))
+if (!(max(d_k) < TOL_GQ)) failures <- c(failures, "B4: sub-kernels vs Stan generated quantities")
+
+# ---- B5: the one quantity that exists nowhere in Stan -------------------------
+# The implied peak-fever severity density -d(phi0)/dT used by figures_phi.R.
+# Gate the analytic form against a central finite difference of mm_phi0().
+Tg   <- seq(37, 41, by = 0.25)
+d_fd <- max(abs(mm_phi0_density(Tg, p_all) -
+                -(mm_phi0(Tg + 1e-5, p_all) - mm_phi0(Tg - 1e-5, p_all)) / 2e-5))
+cat(sprintf("severity density -d(phi0)/dT vs finite difference: %.3e\n", d_fd))
+if (!(d_fd < 1e-6)) failures <- c(failures, "B5: severity density vs finite difference")
+
+# ---- Verdict -----------------------------------------------------------------
+if (!length(failures)) {
   cat("PARITY PASS\n")
 } else {
-  cat("PARITY FAIL — obs_prob() does not match the original per-group likelihood\n")
+  cat("PARITY FAIL:\n"); for (f in failures) cat("  - ", f, "\n", sep = "")
   quit(status = 1)
 }

@@ -24,7 +24,7 @@
 
 suppressPackageStartupMessages({library(cmdstanr); library(posterior); library(dplyr)})
 source("priors.R"); source("data_prep.R"); source("diagnostics.R")
-source("dose_response_curves.R")   # bespoke dose-response PPC (plot_dose_response_fit)
+source("figures.R")   # bespoke model figure suite, via diagnose_fit(extra_plots=)
 
 PARAM_NAMES <- c("log10_N50_inf","d_fev","alpha_inf","alpha_fevginf","gamma_inf",
                  "gamma_fevginf","log10_delta","pi_susc","CoP_imm","CoP_susc",
@@ -152,18 +152,19 @@ recover_from_prior <- function(mod, stan_data, obs, priors,
   cat(sprintf("  see prior_posterior.png, not a recovery miss): %s\n",
               paste(inert_pars, collapse = ", ")))
   tv <- augment_truth_derived(td$values)
-  res <- diagnose_fit(fit, out_dir, pars = report_pars, true_params = tv, obs = obs,
-                      priors = priors, model_name = "recovery_tier1_prior")
 
-  # Bespoke dose-response PPC, to match the real-fit plot set. Point the obs at the
+  # Bespoke figure suite, to match the real-fit plot set. Point the obs at the
   # SYNTHETIC y actually fit (obs row order == stan_data$y == y_sim order), so the
-  # posterior curve and the plotted points are on the same footing.
+  # posterior curves and the plotted points are on the same footing.
   obs_syn <- obs
   obs_syn$y        <- as.integer(y_sim)
   obs_syn$obs_rate <- y_sim / obs$n
   sd_plot <- stan_data
   attr(sd_plot, "obs") <- obs_syn
-  plot_dose_response_fit(fit, sd_plot, file.path(out_dir, "dose_response_fit.png"))
+
+  res <- diagnose_fit(fit, out_dir, pars = report_pars, true_params = tv, obs = obs_syn,
+                      priors = priors, model_name = "recovery_tier1_prior",
+                      extra_plots = model_figures_hook(sd_plot, label = "recovery (synthetic)"))
   invisible(res)
 }
 
