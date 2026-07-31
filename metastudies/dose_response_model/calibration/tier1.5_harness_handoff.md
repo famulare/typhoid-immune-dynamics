@@ -5,8 +5,7 @@
 
 > **FROZEN handoff; CLOSED OUT 2026-07-15 (see the bottom of this file).** Read the
 > parameter list and row counts below as history: `phi_md` no longer exists, and
-> `sigma_study` was deleted 2026-07-31. Current state: `TIER_LADDER.md` /
-> `TIER_LOCK.md`.
+> `sigma_study` was deleted 2026-07-31. Current state: `TIER_LADDER.md`.
 **Why you're reading this:** the model gained an estimated parameter (`phi_md`) but
 two harness scripts still assume the old parameter set. I fixed the mechanical and
 robustness parts; the remaining items need a *modeling decision* (a `phi_md` truth

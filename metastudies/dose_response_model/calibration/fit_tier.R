@@ -6,8 +6,8 @@
 #' this file -- declares the row set (`tier_col`), the Darton representation
 #' (`individualize_darton`), the expected observation count, which parameters are
 #' reported vs INERT, the model stage token, and the output directory. Default spec:
-#' `t1-indiv`. Counts: TIER_LADDER.md (generated). Naming rule and blocked rungs:
-#' TIER_LOCK.md.
+#' `t1-indiv`. Counts, the naming rule and each blocked configuration's reason:
+#' TIER_LADDER.md (generated from the registry).
 #'
 #' This file names no tier as a literal and hardcodes no parameter list. Its
 #' predecessor (fit_dose_response.R) did both, and its header claimed "the 25
@@ -131,7 +131,7 @@ list_tiers <- function(mod = NULL) {
   for (k in blocked)
     cat(sprintf("\n%s is BLOCKED:\n  %s\n", k,
                 gsub("(.{1,76})(\\s|$)", "\\1\n  ", tier_spec(k)$blocked_reason)))
-  cat("\nCounts are generated into TIER_LADDER.md; naming rule in TIER_LOCK.md.\n")
+  cat("\nCounts, naming rule and blocked reasons are generated into TIER_LADDER.md.\n")
   invisible(rows)
 }
 

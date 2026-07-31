@@ -1,6 +1,6 @@
 # Tier 1.5 plan — VaccZyme EU/mL immunity axis + individual-level Darton
 
-**Status:** C0–C3, `+cascade` and `+Jin`-as-CoP-anchor are DONE; `+vaccine-terms` parked. The resulting configuration is `t1-indiv` (see `TIER_LOCK.md`). Last updated 2026-07-31.
+**Status:** C0–C3, `+cascade` and `+Jin`-as-CoP-anchor are DONE; `+vaccine-terms` parked. The resulting configuration is `t1-indiv` (see `TIER_LADDER.md`). Last updated 2026-07-31.
 Builds on Tier 1 (`CALIBRATION_WORKFLOW.md`, `tier1_lab_notebook.md`).
 
 ## Why
@@ -89,7 +89,7 @@ Individual-level Darton sub-likelihood over all 91 per-protocol subjects:
   the titre axis; post-fit γ_fev sanity vs the Darton per-log₁₀ slope (validation).
 - Preserve prior fits for comparison. The driver writes `results/<spec>__<stage>/`, so a
   new model stage never overwrites the previous one; keep a deliberate snapshot as
-  `results/<spec>__<stage>__<tag>/`. Historical dir names are frozen — map in `TIER_LOCK.md`.
+  `results/<spec>__<stage>__<tag>/`. Pre-2026-07-31 run dirs were deleted as non-reproducible.
 
 ---
 

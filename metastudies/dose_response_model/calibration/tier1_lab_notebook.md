@@ -576,8 +576,10 @@ generated with every count computed and asserted; no other document states a tie
 observation count. Every run directory carries `run_manifest.json` (tier, input md5s,
 resolved prior scalars, seeds, git SHA, tool versions), and `audit_run_dirs()` reports
 what is regenerable — of the 11 pre-existing run dirs, 2 were regenerable and 0 carried
-any provenance. Definitions, naming rule, blockers and unlock conditions: `TIER_LOCK.md`
-(shipped as **PROPOSED**, awaiting [Mike]).
+any provenance. Definitions, naming rule, blockers and unlock conditions live in `TIER_LADDER.md`,
+generated from the registry. (A standalone `TIER_LOCK.md` was written during this pass
+and then dropped: useful as scaffolding for the audit, redundant once the rule lives in
+the code and the generated doc.)
 
 **Verification.** `t1-indiv` reproduced the pre-lock fit **exactly** (max |Δmean| = 0
 over 16 parameters) before the `.stan` change, which is the evidence that the registry
@@ -595,7 +597,7 @@ right. The dated entries above stand, including the 2026-06-23 "current model sn
 that still reads 25 obs / 11 params / φ_md ≈ 0.97 — true for that session, superseded by
 this entry.
 
-**Open, not resolved here.** The items at the bottom of `TIER_LOCK.md`: the
+**Open, not resolved here.** The
 concentration-vs-ICC wording inside the Step-2 lock; that lock's missing end marker;
 `joint_inference_plan.md`'s internal 24-vs-25 disagreement; whether the `t2-*` rungs
 should be fit at all given that §2.6 excludes Oxford shedding while the Tier 2 design

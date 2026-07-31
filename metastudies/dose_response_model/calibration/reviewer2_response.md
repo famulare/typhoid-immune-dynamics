@@ -5,7 +5,7 @@
 
 > **FROZEN correspondence, 2026-03-17.** The counts and tallies below ("11-13
 > parameters", "~28-30 effectively independent") describe the model and row sets as of
-> that date. Current: `calibration/TIER_LADDER.md`.
+> that date. Current: `TIER_LADDER.md`.
 
 We thank Reviewer 2 for a thorough and constructive review. The review identified several genuine issues that strengthen the plan. We address each concern below and indicate where the plan has been revised.
 

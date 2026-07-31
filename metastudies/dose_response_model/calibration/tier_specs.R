@@ -12,7 +12,8 @@
 #' itself. A third axis -- the parameter set -- moves at every increment, so it is
 #' the run dir's STAGE token, derived from the .stan and asserted, never typed.
 #'
-#' See TIER_LOCK.md (normative) and TIER_LADDER.md (generated counts).
+#' See TIER_LADDER.md -- generated from this file: counts, the naming rule, and each
+#' blocked configuration's reason.
 
 if (!exists("calib_dir")) source("utils.R")
 if (!exists("MM_RAW_PARS")) source("model_math.R")
@@ -121,7 +122,7 @@ TIER_SPECS <- list(
   `t2-indiv` = list(
     key = "t2-indiv",
     label = "Tier 2 rows (+Oxford shedding), Darton placebo individualized",
-    doc_ref = "unnamed in the docs before TIER_LOCK.md",
+    doc_ref = "no prose-doc equivalent; this registry is the definition",
     tier_col = "tier2_active", individualize_darton = TRUE,
     drop_obs = character(), keep_obs = NULL,
     stage = "phi-eta",
@@ -368,10 +369,33 @@ write_tier_ladder_md <- function(path = "TIER_LADDER.md",
     "## Run directories", "",
     paste(knitr_table(tab[, c("key", "run_dir")]), collapse = "\n"),
     "",
-    "Run dirs are `<data config>__<model stage>`. The stage token is derived from the",
-    "`.stan`'s `parameters{}` and asserted against the registry, so a directory name",
-    "cannot drift from the model that produced it. Prior-predictive companions take a",
-    "`-prior` suffix. See `TIER_LOCK.md` for the naming rule and the blocked rungs.",
+    "## Naming rule", "",
+    "A configuration is named by its two DATA switches and nothing else:",
+    "`<row set>-<Darton representation>`. `indiv` means the Darton placebo arm enters as",
+    "per-subject n=1 rows (the issue-#15 cascade: `ox_inf_indiv` + `ox_fevginf_indiv`)",
+    "rather than as a grouped binomial. (`cascade` is deliberately not used as a",
+    "configuration name -- in this repo it already denotes the P_inf x P_fev|inf",
+    "factorization.)",
+    "",
+    "Run directories are `<config>__<model stage>`, with `-prior` appended for the prior",
+    "predictive. The stage token lists the parameter increments that are ACTIVE; it is",
+    "**derived** from the `.stan`'s `parameters{}` and **asserted** against the registry,",
+    "so a directory cannot misdescribe the model that produced it, and a new stage is a",
+    "new directory rather than an overwrite. An increment counts only when the `.stan`",
+    "declares its parameters AND the data reach them -- `eta_lo`/`kappa` sit in exactly",
+    "one likelihood branch (group 2), so declared-but-unreached is not a stage. Within a",
+    "stage, runs are distinguished by `run_manifest.json` (git SHA, input hashes, seeds),",
+    "not by renaming.",
+    "",
+    "## Blocked configurations", "",
+    unlist(lapply(tier_keys(), function(k) {
+      s <- tier_spec(k)
+      if (identical(s$status_declared, "runnable")) return(NULL)
+      c(sprintf("**`%s`** — %s", k, s$label), "",
+        paste0("> ", gsub("(.{1,88})(\\s|$)", "\\1\n> ", s$blocked_reason)), "")
+    })),
+    "`fit_tier.R` refuses a blocked configuration unless `--allow-blocked` is passed.",
+    "`Rscript fit_tier.R --list` prints this table and these reasons from the registry.",
     "")
   writeLines(L, path)
   message("wrote ", path)

@@ -9,7 +9,7 @@
 
 The configuration that exists is **`t1-indiv`** (`tier1_active` rows with the Darton
 placebo individualized into the per-subject cascade). Configuration definitions, the
-naming rule, and what is runnable vs blocked: `calibration/TIER_LOCK.md`. Observation
+naming rule, and what is runnable vs blocked: `calibration/TIER_LADDER.md`. Observation
 and parameter counts: `calibration/TIER_LADDER.md` — **generated from the registry and
 not restated in any prose doc**.
 

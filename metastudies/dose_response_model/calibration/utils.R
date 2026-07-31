@@ -2,7 +2,8 @@
 #'
 #' Deliberately imports nothing: every other file in this directory can source it
 #' without pulling in cmdstanr/ggplot2/yaml. Everything here previously existed in
-#' two to five copies; see TIER_LOCK.md for why that mattered.
+#' two to five copies; see the 2026-07-31 entry in
+#' calibration/tier1_lab_notebook.md for why that mattered.
 #'
 #' Source it with the repo's lazy idiom so double-sourcing is free:
 #'   if (!exists("calib_dir")) source("utils.R")

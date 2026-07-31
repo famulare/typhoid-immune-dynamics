@@ -4,23 +4,23 @@ How the dose-response Stan calibration is built up. Each rung must sample cleanl
 pass diagnostics before the next is added.
 
 **Observation counts, parameter counts and configuration names are not restated here.**
-`tier_specs.R` is the registry; [TIER_LADDER.md](TIER_LADDER.md) is generated from it
-with every count computed from the data and asserted against the registry;
-[TIER_LOCK.md](TIER_LOCK.md) holds the configuration definitions and the naming rule,
-and is binding where this file disagrees with it.
+`tier_specs.R` is the registry; [TIER_LADDER.md](TIER_LADDER.md) is generated from it with
+every count computed from the data and asserted against the registry, and it also
+carries the naming rule and each blocked configuration's reason. It is binding where
+this file disagrees with it.
 
 | spec | what it adds | status |
 |---|---|---|
 | `t1-grouped` | Darton placebo as one grouped binomial (`D-F-plac`) | **runnable** — the diagnostic contrast for what individualizing Darton buys |
 | `t1-indiv` | Darton placebo individualized into per-subject infection + fever\|infection rows (issue [#15](https://github.com/famulare/typhoid-immune-dynamics/issues/15), `tier1.5_plan.md`) | **RUNNABLE — this is the fit** |
 | `t1-indiv` + ρ | one beta-binomial overdispersion parameter, `grand_overdispersion_rho` (Step 2 below) | designed, LOCKED, **not implemented** |
-| `t2-grouped` / `t2-indiv` | Oxford grouped shedding rows + η | **declared and BLOCKED** — one mechanical defect and two open scientific questions; see TIER_LOCK.md item 9 |
+| `t2-grouped` / `t2-indiv` | Oxford grouped shedding rows + η | **declared and BLOCKED** — one mechanical defect and two open scientific questions; see TIER_LADDER.md |
 
 Historical note: this ladder was previously written as "Step 1 / 1.5 / 2 / 3" with
 `phi_md` as a live parameter and Tier 1 stated as 25 observations. `phi_md` was retired
 at C3 (`d1880a8`) in favour of `phi0_a`/`phi0_b`, and the configuration actually fitted
-was the 80-observation `t1-indiv` — see TIER_LOCK.md for why the label and the fit had
-diverged. The Step 1 narrative below is retained as history.
+was the 80-observation `t1-indiv` — see the 2026-07-31 entry in `tier1_lab_notebook.md` for why the label and
+the fit had diverged. The Step 1 narrative below is retained as history.
 
 Run with [fit_tier.R](fit_tier.R) (cmdstanr + CmdStan 2.39):
 `Rscript fit_tier.R --list` prints the ladder and each blocked rung's reason.
@@ -99,7 +99,7 @@ the dose-dependent definition map φ(T,D) with parameters `phi0_a`/`phi0_b` (`be
 pinned to 1). This section is kept because the divergence-cliff diagnosis and the
 φ-vs-δ attribution in it are still why the current model is shaped as it is. Read every
 `phi_md` below as history, every observation count as the 25-row grouped configuration,
-and every `results/tier1` path as the 2026-06-23 run (rename map: TIER_LOCK.md item 7).
+and every `results/tier1` path as the 2026-06-23 run (those directories were deleted on 2026-07-31 as non-reproducible).
 
 Goal: a clean-sampling 25-observation fit (compiles, 0 divergences, R-hat < 1.01,
 ESS > 400) with prior + posterior predictive checks. Oxford shedding/η and
