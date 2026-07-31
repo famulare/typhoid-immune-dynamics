@@ -47,8 +47,18 @@ log10_delta:       { family: normal,      mu: 3.5,  sd: 0.7 }   # ~1000-30000x
 # correlate with protection in this population, while H did -- so the axis the weight
 # comes from is not the axis the components live on. joint_inference_plan.md:211 notes
 # this ("H-antibody, NOT Vi"); recorded here so the prior's justification carries it too.
-# Independent corroboration of the WEIGHT (not the axis): Woodward 1980 p.555 reports
-# 200 non-veterans / 105 TAB-vaccinated veterans = 0.66 non-immune, close to 0.68.
+# CONCORDANCE, NOT A SUBSTITUTE [Mike 2026-07-31]: Woodward 1980 Table C p.555 reports
+# 200 non-veterans / 105 TAB-vaccinated veterans at 10^5 = 0.66 non-immune, close to
+# Gilman's 0.68. That is reassuring but the two are DIFFERENT STRATIFICATIONS -- H
+# agglutinin status vs military/prior-vaccination status -- and Woodward's denominator
+# does not go with the numerator this model fits (the attack-rate counts come from
+# Gilman's H strata). So the agreement is corroboration of the rough magnitude only;
+# it is NOT an interchangeable anchor and the prior is not re-derived from Woodward.
+# Woodward is also unusable as a likelihood row for three independent reasons: it is a
+# REVIEW of the same 16-year program (its ~305 controls at 10^5 overlap the 277 already
+# in the fit -- Hornick 116, Levine 97, Gilman 64 -- so it would double-count), it
+# publishes percentages only, and it never defines its clinical endpoint (so T, and
+# hence phi(T,D), is undetermined).
 # CONSEQUENCE: pi_susc's posterior agreeing with Gilman's 36/53 is near-circular and is
 # not evidence the mixture weight is identified by the challenge data.
 pi_susc:           { family: beta,        a: 7,     b: 4 }       # ~0.65 (Gilman 36/53, H-agglutinin)

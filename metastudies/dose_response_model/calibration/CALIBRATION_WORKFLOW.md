@@ -3,14 +3,14 @@
 How the dose-response Stan calibration is meant to be built up, in deliberate
 steps. Each step must sample cleanly and pass diagnostics before the next is
 added. Terminology reconciles with `joint_inference_plan.md` (which defines
-**Tier 1** = 25 obs / 11 params incl. study RE, and **Tier 2** = +6 Oxford
+**Tier 1** = 25 obs / 11 params incl. one overdispersion parameter, and **Tier 2** = +6 Oxford
 shedding / +η, 13 params).
 
 | Step | = plan concept | obs | active params | status |
 |---|---|---:|---|---|
-| **1. Tier 1 (floated φ)** | sub-milestone *below* repo Tier 1 | 25 | 11 (6 bio + 5 nuisance incl. `phi_md`); `sigma_study`/`eta_lo`/`κ` inert | **clean: 0/4000 div, R-hat≤1.002, ESS>1700; φ̂≈0.97 (uniform prior, edge-pressing), δ̂≈280×** |
+| **1. Tier 1 (floated φ)** | sub-milestone *below* repo Tier 1 | 25 | 11 (6 bio + 5 nuisance incl. `phi_md`); `sigma_study`(now withdrawn)/`eta_lo`/`κ` inert | **clean: 0/4000 div, R-hat≤1.002, ESS>1700; φ̂≈0.97 (uniform prior, edge-pressing), δ̂≈280×** |
 | **1.5. EU/mL axis + individual Darton** | immunity upgrade ([issue #15](https://github.com/famulare/typhoid-immune-dynamics/issues/15), `tier1.5_plan.md`) | 25 grp + 30 indiv | CoP in VaccZyme EU/mL; Darton placebo individual; (+φ) φ(T) from threshold ladder | building minimal+φ |
-| **2. Tier 1 complete** | repo **Tier 1** | 25 | 12 (+ study RE) | not started |
+| **2. Tier 1 complete** | repo **Tier 1** | 25 | 12 (+ `kappa_od` overdispersion) | not started |
 | **3. Tier 2** | repo **Tier 2** | 31 | 14 (+ η_lo, κ) | not started |
 
 Run with [fit_dose_response.R](fit_dose_response.R) (cmdstanr + CmdStan 2.39).
@@ -85,8 +85,9 @@ latent prior scale; Darton per-subject vs GMT).
 ## Step 1 — Tier 1 with floated φ and δ (current)
 
 Goal: a clean-sampling 25-observation fit (compiles, 0 divergences, R-hat < 1.01,
-ESS > 400) with prior + posterior predictive checks. Oxford shedding/η and the
-study RE are deliberately excluded. **Both Maryland nuisance scales now float:**
+ESS > 400) with prior + posterior predictive checks. Oxford shedding/η and
+overdispersion are deliberately excluded (Step 2 adds `kappa_od`; the study RE that
+once stood there is withdrawn — see Step 2). **Both Maryland nuisance scales now float:**
 `delta` (always was estimated) and — as of 2026-06-23 — `phi_md`, a single
 **estimated scalar** Maryland fever definition-sensitivity (`Beta(1,1)` uniform
 prior; a deliberate loosening from plan §7's `Beta(5,5)`, see below), replacing the
@@ -121,8 +122,8 @@ departure (see two-stage history below). Decision log:
 - **Single global `phi_md`, not per-study.** Gilman/Levine are single-dose (all 10⁵)
   so they cannot identify their own φ (confounded with the 10⁵ attack rate); only
   Hornick's dose range can. The old 0.25 (Hornick) vs 0.65 (Gilman/Levine) split was
-  itself unaudited LLM-derived; cross-study level differences move to the study RE
-  (Step 2) / residual. Per-study or ratio-preserving φ is a documented alternative.
+  itself unaudited LLM-derived; cross-study level differences move to the Step-2
+  overdispersion parameter `kappa_od` / residual. Per-study or ratio-preserving φ is a documented alternative.
 - **Prior choice.** `Beta(5,5)` (90% mass [0.25,0.75], ~10 pseudo-obs at 0.5) pulled
   φ̂ to 0.886 — the prior's 99.8th pctile — and still left H-F-9 underfit, so it was
   loosened to `Beta(1,1)`. Fallback if φ destabilizes at the [0,1] edge: a
@@ -154,11 +155,29 @@ Expected limitation even when clean: γ_inf is only weakly identified without th
 Oxford vaccine shedding contrast (plan §2.6); `alpha_fevginf` shows the highest
 priorsense prior-sensitivity (~0.56), consistent with weak fever-heterogeneity ID.
 
-## Step 2 — Tier 1 complete (add study random effect)
-Wire the design's study-level random effect (`sigma_study`, currently inert): add
-a `study` index per observation to the data, use a non-centered
-`z_study ~ normal(0,1)` scaled by `sigma_study`, applied on the logit of the
-Maryland trial probabilities. This is repo-canonical Tier 1.
+## Step 2 — Tier 1 complete (add ONE overdispersion parameter)
+**LOCKED 2026-07-31 [Mike]:** beta-binomial with a single shared concentration
+`kappa_od`, NOT a study/cohort random effect. The RE is withdrawn, not deferred.
+
+    y_j ~ beta_binomial(n_j, p_j * kappa_od, (1 - p_j) * kappa_od)     # grouped rows only
+    kappa_od = 1 / iota,   iota ~ half_normal(0, 0.05)                 # iota=0 -> binomial
+
+`p_j` is unchanged (the existing `obs_prob()` value). Name it `kappa_od`, not
+`kappa` — `kappa` is already the η dose-scaling parameter. Apply to `n_j > 1` rows
+only; the Darton per-subject rows are n=1 Bernoulli where overdispersion is not
+identified. Delete the now-dead `sigma_study` declaration and its prior.
+
+Why not a random effect: the motivating Levine 25–55% spread is homogeneous at
+p = 0.122; Tier 1 has 16 cohorts over 24 grouped observations with 10 singletons;
+and Hornick's five cohorts *are* the dose ladder, so per-cohort offsets compete with
+`N50_inf`/`alpha_inf`. Full argument and the supporting tests:
+[cohort_random_effects_design.md](cohort_random_effects_design.md).
+
+Gates before adopting: `log10_N50_inf` and `alpha_inf` must not move materially;
+priorsense on `kappa_od` (expect it prior-leaning, and say so if it is); LOO must
+improve on the existing `compute_loo_units()` grouping. The `Gil-F-Hlo` residual is
+**not** a gate — it is a within-cohort stratum contrast and is expected to persist.
+This is repo-canonical Tier 1.
 
 ## Step 3 — Tier 2 (Oxford shedding + η)
 Restore the 6 Oxford shedding rows (`tier2_active==1`, `N_ox_inf>0`). **Decide

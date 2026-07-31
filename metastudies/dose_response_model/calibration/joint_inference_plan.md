@@ -515,7 +515,12 @@ Trials conducted 1970-1973. Some early trials may overlap with late Hornick enro
 
 **H-antibody confirmation**: H ≥1:20 → 22% vs 48% (P=0.005). Consistent with Gilman.
 
-**Note**: The trial-to-trial variability (25% to 55%) at the same dose suggests either batch effects, temporal shifts in cohort immunity, or random variation. This informs the study-level random effect (Section 5.5).
+**Note**: The trial-to-trial variability (25% to 55%) at the same dose looks like batch
+effects or temporal cohort shifts, but **tested directly it is not distinguishable from
+sampling noise**: chi-square homogeneity across the four Levine trials gives X2 = 5.80,
+df = 3, **p = 0.122** (Fisher p = 0.125; p = 0.207 adding Gilman). At n = 16-33 roughly
+77% of the spread is binomial. This is why Section 5.5 uses a single overdispersion
+parameter rather than a random effect [tested 2026-07-31].
 
 **Shedding in controls (Trial 1 only):**
 
@@ -628,25 +633,64 @@ The $\phi$ factor converts from the model's Oxford-calibrated fever probability 
 
 ### 5.5 Maryland Single-Dose Studies (Gilman, Levine)
 
-These provide additional 10⁵ control data with the same likelihood structure as Section 5.4. The trial-to-trial variability in Levine controls (25%-55% at the same dose) motivates a **study-level random effect**:
+These provide additional 10⁵ control data with the same likelihood structure as Section 5.4.
+
+> **LOCKED 2026-07-31 [Mike].** Extra-binomial variation is handled by **ONE
+> overdispersion parameter (beta-binomial)**. The study/cohort random effect
+> previously specified here is **withdrawn** — not deferred, withdrawn. Rationale
+> and the analysis behind it: `cohort_random_effects_design.md`.
 
 $$
-p_{j,s} = \phi \cdot \left[\pi_{\text{susc}} \cdot P_{\text{fev}}(D_j/\delta, \text{CoP}_{\text{susc}} \cdot e^{\epsilon_s}) + (1-\pi_{\text{susc}}) \cdot P_{\text{fev}}(D_j/\delta, \text{CoP}_{\text{imm}} \cdot e^{\epsilon_s})\right]
+y_j \sim \text{BetaBinomial}\left(n_j,\; p_j \cdot \kappa_{\text{od}},\; (1-p_j) \cdot \kappa_{\text{od}}\right)
 $$
 
-where $\epsilon_s \sim \text{Normal}(0, \sigma_{\text{study}})$ is a study-level random effect that perturbs the effective immunity level.
+$p_j$ is unchanged — it is exactly the `obs_prob()` value the binomial likelihood
+uses today. $\kappa_{\text{od}}$ is a single concentration parameter shared across all
+grouped observations. $\kappa_{\text{od}} \to \infty$ recovers the binomial.
 
-**Revised per Reviewer 2**: A logit-scale random effect is more standard and better-behaved near 0 and 1: $\text{logit}(p_{j,s}) = \text{logit}(p_{\text{model},j}) + \epsilon_s$ where $\epsilon_s \sim \text{Normal}(0, \sigma_{\text{study}})$. This absorbs batch effects, temporal cohort shifts, and other unmodeled variability.
+**Naming**: `kappa_od`, NOT `kappa` — `kappa` is already the η dose-scaling parameter
+(Section 2.7). Reusing it would silently collide.
 
-**Alternative**: Instead of a random effect, use a beta-binomial likelihood (overdispersed binomial) for Maryland studies:
+**Scope**: grouped rows only ($n_j > 1$). The Darton per-subject rows are $n=1$
+Bernoulli, where overdispersion is not identified; they keep a plain binomial.
+
+**Prior**: parameterize by the reciprocal so that *no overdispersion* is interior to
+the support and carries real mass:
 
 $$
-y_j \sim \text{BetaBinomial}(n_j, p_j \cdot \kappa, (1-p_j) \cdot \kappa)
+\kappa_{\text{od}} = 1/\iota, \qquad \iota \sim \text{HalfNormal}(0,\, 0.05)
 $$
 
-where $\kappa$ is a concentration parameter. This is simpler and achieves the same goal of accommodating extra-binomial variation.
+Anchor: the excess logit-scale variance measured across the five Maryland 10⁵
+cohorts is ≈0.069, i.e. $\sigma \approx 0.26$, which corresponds to
+$\kappa_{\text{od}} \approx 60$ ($\iota \approx 0.017$, about 0.33 sd under this prior).
 
-**Recommendation**: Start with beta-binomial overdispersion for Maryland studies; switch to random effects if you need the CoP interpretation.
+**Why one parameter and not a random effect** (full argument in
+`cohort_random_effects_design.md`):
+
+1. The motivating premise fails. Levine's 25–55% spread is homogeneous at
+   χ² = 5.80, df = 3, **p = 0.122** (p = 0.207 adding Gilman). Roughly 77% of it is
+   binomial noise at n = 16–33. A prior that excludes zero overdispersion would be
+   asserting heterogeneity the data do not show.
+2. Identifiability. Tier 1 has **16 cohorts over 24 grouped observations, 10 of them
+   singletons**. Per-cohort offsets are ~one parameter per datum.
+3. Signal absorption. Hornick's five cohorts *are* the dose ladder (10³–10⁹). A free
+   offset per cohort competes directly with `N50_inf`/`alpha_inf` and can flatten the
+   dose-response while improving fit. One shared concentration parameter cannot do
+   this — it inflates variance without giving any dose point its own offset.
+4. It would not have fixed what motivated it anyway. The `Gil-F-Hlo` residual is a
+   contrast *between strata within one cohort*; a cohort-level offset moves all three
+   Gilman rows together.
+
+**Also withdrawn**: the CoP-scale form $\text{CoP}\cdot e^{\epsilon}$. At the fitted
+$\gamma_{\text{inf}} \approx 0.18$ the CoP channel is compressed — moving CoP from 1
+to 53 buys only a 2.40× change in P(fever) — so a CoP-scale offset has almost no
+leverage on a rate.
+
+**Note on `cohort_id`**: added to `dose_response_data.csv` 2026-07-31 as **provenance
+only**. It records which rows share volunteers (Levine's fever/infection pairs are the
+same men; Hornick's dose groups are distinct men within one paper-year). It is not
+passed to Stan and no likelihood term reads it.
 
 ### 5.6 Maryland Infection-Disease Split (Hornick Table 2)
 
@@ -716,7 +760,8 @@ This directly constrains the contrast between the mixture components, providing 
 **Within Maryland**:
 - Batch-to-batch variation in challenge preparation (Levine controls: 25-55% at same dose)
 - Temporal shifts in prison population immunity
-- Modeled as: study-level random effect or beta-binomial overdispersion
+- Modeled as: single beta-binomial overdispersion parameter `kappa_od` (LOCKED
+  2026-07-31; the study/cohort random effect is withdrawn -- see Section 5.5)
 
 **Within Oxford**:
 - Dose varies (10³-10⁵ in Waddington; ~10⁴ in others)
@@ -881,7 +926,7 @@ For each observation in the data:
 | Oxford vaccine VE (~55%) | From predicted CoP shift | Tests γ extrapolation |
 | Jin Vi-TT VE at fever+subsequent bacteraemia (~87%) | Predicted from differential γ_inf vs γ_fev\|inf | Tests whether cascade model captures stronger VE at stricter endpoints |
 | Jin control fever+subsequent bacteraemia (42%) | Predicted from P_inf × P_fev\|inf at ~10⁴ | Tests cascade model internal consistency (Table S1 data not in likelihood) |
-| Levine trial-to-trial variability | Within overdispersion bounds | Tests σ_study |
+| Levine trial-to-trial variability | Within overdispersion bounds | Tests `kappa_od` (was σ_study) |
 | **Gibani rechallenge subgroups (HOLD-OUT)** | **Model should predict prior-disease → higher rechallenge risk** | **Critical test of γ interpretation** |
 
 **Gibani paradox hold-out (added per Reviewer 2)**: Fit the model excluding the Gibani 2020 rechallenge arms. Then predict the split: prior disease (25/37 = 68%) vs no prior disease (10/38 = 26%). Under the adaptive immunity model (γ > 0), the model should predict that subjects with prior disease are MORE protected (lower attack rate). The data show the opposite. If the model predicts the wrong direction, this is strong evidence for innate susceptibility classes and a fundamental limitation of the single-γ framework. This test should be run at Stage 1 (Oxford only) and again at Stage 3 (full model).
@@ -1020,7 +1065,7 @@ For quick reference, every binomial observation:
 **Active observations (Tier 2 / η-correction)**: Restores 6 Oxford shedding rows (W-I-3, W-I-4, D-I-plac, J-I-ctrl, J-I-ViTT, J-I-ViPS) with η correction = **31 active calibration observations** + 2 parameters (η_lo, κ) or 0 (Option C fixed η).
 **Available but excluded**: 4 Hornick vaccine rows (CoP unmappable), 8 Oxford shedding rows (Tier 1 only; restored in Tier 2).
 **Effective independent observations** (per Reviewer 2): Tier 1 ~27-29; Tier 2 ~31-33, after correcting for within-group correlation.
-**Total parameters**: Tier 1: 6 biological + 4 nuisance + 1 overdispersion = 11. Tier 2: +2 (η_lo, κ) = 13.
+**Total parameters**: Tier 1: 6 biological + 4 nuisance + 1 overdispersion (`kappa_od`) = 11. Tier 2: +2 (η_lo, κ) = 13.
 **Data-to-parameter ratio**: Tier 1 ~2.3:1; Tier 2 ~2.4:1. Both require informative priors. Tier 2 is preferred for γ_inf identification.
 **Canonical data source**: `dose_response_data.csv` in this directory. All observation counts verified against this file.
 **Definition warnings**: (1) Oxford shedding **EXCLUDED** (Section 2.6): treatment-truncation bias makes shedding < diagnosis at all doses ≥10⁴. Oxford contributes fever only. (2) Levine/Gilman/Hornick fever definitions **RESOLVED** (Section 2.5): study-specific φ(T) values derived from Oxford threshold ladder — Hornick φ≈0.25, Levine φ≈0.65, Gilman φ≈0.65. No extra parameters needed. (3) Darton S1 fever thresholds (T38, T39) are 1-2 subjects lower than published Table 2 — likely a minor definition difference in how the S1 encodes temperature events vs the publication's analysis.

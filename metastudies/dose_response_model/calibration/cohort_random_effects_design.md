@@ -3,9 +3,24 @@
 Written 2026-07-31. Triggered by the Gilman residual surfaced in
 `results/tier1/dose_response_grid_maryland.png`.
 
+> ## RESOLVED — LOCKED 2026-07-31 [Mike]
+>
+> **The study/cohort random effect is WITHDRAWN, not deferred.** Tier 2 extra-binomial
+> variation is handled by **one overdispersion parameter (beta-binomial `kappa_od`)**.
+>
+> Applied to: `joint_inference_plan.md` §5.5 and the note at §4.2;
+> `CALIBRATION_WORKFLOW.md` Step 2 and the tier ladder. `sigma_study` should be
+> deleted from the `.stan` when Step 2 is implemented.
+>
+> `cohort_id` was still added to `dose_response_data.csv` (2026-07-31) as **provenance
+> only** — it records which rows share volunteers, is not passed to Stan, and is read
+> by no likelihood term.
+>
+> The analysis below is retained as the record of why.
+
 **Verdict: §5.5 as written should not be implemented.** Its index is wrong, its
 primary formulation has almost no leverage, and its motivating premise does not
-survive a test. Its *fallback* recommendation (beta-binomial) is defensible, but
+survive a test. Its *fallback* recommendation (beta-binomial) is right, but
 for a reason the plan does not state. Details and a revision below.
 
 ---
@@ -148,14 +163,27 @@ Restrict it to the Maryland group-level rows, where the replication that motivat
 it lives. Do not apply it to the Darton n=1 individual rows, where overdispersion
 on a Bernoulli is not identified.
 
-### 6c. Defer the per-cohort random effect until replication supports it
+### 6c. The per-cohort random effect is withdrawn [LOCKED 2026-07-31]
 
-Adopt it only when there are multiple cohorts at a shared dose x definition cell
-beyond the single Maryland 10^5 cell — e.g. if Tier 2 adds the Oxford shedding
-rows, or if Woodward's veteran stratification (200/105 at 10^5, currently unused)
-is brought in.
+Not "deferred pending more data" — withdrawn. Two of the routes that might have
+revived it are closed:
 
-When it is adopted, the form should be:
+- **Woodward's veteran stratification cannot be added.** It is a REVIEW of the same
+  16-year program: its ~305 controls at 10^5 overlap the 277 already in the fit
+  (Hornick 116, Levine 97, Gilman 64), so adding it double-counts. It also publishes
+  percentages only, and never defines its clinical endpoint, so T (and therefore
+  phi(T,D)) is undetermined. Its value is concordance on the mixture weight
+  (200/305 = 0.66 vs Gilman's 36/53 = 0.68) — a DIFFERENT stratification reaching a
+  similar number, documented in priors.yaml, not an interchangeable anchor.
+- **Cohort-varying pi cannot span the observed spread.** At the fitted parameters the
+  mixture's entire reachable range at Maryland 10^5 is 0.260-0.430 (pi = 0 to pi = 1).
+  Observed points run 0.235-0.611: four above the ceiling, two below the floor, one
+  inside. The band's width is set by CoP_imm^gamma = 11.3^0.18 = 1.52, i.e. by gamma,
+  not by pi. (Caveat: only `Gil-F-Hlo` departs individually significantly, p = 0.022.)
+  And gamma is not free to change — the model deliberately shares it across eras on
+  the assumption that human immunology is the same in both [Mike].
+
+For the record, had it been adopted the form would have been:
 
     logit(p_i) = logit(p_model_i) + epsilon_{c(i)}
     epsilon_c  = sigma_cohort * z_c,   z_c ~ Normal(0, 1)     # NON-CENTERED
@@ -194,6 +222,6 @@ When it is adopted, the form should be:
 | `study x year` as a fix | **also wrong** — collapses Hornick's 5 dose cohorts to 1 |
 | CoP-scale `exp(epsilon)` form | **no leverage** at gamma ~ 0.18 |
 | Reviewer 2 logit-scale revision | **correct** — promote to primary |
-| beta-binomial fallback | **right call, wrong reason** — identifiability, not simplicity |
+| beta-binomial fallback | **ADOPTED** — right call, wrong reason: identifiability, not simplicity |
 | identifiability assessment | **absent** — 16 cohorts / 24 obs, 10 singletons |
 | will it fix the Gilman residual | **no** — that is a within-cohort contrast |
