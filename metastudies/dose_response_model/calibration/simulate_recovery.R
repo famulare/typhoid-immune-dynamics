@@ -88,7 +88,7 @@ augment_truth_derived <- function(tv) {
 
 #' Simulate one dataset at `truth` and refit; diagnose recovery.
 recover_once <- function(mod, stan_data, obs, priors, truth_values = TRUTH_REALISTIC,
-                         out_dir = "results/recovery/point",
+                         out_dir = NULL,
                          chains = 4, warmup = 1000, sampling = 1000,
                          adapt_delta = 0.9, sim_seed = 99, fit_seed = 7) {
   truth <- make_truth(truth_values)
@@ -99,10 +99,26 @@ recover_once <- function(mod, stan_data, obs, priors, truth_values = TRUTH_REALI
                     adapt_delta = adapt_delta, seed = fit_seed, refresh = 0,
                     show_messages = FALSE)
   tv <- augment_truth_derived(truth_values)
-  pars <- c("log10_N50_inf","d_fev","log10_N50_fevginf","alpha_inf","alpha_fevginf",
-            "gamma_inf","gamma_fevginf","log10_delta","pi_susc","CoP_imm","CoP_susc")
-  diagnose_fit(fit, out_dir, pars = pars, true_params = tv, obs = obs,
-               priors = priors, model_name = "recovery_point")
+  tier <- attr(stan_data, "tier")
+  key  <- tier$key %||% "unknown-tier"
+  if (is.null(out_dir)) out_dir <- file.path("results", "recovery", key, "point")
+  pars <- if (!is.null(tier)) tier_report_pars(tier) else names(truth_values)
+  # obs carries the SYNTHETIC y actually fit, and stan_data goes in so the run is
+  # regenerable and its manifest records that y is synthetic (which resolve_run_stan_data
+  # then refuses to reconstruct from the CSV).
+  obs_syn <- obs; obs_syn$y <- as.integer(y_sim); obs_syn$obs_rate <- y_sim / obs$n
+  sd_plot <- copy_stan_attrs(rec_data, stan_data); attr(sd_plot, "obs") <- obs_syn
+  man <- run_manifest("recovery_point", stan_data = sd_plot, priors = priors,
+                      model_name = "recovery_point",
+                      sampler = list(chains = chains, iter_warmup = warmup,
+                                     iter_sampling = sampling, adapt_delta = adapt_delta,
+                                     seed = fit_seed),
+                      extra = list(y_synthetic = TRUE, sim_seed = sim_seed,
+                                   fit_seed = fit_seed, truth = as.list(truth_values)))
+  diagnose_fit(fit, out_dir, pars = pars, true_params = tv, obs = obs_syn,
+               priors = priors, model_name = "recovery_point",
+               stan_data = sd_plot, manifest = man,
+               extra_plots = model_figures_hook(sd_plot, label = "recovery (point truth)"))
 }
 
 #' Single prior-draw recovery example — the standard synthetic-data check.
@@ -125,7 +141,7 @@ recover_from_prior <- function(mod, stan_data, obs, priors,
                                seed = 2026,
                                report_pars = TIER1_REPORT_PARS,
                                inert_pars  = TIER1_INERT_PARS,
-                               out_dir = "results/recovery/tier1",
+                               out_dir = NULL,
                                chains = 4, warmup = 1000, sampling = 1000,
                                adapt_delta = 0.9, max_redraws = 20) {
   s <- seed; td <- NULL; y_sim <- NULL
@@ -162,8 +178,18 @@ recover_from_prior <- function(mod, stan_data, obs, priors,
   sd_plot <- stan_data
   attr(sd_plot, "obs") <- obs_syn
 
+  key <- attr(stan_data, "tier")$key %||% "unknown-tier"
+  if (is.null(out_dir)) out_dir <- file.path("results", "recovery", key, "prior_draw")
+  man <- run_manifest("recovery_prior_draw", stan_data = sd_plot, priors = priors,
+                      model_name = paste0("recovery-", key, "-prior-draw"),
+                      sampler = list(chains = chains, iter_warmup = warmup,
+                                     iter_sampling = sampling, adapt_delta = adapt_delta,
+                                     seed = s),
+                      extra = list(y_synthetic = TRUE, draw_seed = s,
+                                   truth = as.list(td$values), inert_pars = inert_pars))
   res <- diagnose_fit(fit, out_dir, pars = report_pars, true_params = tv, obs = obs_syn,
-                      priors = priors, model_name = "recovery_tier1_prior",
+                      priors = priors, model_name = paste0("recovery-", key, "-prior-draw"),
+                      stan_data = sd_plot, manifest = man,
                       extra_plots = model_figures_hook(sd_plot, label = "recovery (synthetic)"))
   invisible(res)
 }
@@ -171,9 +197,14 @@ recover_from_prior <- function(mod, stan_data, obs, priors,
 #' SBC-lite: k truths drawn from the prior, one synthetic dataset each, refit each,
 #' aggregate 90% CI coverage per parameter. Tests calibration on the real design.
 recover_repeated <- function(mod, stan_data, priors, k = 20,
-                             out_csv = "results/recovery/coverage.csv",
+                             out_csv = NULL,
                              chains = 4, warmup = 600, sampling = 600,
                              adapt_delta = 0.9, seed0 = 1000) {
+  if (is.null(out_csv))
+    out_csv <- file.path("results", "recovery",
+                         attr(stan_data, "tier")$key %||% "unknown-tier",
+                         "coverage.csv")
+  dir.create(dirname(out_csv), showWarnings = FALSE, recursive = TRUE)
   pars <- c("log10_N50_inf","d_fev","alpha_inf","alpha_fevginf","gamma_inf",
             "gamma_fevginf","log10_delta","pi_susc","CoP_imm","CoP_susc")
   # Simulate at a truth covering EVERY model parameter, derived from the .stan
@@ -223,7 +254,7 @@ attribution_cliff_vs_reparam <- function(data_csv = "dose_response_data.csv",
 
   # --- reparam (current) model on flat data ---
   mod_new <- cmdstan_model("typhoid_dose_response.stan")
-  sd_new <- build_stan_data(data_csv, priors, tier_col = "tier1_active")
+  sd_new <- build_tier_data("t1-indiv", data_csv, priors)
   fit_new <- mod_new$sample(data = sd_new, chains = chains, parallel_chains = chains,
                             iter_warmup = warmup, iter_sampling = sampling,
                             adapt_delta = adapt_delta, seed = seed, refresh = 0,
@@ -264,6 +295,9 @@ attribution_cliff_vs_reparam <- function(data_csv = "dose_response_data.csv",
 #' Old per-group Stan data for the cliff (git HEAD) model.
 build_old_pergroup_data <- function(data_csv) {
   d <- readr::read_csv(data_csv, show_col_types = FALSE)
+  # Pinned to the GROUPED tier on purpose: this retired per-group layout has no
+  # per-subject rows, so comparing it against an individualized fit was never like
+  # for like.
   d1 <- d %>% filter(tier1_active == 1)
   g <- function(grp) d1 %>% filter(likelihood_group == grp) %>% arrange(obs_id)
   ox_fev <- g("ox_fev"); md_fev <- g("md_fev"); md_inf <- g("md_inf"); hc <- g("hornick_cond")
@@ -286,9 +320,13 @@ build_old_pergroup_data <- function(data_csv) {
 
 # ---- demo main (small/fast; scale up k and iters for real validation) ---------
 if (sys.nframe() == 0) {
+  setwd(calib_dir())
+  source("tier_specs.R")
+  args <- commandArgs(trailingOnly = TRUE)
+  key <- if (length(args)) args[1] else "t1-indiv"
   priors <- load_priors()
   mod <- cmdstan_model("typhoid_dose_response.stan")
-  stan_data <- build_stan_data("dose_response_data.csv", priors, tier_col = "tier1_active")
+  stan_data <- build_tier_data(key, "dose_response_data.csv", priors, mod = mod)
   obs <- attr(stan_data, "obs")
 
   cat("\n[1] smoke test: generate_quantities -> y_rep length\n")

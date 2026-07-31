@@ -14,6 +14,7 @@
 #'   Rscript figures.R results/tier1         # one run dir
 
 suppressPackageStartupMessages({library(dplyr); library(ggplot2)})
+if (!exists("calib_dir")) source("utils.R")
 source("model_math.R")
 source("curve_specs.R")
 source("figures_common.R")
@@ -69,31 +70,30 @@ model_figures_hook <- function(stan_data, ...) {
 #' Rebuild every figure for a saved run directory, without refitting.
 figures_from_dir <- function(run_dir, data_csv = "dose_response_data.csv", ...) {
   fit <- readRDS(file.path(run_dir, "fit.rds"))
-  sdp <- file.path(run_dir, "stan_data.rds")
-  sd  <- if (file.exists(sdp)) readRDS(sdp) else
-    build_stan_data(data_csv, load_priors("priors.yaml"),
-                    tier_col = "tier1_active", prior_only = 0L)
-  # obs row order IS the p_pred column order; a mismatch means this stan_data is
-  # not the one that produced this fit (e.g. a scenario with drop_obs/keep_obs).
+  # resolve_run_stan_data() prefers this run's stan_data.rds and otherwise rebuilds
+  # from the tier recorded in its manifest. The old fallback rebuilt tier1_active
+  # unconditionally and then hard-errored on the row count -- it guessed, and the
+  # guess was wrong for every scenario and recovery dir.
+  sd <- resolve_run_stan_data(run_dir, data_csv)
   n_pred <- ncol(posterior::as_draws_matrix(fit$draws("p_pred")))
   if (nrow(attr(sd, "obs")) != n_pred)
     stop("figures_from_dir: stan_data does not match this fit (", run_dir, "): ",
-         nrow(attr(sd, "obs")), " obs vs ", n_pred, " p_pred columns. ",
-         "Re-run the fit so it writes stan_data.rds, or pass the right data.",
-         call. = FALSE)
+         nrow(attr(sd, "obs")), " obs vs ", n_pred, " p_pred columns.", call. = FALSE)
   make_model_figures(fit, sd, run_dir, ...)
 }
 
 if (sys.nframe() == 0) {
-  here <- dirname(normalizePath(sub("^--file=", "",
-            grep("^--file=", commandArgs(FALSE), value = TRUE))))
-  setwd(here); source("priors.R"); source("data_prep.R")
+  setwd(calib_dir())
+  source("priors.R"); source("data_prep.R"); source("tier_specs.R")
   suppressPackageStartupMessages(library(cmdstanr))
   args <- commandArgs(trailingOnly = TRUE)
-  dirs <- if (length(args)) args else
-    c("results/tier1", "results/tier1_prior", Sys.glob("results/scenarios/*"))
+  # Default: every REGENERABLE run dir, discovered from the audit rather than from a
+  # hardcoded list -- which is how results/recovery/* used to be silently skipped.
+  dirs <- if (length(args)) args else {
+    a <- audit_run_dirs(quiet = TRUE)
+    if (is.null(a)) character(0) else a$dir[a$regenerable]
+  }
   for (d in dirs) {
-    if (!file.exists(file.path(d, "fit.rds"))) { message("[skip] no fit.rds in ", d); next }
     message("=== ", d, " ===")
     tryCatch(figures_from_dir(d, label = basename(d)),
              error = function(e) message("  [FAILED] ", conditionMessage(e)))

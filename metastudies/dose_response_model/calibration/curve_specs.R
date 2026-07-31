@@ -30,6 +30,7 @@ if (!exists("mm_pars")) source("model_math.R")
 CURVE_ROWS <- tibble::tribble(
   ~row_key,    ~row_label,
   "p_inf",     "P(infection | D)",
+  "p_inf_obs", "eta(D) x P(inf | D)",
   "p_fev",     "P(fever | D)",
   "p_fevginf", "P(fever | inf, D)",
   "phi",       "phi(T, D)",
@@ -38,7 +39,10 @@ CURVE_ROWS <- tibble::tribble(
 
 # Which ROW each observation's data points belong on. Single source for the join,
 # so a point can never land on a curve it is not an observation of.
-.LG_ROW <- c(ox_fev = "p_fev", ox_inf = "p_inf", md_fev = "p_fev", md_inf = "p_inf",
+# ox_inf is the eta-corrected SHEDDING endpoint, so its points belong on the
+# observed-scale p_inf_obs row, not on latent P(infection|D). Putting them on p_inf
+# drew the data below a curve it is not an observation of.
+.LG_ROW <- c(ox_fev = "p_fev", ox_inf = "p_inf_obs", md_fev = "p_fev", md_inf = "p_inf",
              hornick_cond = "p_fevginf", ox_inf_indiv = "p_inf",
              ox_fevginf_indiv = "p_fevginf")
 
@@ -137,9 +141,14 @@ mm_curve <- function(quantity, dose, spec, p, cop_override = NULL) {
   # "what fraction of TD+ would cross strict 38.0", not as a likelihood factor.
   phi_obs <- if (spec$era == "maryland") phi else matrix(1, nd, ng)
 
+  # eta is the Oxford shedding detection/truncation factor and multiplies P_inf for
+  # group 2 only. It is a SEPARATE row rather than a modification of p_inf: p_inf means
+  # latent P(infection|D) and is correct as-is for the Darton/Waddington columns.
   switch(quantity,
     phi       = phi,
     p_inf     = if (is_mix) mm_md_mix(De, p, "inf") else mm_p_inf(De, CoP, p),
+    p_inf_obs = mm_eta(De, p) * (if (is_mix) mm_md_mix(De, p, "inf")
+                                 else mm_p_inf(De, CoP, p)),
     p_fevginf = if (is_mix) phi_obs * mm_md_mix(De, p, "fev") / mm_md_mix(De, p, "inf")
                 else phi_obs * mm_p_fevginf(De, CoP, p),
     p_fev     = if (is_mix) phi_obs * mm_md_mix(De, p, "fev")

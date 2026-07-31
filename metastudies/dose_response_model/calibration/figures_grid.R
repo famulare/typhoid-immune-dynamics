@@ -80,6 +80,17 @@ curve_grid_data <- function(fit, stan_data, specs = curve_specs(),
     specs <- specs[keep, , drop = FALSE]
   }
 
+  has_g2 <- any(stan_data$group == 2L)
+
+  # Any observation whose row_key is not emitted would be silently coerced to NA by
+  # factor() and vanish from the figure. Assert instead.
+  active_rows <- c("p_inf", if (has_g2) "p_inf_obs", "p_fev", "p_fevginf", "phi", "cascade")
+  missing_rows <- setdiff(unique(chk$row_key), active_rows)
+  if (length(missing_rows))
+    stop("curve_grid_data: observations map to row(s) not drawn: ",
+         paste(missing_rows, collapse = ", "),
+         ". A point would be dropped silently.", call. = FALSE)
+
   p_full <- mm_draws(fit, T_ref = T_ref)
   p_rib  <- mm_thin(p_full, ndraw_ribbon, seed)
   # spaghetti draws are a SUBSET of the ribbon draws, and the same thin is used in
@@ -97,7 +108,12 @@ curve_grid_data <- function(fit, stan_data, specs = curve_specs(),
     cop_med <- if (sp$cop_mode == "individual")
       stats::median(chk$CoP[chk$col_key == sp$col_key], na.rm = TRUE) else NULL
 
-    for (rk in c("p_inf", "p_fev", "p_fevginf", "phi")) {
+    # p_inf_obs (eta x P_inf) is emitted ONLY when a group-2 row is active and only
+    # for Oxford columns -- eta is an Oxford shedding correction. Same gate
+    # plot_eta_detection() uses, so it reads the DATA rather than a tier flag.
+    rks <- c("p_inf", "p_fev", "p_fevginf", "phi")
+    if (has_g2 && sp$era == "oxford") rks <- c(rks, "p_inf_obs")
+    for (rk in rks) {
       m_r <- mm_curve(rk, dose, sp, p_rib,  cop_override = cop_med)
       m_s <- mm_curve(rk, dose, sp, p_spag, cop_override = cop_med)
       cur[[length(cur) + 1L]]   <- mm_quantiles(m_r, dose) %>%
@@ -152,6 +168,7 @@ curve_grid_data <- function(fit, stan_data, specs = curve_specs(),
        cop_range = if (length(copr)) bind_rows(copr) else NULL,
        points    = pts,
        specs     = specs,
+       rows      = active_rows,
        n_spaghetti = p_spag$.ndraws, ndraw_ribbon = p_rib$.ndraws,
        x_scale = x_scale, T_ref = T_ref)
 }
@@ -165,6 +182,9 @@ curve_grid_data <- function(fit, stan_data, specs = curve_specs(),
 #' @param keys which col_keys to draw (default all)
 plot_curve_grid <- function(gd, keys = gd$specs$col_key, title = NULL, subtitle = NULL) {
   sp <- gd$specs %>% filter(col_key %in% keys)
+  # Levels come from THIS run's active rows, not from all of CURVE_ROWS -- otherwise
+  # an unused row (p_inf_obs at a t1-* tier) draws as an empty facet band.
+  row_levels <- intersect(.ROW_LEVELS, gd$rows %||% .ROW_LEVELS)
   lab <- setNames(sp$col_label, sp$col_key)
   xlim <- c(min(sp$dose_lo), max(sp$dose_hi))
   # Pre-filter to the file's dose range rather than letting scale_x_log10(limits=)
@@ -173,7 +193,7 @@ plot_curve_grid <- function(gd, keys = gd$specs$col_key, title = NULL, subtitle 
   f <- function(d, xcol = "x") d %>% filter(col_key %in% keys,
                                             .data[[xcol]] >= xlim[1] * (1 - 1e-9),
                                             .data[[xcol]] <= xlim[2] * (1 + 1e-9)) %>%
-    mutate(row_key = factor(row_key, .ROW_LEVELS),
+    mutate(row_key = factor(row_key, row_levels),
            col_key = factor(col_key, sp$col_key))
   cur <- f(gd$curves); spg <- f(gd$spaghetti); cas <- f(gd$cascade)
   pts <- f(gd$points, "dose_cfu")
@@ -232,7 +252,8 @@ plot_grouping_grid <- function(fit, stan_data, out_dir, specs = curve_specs(),
   sub <- sprintf(.GRID_SUBTITLE, gd$T_ref, gd$T_ref)
 
   # combined grid: one common dose range so columns are directly comparable
-  n <- nrow(specs); sz <- .fig_size_grid(n, 5)
+  n_rows <- length(gd$rows)
+  n <- nrow(specs); sz <- .fig_size_grid(n, n_rows)
   .fig_save(plot_curve_grid(gd, specs$col_key,
               sprintf("%s: model prediction for every comparable dataset sub-grouping", label), sub),
             file.path(out_dir, "dose_response_grid_all.png"), sz$w, sz$h)
@@ -241,7 +262,7 @@ plot_grouping_grid <- function(fit, stan_data, out_dir, specs = curve_specs(),
   for (er in unique(specs$era)) {
     k <- specs$col_key[specs$era == er]
     gde <- gd; gde$specs <- specs %>% filter(era == er)
-    sz <- .fig_size_grid(length(k), 5)
+    sz <- .fig_size_grid(length(k), n_rows)
     .fig_save(plot_curve_grid(gde, k,
                 sprintf("%s: %s groupings (%s vehicle)", label, er,
                         unique(specs$vehicle[specs$era == er])), sub),
@@ -251,7 +272,7 @@ plot_grouping_grid <- function(fit, stan_data, out_dir, specs = curve_specs(),
   # one file per grouping (short subtitle -- the full one clips at this width)
   if (write_columns) for (k in specs$col_key) {
     gdc <- gd; gdc$specs <- specs %>% filter(col_key == k)
-    sz <- .fig_size_grid(1, 5, unit_w = 5.2, pad_w = 1.6)
+    sz <- .fig_size_grid(1, n_rows, unit_w = 5.2, pad_w = 1.6)
     .fig_save(plot_curve_grid(gdc, k, sprintf("%s: %s", label, k),
                 paste0("spaghetti: posterior draws;  band: 90%;  grey band: 10-90% of observed ",
                        "subject titres;  point: observed (Wilson 95%);  x: Stan p_pred")),

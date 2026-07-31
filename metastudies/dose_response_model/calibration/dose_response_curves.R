@@ -142,13 +142,13 @@ plot_titre_protection <- function(fit, stan_data, outfile, D_ref = 2e4,
 
 # Standalone: Rscript dose_response_curves.R  (regenerate from the saved tier1 fit)
 if (sys.nframe() == 0) {
-  here <- dirname(normalizePath(sub("^--file=", "",
-            grep("^--file=", commandArgs(FALSE), value = TRUE))))
-  setwd(here); source("priors.R"); source("data_prep.R")
+  setwd(calib_dir())
+  source("priors.R"); source("data_prep.R"); source("tier_specs.R")
   suppressPackageStartupMessages(library(cmdstanr))
-  fit <- readRDS("results/tier1/fit.rds")
-  sd  <- build_stan_data("dose_response_data.csv", load_priors("priors.yaml"),
-                         tier_col = "tier1_active", prior_only = 0L)
-  plot_dose_response_fit(fit, sd, "results/tier1/dose_response_fit.png")
-  plot_titre_protection(fit, sd, "results/tier1/titre_protection.png")
+  args <- commandArgs(trailingOnly = TRUE)
+  run_dir <- if (length(args)) args[1] else tier_out_dir(tier_spec("t1-indiv"))
+  fit <- readRDS(file.path(run_dir, "fit.rds"))
+  sd  <- resolve_run_stan_data(run_dir)
+  plot_dose_response_fit(fit, sd, file.path(run_dir, "dose_response_fit.png"))
+  plot_titre_protection(fit, sd, file.path(run_dir, "titre_protection.png"))
 }

@@ -230,13 +230,17 @@ resolve_run_stan_data <- function(run_dir, data_csv = "dose_response_data.csv") 
 #'   the audit cannot know.
 audit_run_dirs <- function(root = "results", stamp_legacy = FALSE, out_md = NULL,
                            data_csv = "dose_response_data.csv",
-                           stan_file = "typhoid_dose_response.stan") {
+                           stan_file = "typhoid_dose_response.stan",
+                           quiet = FALSE) {
   dirs <- sort(unique(dirname(c(Sys.glob(file.path(root, "**", "fit.rds")),
                                 Sys.glob(file.path(root, "*", "fit.rds")),
                                 Sys.glob(file.path(root, "*", "*", "fit.rds")),
                                 Sys.glob(file.path(root, "*", "results.json")),
                                 Sys.glob(file.path(root, "*", "*", "results.json"))))))
-  if (!length(dirs)) { message("no run directories under ", root); return(invisible(NULL)) }
+  if (!length(dirs)) {
+    if (!quiet) message("no run directories under ", root)
+    return(invisible(NULL))
+  }
 
   cur <- stats::setNames(vapply(manifest_input_paths(data_csv, stan_file),
                                 function(p) if (file.exists(p)) unname(tools::md5sum(p))
@@ -283,10 +287,11 @@ audit_run_dirs <- function(root = "results", stamp_legacy = FALSE, out_md = NULL
       stringsAsFactors = FALSE)
   })
   out <- do.call(rbind, rows)
-  cat("\nRun directory audit —", nrow(out), "dirs,", sum(out$regenerable),
+  if (!quiet) cat("\nRun directory audit —", nrow(out), "dirs,", sum(out$regenerable),
       "regenerable,", sum(!out$manifest), "without a manifest\n\n")
-  cat(paste(knitr_table(out[, c("dir", "tier", "stage", "n_obs", "regenerable",
-                                "manifest", "git", "stan_cur")]), collapse = "\n"), "\n")
+  if (!quiet)
+    cat(paste(knitr_table(out[, c("dir", "tier", "stage", "n_obs", "regenerable",
+                                  "manifest", "git", "stan_cur")]), collapse = "\n"), "\n")
   if (!is.null(out_md)) {
     dir.create(dirname(out_md), showWarnings = FALSE, recursive = TRUE)
     writeLines(c("# Run directory audit", "",

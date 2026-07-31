@@ -11,6 +11,7 @@
 
 suppressPackageStartupMessages({library(cmdstanr); library(posterior)})
 source("priors.R"); source("data_prep.R")
+if (!exists("tier_keys")) source("tier_specs.R")
 
 # Tolerances at the floating-point / implementation-difference level (Stan pow &
 # exact-lgamma binomial_lpmf vs R ^ & saddlepoint dbinom). A real logic error in
@@ -192,11 +193,17 @@ parity_grid <- function() {
 }
 
 ladder <- darton_phi0_ladder("dose_response_data.csv")
-cases <- list(
-  tier1 = obs,
-  tier2 = attr(build_stan_data("dose_response_data.csv", priors, tier_col = "tier2_active"), "obs"),
-  grid  = parity_grid()
+# Cases come from the tier REGISTRY, so a new rung is covered automatically instead
+# of needing a literal tier_col here. Blocked rungs are included on purpose: the gate
+# costs no MCMC, and the blocked branches (eta) are exactly the ones most worth
+# checking before anyone unblocks them.
+cases <- c(
+  stats::setNames(lapply(tier_keys(), function(k)
+    attr(build_tier_data(k, "dose_response_data.csv", priors,
+                         allow_blocked = TRUE, mod = mod), "obs")), tier_keys()),
+  list(grid = parity_grid())
 )
+
 
 for (nm in names(cases)) {
   rows <- cases[[nm]]

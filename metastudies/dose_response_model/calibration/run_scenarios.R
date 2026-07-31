@@ -7,7 +7,8 @@
 #' D), prior-override sensitivities (e.g. the delta-prior grid) are cheap refits
 #' with NO recompile.
 #'
-#' Scenario spec fields: label, tier_col, drop_obs, keep_obs, prior_overrides.
+#' Scenario spec fields: label, tier (a tier_specs.R key), drop_obs, keep_obs,
+#' prior_overrides. Output goes to results/scenarios/<tier>/<label>/.
 #' Structural-Stan variants (share alpha/gamma, single CoP_md, drop phi) need new
 #' .stan files; they plug into this same runner once written (deferred).
 #'
@@ -23,8 +24,13 @@ KEY_PARS <- c("log10_N50_inf","d_fev","gamma_inf","gamma_fevginf","log10_delta",
               "pi_susc","CoP_imm","alpha_inf","alpha_fevginf","CoP_susc")
 
 # Example scenario set (all no-new-Stan-code: row filters + prior overrides).
+# Every scenario names its tier. `tier` defaults to DEFAULT_SCENARIO_TIER rather
+# than to a tier_col literal, so a scenario set can never silently describe a
+# different configuration than the fit it is a sensitivity of.
+DEFAULT_SCENARIO_TIER <- "t1-indiv"
+
 SCENARIOS <- list(
-  list(label = "tier1_base"),
+  list(label = "base"),
   list(label = "hornick3_excluded", drop_obs = "H-F-3"),                 # MC4 sensitivity
   list(label = "gilrest_excluded",  drop_obs = "Gil-F-rest"),           # derived-by-subtraction row
   list(label = "delta_prior_lo",    prior_overrides = list(log10_delta = list(mu = 3.0))),
@@ -35,14 +41,20 @@ SCENARIOS <- list(
 run_scenario <- function(spec, mod, data_csv = "dose_response_data.csv",
                          priors0 = load_priors(),
                          chains = 4, warmup = 800, sampling = 800,
-                         adapt_delta = 0.9, seed = 2024, figures = TRUE) {
+                         adapt_delta = 0.9, seed = 2024, figures = TRUE,
+                         allow_blocked = FALSE) {
   priors <- apply_prior_overrides(priors0, spec$prior_overrides %||% list())
-  stan_data <- build_stan_data(data_csv, priors,
-                               tier_col = spec$tier_col %||% "tier1_active",
+  key    <- spec$tier %||% DEFAULT_SCENARIO_TIER
+  tspec  <- tier_spec(key)
+  # build_tier_data() asserts the UNFILTERED tier against the registry first, so a
+  # scenario's drop_obs cannot mask a change in the tier's composition.
+  stan_data <- build_tier_data(key, data_csv, priors,
                                drop_obs = spec$drop_obs %||% character(),
-                               keep_obs = spec$keep_obs)
+                               keep_obs = spec$keep_obs,
+                               allow_blocked = allow_blocked, mod = mod)
   obs <- attr(stan_data, "obs")
-  out_dir <- file.path("results", "scenarios", spec$label)
+  # tier in the PATH: three tiers of scenarios can no longer collide on one label.
+  out_dir <- file.path("results", "scenarios", key, spec$label)
 
   t0 <- Sys.time()
   fit <- mod$sample(data = stan_data, chains = chains, parallel_chains = chains,
@@ -51,12 +63,20 @@ run_scenario <- function(spec, mod, data_csv = "dose_response_data.csv",
                     show_messages = FALSE)
   elapsed <- as.numeric(difftime(Sys.time(), t0, units = "secs"))
 
+  man <- run_manifest("scenario", stan_data = stan_data, priors = priors,
+                      model_name = spec$label, data_csv = data_csv,
+                      sampler = list(chains = chains, iter_warmup = warmup,
+                                     iter_sampling = sampling, adapt_delta = adapt_delta,
+                                     seed = seed, prior_only = 0L),
+                      extra = list(scenario = spec$label,
+                                   prior_overrides = spec$prior_overrides %||% list(),
+                                   drop_obs = spec$drop_obs %||% character()))
   diagnose_fit(fit, out_dir,
-               pars = c("log10_N50_inf","d_fev","log10_N50_fevginf","alpha_inf",
-                        "alpha_fevginf","gamma_inf","gamma_fevginf","log10_delta",
-                        "pi_susc","CoP_imm","CoP_susc"),
+               pars = tier_report_pars(tspec),   # derived; was a hardcoded 11
                obs = obs, priors = priors, model_name = spec$label, elapsed_s = elapsed,
-               extra_plots = if (isTRUE(figures)) model_figures_hook(stan_data, label = spec$label))
+               stan_data = stan_data, manifest = man,
+               extra_plots = if (isTRUE(figures))
+                 model_figures_hook(stan_data, label = sprintf("%s / %s", key, spec$label)))
 
   lj <- compute_loo_units(fit, obs)
   if (!is.null(lj)) jsonlite::write_json(lj, file.path(out_dir, "loo.json"),
@@ -121,13 +141,14 @@ compute_loo_units <- function(fit, obs) {
 }
 
 #' Aggregate results.json (+ loo.json) across scenarios into a comparison table + forest plot.
-summarize_scenarios <- function(labels, out_dir = "results/summaries") {
+summarize_scenarios <- function(labels, tier = DEFAULT_SCENARIO_TIER,
+                                out_dir = file.path("results", "summaries", tier)) {
   dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
   recs <- lapply(labels, function(lab) {
-    rj <- file.path("results", "scenarios", lab, "results.json")
+    rj <- file.path("results", "scenarios", tier, lab, "results.json")
     if (!file.exists(rj)) return(NULL)
     r <- jsonlite::read_json(rj, simplifyVector = FALSE)
-    lj <- file.path("results", "scenarios", lab, "loo.json")
+    lj <- file.path("results", "scenarios", tier, lab, "loo.json")
     loo_r <- if (file.exists(lj)) jsonlite::read_json(lj, simplifyVector = FALSE) else NULL
     list(label = lab, r = r, loo = loo_r)
   })
@@ -192,11 +213,16 @@ knitr_table <- function(df) {
 
 # ---- demo main ----------------------------------------------------------------
 if (sys.nframe() == 0) {
+  setwd(calib_dir())
+  source("tier_specs.R")
+  args <- commandArgs(trailingOnly = TRUE)
+  tier <- if (length(args)) args[1] else DEFAULT_SCENARIO_TIER
   mod <- cmdstan_model("typhoid_dose_response.stan")
   priors0 <- load_priors()
   for (spec in SCENARIOS) {
-    cat(sprintf("\n=== scenario: %s ===\n", spec$label))
+    spec$tier <- spec$tier %||% tier
+    cat(sprintf("\n=== scenario: %s / %s ===\n", spec$tier, spec$label))
     run_scenario(spec, mod, priors0 = priors0)
   }
-  summarize_scenarios(vapply(SCENARIOS, function(s) s$label, character(1)))
+  summarize_scenarios(vapply(SCENARIOS, function(s) s$label, character(1)), tier)
 }
