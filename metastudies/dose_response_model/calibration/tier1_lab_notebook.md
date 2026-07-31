@@ -473,3 +473,56 @@ cascade rows (groups 6/7) with a separate per-vaccine factor `V_v` in the expone
 (`−alpha/(CoP^gamma·V_v)`), keeping vaccine protection OUT of γ; Ty21a CoP=1 (anti-Vi NA).
 Verdict: parked — it does NOT extend the anti-Vi axis (no γ-split help); real value is the
 anti-Vi-vs-cell-mediated protection *decomposition*, a distinct aim.
+
+## PPC representation — individual rows pooled to arm-level rates (2026-07-31) [Mike]
+
+**Problem [Mike]:** `ppc.png` mixed two representations on one axis. The 56 Darton
+individual rows (`ox_inf_indiv` n=30, `ox_fevginf_indiv` n=26) are n=1, so their "observed
+attack rate" is exactly 0 or 1 — they piled up on the x=0 and x=1 edges as label spaghetti
+while every other marker was a grouped-binomial arm rate. Not interpretable side by side.
+
+**Fix** (`diagnostics.R`, `.ppc_rows()` / `.ppc_quantile_bins()`): `*_indiv` groups are
+pooled to arm-level dot-and-whisker like everything else. Observed = `sum(y)/sum(n)`;
+fitted = the **n-weighted mean of the per-subject `p_pred` within each draw**, then 5/50/95
+quantiles. That is exactly the quantity `p_pred` already reports for a grouped row, so
+pooled and grouped markers are on the same footing. Per-subject rows are retained in
+`ppc.csv` under `level == "individual"` (nothing lost); only `level == "arm"` is plotted.
+
+**CoP stratification, and why 3 terciles are not achievable [observed]:** whole-arm pooling
+averages away the titre spread that is the whole reason the individual rows exist, so each
+arm is split into `indiv_bins = 3` ascending CoP strata. It realises as **2**, because
+**18/30 (inf) and 16/26 (fev|inf) subjects sit exactly at the `<LLD` imputation floor
+CoP = 1** (`vi_igg_prechallenge` → `NAIVE_VI_REF`). Subjects sharing a CoP get identical
+model probabilities, so splitting that tie block would manufacture two markers differing
+only by an arbitrary partition of one stratum. Binning is therefore tie-safe (ties never
+split; bins under `indiv_bin_min = 4` merge into their smaller neighbour), and the realised
+cut is **naive-floor vs detectable anti-Vi** — the informative contrast anyway:
+
+| marker | n | obs | CoP range | fitted (median, 90%) |
+|---|---|---|---|---|
+| `D-I-plac q1` | 18 | 0.889 | 1.0 – 1.0 | 0.886 [0.825, 0.943] |
+| `D-I-plac q2` | 12 | 0.833 | 2.14 – 16.9 | 0.796 [0.724, 0.863] |
+| `D-FgI-plac q1` | 16 | 0.812 | 1.0 – 1.0 | 0.850 [0.790, 0.905] |
+| `D-FgI-plac q2` | 10 | 0.700 | 2.40 – 16.9 | 0.755 [0.683, 0.825] |
+
+Gradient sign is right in both endpoints and all four bins straddle the diagonal.
+**Limit:** this cannot test a gradient *within* the floor — it is censored, not resolved.
+The continuous titre check stays in `titre_protection.png`.
+
+**Also fixed [observed]:** `simulate_recovery.R:165` passed `obs = obs` (the REAL y) to
+`diagnose_fit()` while the fit was to `y_sim`, so the recovery `ppc.png` compared real
+observed rates against synthetic-truth predictions. `obs_syn` was already built two lines
+above for exactly this and used for `extra_plots` only → now `obs = obs_syn`. Existing
+`results/recovery*/ppc.png` are stale until refit.
+
+**Regeneration:** `ppc_from_dir(run_dir)` (mirrors `figures_from_dir()`) rebuilds
+`ppc.png` + `ppc.csv` from a run dir's `fit.rds` + `stan_data.rds`, no refit; `plot_ppc()`
+now hard-errors if `nrow(obs) != ncol(p_pred)`. Done for `results/tier1` and
+`results/tier1_prior`. `results/tier1_minimal_phi`, `results/tier1_pre_eumL` and the five
+`results/scenarios/*` have `fit.rds` but **no `stan_data.rds`**, so their row selection is
+not recoverable — their `ppc.png` stay old-style until refit.
+
+**Provenance note:** the `diagnostics.R` half of this change landed inside commit `68c799b`
+("Add cohort_id…") and the `simulate_recovery.R` fix inside `7c0c48b` ("Model figure
+suite…") — swept in by a concurrent session committing the shared worktree. `git log`
+on those files will mis-attribute; this entry is the record.
