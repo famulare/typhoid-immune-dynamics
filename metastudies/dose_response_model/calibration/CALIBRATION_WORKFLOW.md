@@ -1,26 +1,36 @@
-# Calibration workflow — iterative ladder
+# Calibration workflow — the tier ladder
 
-How the dose-response Stan calibration is meant to be built up, in deliberate
-steps. Each step must sample cleanly and pass diagnostics before the next is
-added. Terminology reconciles with `../joint_inference_plan.md` (which defines
-**Tier 1** = 25 obs / 11 params incl. one overdispersion parameter, and **Tier 2** = +6 Oxford
-shedding / +η, 13 params).
+How the dose-response Stan calibration is built up. Each rung must sample cleanly and
+pass diagnostics before the next is added.
 
-| Step | = plan concept | obs | active params | status |
-|---|---|---:|---|---|
-| **1. Tier 1 (floated φ)** | sub-milestone *below* repo Tier 1 | 25 | 11 (6 bio + 5 nuisance incl. `phi_md`); `sigma_study`(now withdrawn)/`eta_lo`/`κ` inert | **clean: 0/4000 div, R-hat≤1.002, ESS>1700; φ̂≈0.97 (uniform prior, edge-pressing), δ̂≈280×** |
-| **1.5. EU/mL axis + individual Darton** | immunity upgrade ([issue #15](https://github.com/famulare/typhoid-immune-dynamics/issues/15), `tier1.5_plan.md`) | 25 grp + 30 indiv | CoP in VaccZyme EU/mL; Darton placebo individual; (+φ) φ(T) from threshold ladder | building minimal+φ |
-| **2. Tier 1 complete** | repo **Tier 1** | 25 | 12 (+ `grand_overdispersion_rho`) | not started |
-| **3. Tier 2** | repo **Tier 2** | 31 | 14 (+ η_lo, κ) | not started |
+**Observation counts, parameter counts and configuration names are not restated here.**
+`tier_specs.R` is the registry; [TIER_LADDER.md](TIER_LADDER.md) is generated from it
+with every count computed from the data and asserted against the registry;
+[TIER_LOCK.md](TIER_LOCK.md) holds the configuration definitions and the naming rule,
+and is binding where this file disagrees with it.
 
-Run with [fit_dose_response.R](fit_dose_response.R) (cmdstanr + CmdStan 2.39).
+| spec | what it adds | status |
+|---|---|---|
+| `t1-grouped` | Darton placebo as one grouped binomial (`D-F-plac`) | **runnable** — the diagnostic contrast for what individualizing Darton buys |
+| `t1-indiv` | Darton placebo individualized into per-subject infection + fever\|infection rows (issue [#15](https://github.com/famulare/typhoid-immune-dynamics/issues/15), `tier1.5_plan.md`) | **RUNNABLE — this is the fit** |
+| `t1-indiv` + ρ | one beta-binomial overdispersion parameter, `grand_overdispersion_rho` (Step 2 below) | designed, LOCKED, **not implemented** |
+| `t2-grouped` / `t2-indiv` | Oxford grouped shedding rows + η | **declared and BLOCKED** — one mechanical defect and two open scientific questions; see TIER_LOCK.md item 9 |
+
+Historical note: this ladder was previously written as "Step 1 / 1.5 / 2 / 3" with
+`phi_md` as a live parameter and Tier 1 stated as 25 observations. `phi_md` was retired
+at C3 (`d1880a8`) in favour of `phi0_a`/`phi0_b`, and the configuration actually fitted
+was the 80-observation `t1-indiv` — see TIER_LOCK.md for why the label and the fit had
+diverged. The Step 1 narrative below is retained as history.
+
+Run with [fit_tier.R](fit_tier.R) (cmdstanr + CmdStan 2.39):
+`Rscript fit_tier.R --list` prints the ladder and each blocked rung's reason.
 
 ## Workflow tooling (added 2026-06-23 — Buffalo-style, R-native)
 - [priors.yaml](priors.yaml) — **single source** for priors; the `.stan` reads
   hyperparameters from its data block (change a value + refit, no recompile).
   [priors.R](priors.R) maps yaml → Stan data + generic prior samplers/densities.
 - [data_prep.R](data_prep.R) — `build_stan_data()` builds the flat per-observation
-  layout (one `obs_prob()` in the `.stan` handles all 5 likelihood groups).
+  layout (one `obs_prob()` in the `.stan` handles all 7 likelihood groups).
 - [diagnostics.R](diagnostics.R) — `diagnose_fit()` emits the standard battery
   (trace/pairs/rank/energy/density/rhat/neff via bayesplot + posterior),
   prior-vs-posterior overlay, PPC fed by Stan `p_pred` (no R likelihood mirror),
@@ -82,7 +92,14 @@ priors, and re-anchoring γ to the Darton HR) is the immediate next step, pendin
 three choices logged in `tier1_lab_notebook.md` D1 (naive reference; Maryland
 latent prior scale; Darton per-subject vs GMT).
 
-## Step 1 — Tier 1 with floated φ and δ (current)
+## History — Step 1, the floated scalar `phi_md` (2026-06-23; SUPERSEDED)
+
+`phi_md` no longer exists. It was retired at increment C3 (`d1880a8`) and replaced by
+the dose-dependent definition map φ(T,D) with parameters `phi0_a`/`phi0_b` (`beta_phi`
+pinned to 1). This section is kept because the divergence-cliff diagnosis and the
+φ-vs-δ attribution in it are still why the current model is shaped as it is. Read every
+`phi_md` below as history, every observation count as the 25-row grouped configuration,
+and every `results/tier1` path as the 2026-06-23 run (rename map: TIER_LOCK.md item 7).
 
 Goal: a clean-sampling 25-observation fit (compiles, 0 divergences, R-hat < 1.01,
 ESS > 400) with prior + posterior predictive checks. Oxford shedding/η and

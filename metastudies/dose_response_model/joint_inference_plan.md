@@ -16,8 +16,8 @@ The inference has three layers, each contributing information that the others ca
 2. **Maryland data** is where α gets pinned: 6 orders of magnitude of dose range (10³-10⁹) spanning the full S-curve. Maryland also uniquely identifies the infection-fever conditional (Hornick Table 2: P(fever|infected) = 57% at 10⁷) and constrains the medium offset δ.
 3. **Cross-era bridging** requires explicit assumptions about what biology is portable across 50 years (strain virulence, α, γ, functional form) and what is not (delivery medium, background immunity, outcome definitions). This is the load-bearing structure of the entire inference.
 
-Total parameters: 6 biological + 4 nuisance + 1 overdispersion = 11 free parameters
-Active calibration observations: ~25 binomial terms across ~8 non-overlapping study arms
+Total parameters: see `calibration/TIER_LADDER.md` (generated). As fitted: 14 declared in `typhoid_dose_response.stan`, of which `eta_lo`/`kappa` are inert until a group-2 row is active
+Active calibration observations: per configuration — see `calibration/TIER_LADDER.md`. The count depends on `individualize_darton`, which selects whether the Darton placebo arm enters grouped or per-subject
 Validation observations: 4 (Darton M01ZH09/Ty21a, non-Vi mechanisms)
 
 ---
@@ -269,7 +269,7 @@ This adds zero parameters but bakes in assumptions. Good for initial exploration
 - All 8 Oxford shedding observations (W-I-3, W-I-4, D-I-plac, J-I-ctrl, J-I-ViTT, J-I-ViPS, plus D-I-Ty21a/M01 for validation)
 - The Jin Vi-TT and Vi-PS shedding contrasts, which are the **only data** that separately constrain γ_inf from γ_fev
 - The biological prior γ_inf < γ_fev becomes testable
-- Active observations increase from 19 to 25 (Tier 2 Option A) with +2 parameters, net improvement in data-to-parameter ratio
+- Active observations increase when the Oxford shedding rows are restored (`t1-*` -> `t2-*`) at the cost of +2 parameters (η_lo, κ); counts per configuration in `calibration/TIER_LADDER.md`
 
 **Key insight**: The η-correction is not merely rescuing biased data — it is *modeling a real process* (time-to-shedding vs time-to-treatment) that we have partial information about. This is more principled than either dropping the data or using it uncorrected.
 
@@ -791,7 +791,7 @@ Two consequences worth stating, because they are what the integration costs:
    largely mechanical (fever is nested inside infection), so only the p = 0.013 counts.
    The lock stands on 2–4 below, which were always the stronger case; it does **not**
    stand on "there is nothing to model".
-2. Identifiability. Tier 1 has **16 cohorts over 24 grouped observations, 10 of them
+2. Identifiability. `t1-indiv` has **16 cohorts over 24 grouped observations, 10 of them
    singletons**. Per-cohort offsets are ~one parameter per datum.
 3. Signal absorption. Hornick's five cohorts *are* the dose ladder (10³–10⁹). A free
    offset per cohort competes directly with `N50_inf`/`alpha_inf` and can flatten the
@@ -1192,11 +1192,11 @@ For quick reference, every binomial observation:
 | Lev-I-3 | Levine | Infection | 10⁵ | 22 | 17 | Maryland mixture. Trial 3, 1972. Any-time stool positive. |
 | Lev-I-4 | Levine | Infection | 10⁵ | 16 | 6 | Maryland mixture. Trial 4, 1973. Any-time stool positive. |
 
-**Active observations (Tier 1 / primary likelihood)**: 7 Oxford fever (W-F-3, W-F-4, D-F-plac, J-F-ctrl, J-F-ViTT, J-F-ViPS, G20-F-naive) + 18 Maryland (4 Hornick fever + 2 Hornick infection/conditional + 3 Gilman fever strata + 1 Gilman infection + 4 Levine fever + 4 Levine infection) = **25 active calibration observations**. Struck rows (H-F-7, W-F-5, W-I-5, Gil-F-ctrl) and validation-only rows (D-F-Ty21a, D-F-M01, H-V-*) are already excluded from this count. Plus 6 validation observations.
-**Active observations (Tier 2 / η-correction)**: Restores 6 Oxford shedding rows (W-I-3, W-I-4, D-I-plac, J-I-ctrl, J-I-ViTT, J-I-ViPS) with η correction = **31 active calibration observations** + 2 parameters (η_lo, κ) or 0 (Option C fixed η).
+**Active observations (Tier 1 / primary likelihood)**: 7 Oxford fever (W-F-3, W-F-4, D-F-plac, J-F-ctrl, J-F-ViTT, J-F-ViPS, G20-F-naive) + 18 Maryland (4 Hornick fever + 2 Hornick infection/conditional + 3 Gilman fever strata + 1 Gilman infection + 4 Levine fever + 4 Levine infection) = 25 **CSV rows**. **This is the row set, not the fitted observation count** — the fitted count depends on `individualize_darton`, which replaces the grouped `D-F-plac` row with the Darton per-subject cascade (counts: `calibration/TIER_LADDER.md`). Struck rows (H-F-7, W-F-5, W-I-5, Gil-F-ctrl) and validation-only rows (D-F-Ty21a, D-F-M01, H-V-*) are already excluded from this count. Plus 6 validation observations.
+**Active observations (Tier 2 / η-correction)**: Restores 6 Oxford shedding rows (W-I-3, W-I-4, D-I-plac, J-I-ctrl, J-I-ViTT, J-I-ViPS) with η correction = 31 **CSV rows** + 2 parameters (η_lo, κ) or 0 (Option C fixed η). Note `D-I-plac` is the grouped Darton infection row and double-counts the 30 `ox_inf_indiv` per-subject rows whenever `individualize_darton = TRUE`; it is dropped in that case (`DARTON_PLACEBO_GROUPED_OBS`).
 **Available but excluded**: 4 Hornick vaccine rows (CoP unmappable), 8 Oxford shedding rows (Tier 1 only; restored in Tier 2).
 **Effective independent observations** (per Reviewer 2): Tier 1 ~27-29; Tier 2 ~31-33, after correcting for within-group correlation.
-**Total parameters**: Tier 1: 6 biological + 4 nuisance + 1 overdispersion (`grand_overdispersion_rho`) = 11. Tier 2: +2 (η_lo, κ) = 13.
+**Total parameters**: see `calibration/TIER_LADDER.md` (generated). `sigma_study` was deleted 2026-07-31 (inert at every configuration; the cohort RE is LOCKED-withdrawn), and `grand_overdispersion_rho` is designed but not yet implemented.
 **Data-to-parameter ratio**: Tier 1 ~2.3:1; Tier 2 ~2.4:1. Both require informative priors. Tier 2 is preferred for γ_inf identification.
 **Canonical data source**: `dose_response_data.csv` in this directory. All observation counts verified against this file.
 **Definition warnings**: (1) Oxford shedding **EXCLUDED** (Section 2.6): treatment-truncation bias makes shedding < diagnosis at all doses ≥10⁴. Oxford contributes fever only. (2) Levine/Gilman/Hornick fever definitions **RESOLVED** (Section 2.5): study-specific φ(T) values derived from Oxford threshold ladder — Hornick φ≈0.25, Levine φ≈0.65, Gilman φ≈0.65. No extra parameters needed. (3) Darton S1 fever thresholds (T38, T39) are 1-2 subjects lower than published Table 2 — likely a minor definition difference in how the S1 encodes temperature events vs the publication's analysis.

@@ -1,6 +1,12 @@
 # Tier 1 Stan calibration — resurrection + pathology diagnosis
 
 **Date:** 2026-06-23
+
+> **FROZEN CHECKPOINT — 2026-06-23. Do not correct the numbers below.** The counts
+> here (25 `tier1_active` observations; `ox_fev`=7) were true on that date:
+> `individualize_darton` and the Darton per-subject cascade did not exist yet, and
+> `phi_md` was still a live parameter. Current counts: `TIER_LADDER.md`. Naming and
+> what is runnable: `TIER_LOCK.md`.
 **Author:** Mike Famulare + Claude (Opus 4.8)
 **Status:** Model now COMPILES and SAMPLES; first Tier-1 fit is NOT yet valid
 (divergence pathology diagnosed, root cause isolated, fix deferred to iteration).

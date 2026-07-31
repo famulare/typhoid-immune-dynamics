@@ -1,6 +1,6 @@
 # Stan model structure — `typhoid_dose_response.stan`
 
-Updated 2026-07-15 from [typhoid_dose_response.stan](calibration/typhoid_dose_response.stan)
+Updated 2026-07-31 from [typhoid_dose_response.stan](calibration/typhoid_dose_response.stan). Per-configuration observation counts: [calibration/TIER_LADDER.md](calibration/TIER_LADDER.md)
 (Tier 2 machinery; C3 dose-dependent phi + issue-#15 cascade). Two views:
 
 1. **Program dataflow** — how the Stan blocks feed each other.
@@ -33,7 +33,7 @@ flowchart TD
         NUIS["Nuisance<br/>log10_delta · pi_susc<br/>CoP_susc · CoP_imm (Exp prior)"]
         PHI["phi(T,D) shape<br/>phi0_a · phi0_b<br/>(beta_phi pinned = 1)"]
         ETAP["eta-correction<br/>eta_lo · kappa"]
-        OD["sigma_study (inert in Tier 1)"]
+        OD["(sigma_study DELETED 2026-07-31:<br/>inert at every config, no study index existed)"]
     end
 
     subgraph TP["transformed parameters"]

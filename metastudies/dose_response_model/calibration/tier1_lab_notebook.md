@@ -526,3 +526,78 @@ not recoverable — their `ppc.png` stay old-style until refit.
 ("Add cohort_id…") and the `simulate_recovery.R` fix inside `7c0c48b` ("Model figure
 suite…") — swept in by a concurrent session committing the shared worktree. `git log`
 on those files will mis-attribute; this entry is the record.
+
+## Tier coherence lock — the fitted model was not the labelled model (2026-07-31)
+
+**The incoherence [observed].** `build_stan_data()` defaults to
+`individualize_darton = TRUE` (`data_prep.R`) and no driver ever overrode it, so every
+fit since `+cascade` (`0088b9e`) was the **80-observation** configuration — 24 grouped
+rows + 30 `ox_inf_indiv` + 26 `ox_fevginf_indiv` — while being labelled "Tier 1",
+reported as 25 observations, and written to `results/tier1/`. The string
+`individualize_darton` appeared in **zero** `.md` files. Every doc stating 25 or 31 obs
+was describing `FALSE`; every doc describing the Darton cascade was describing `TRUE`.
+One undocumented default was the whole ambiguity.
+
+**Counts, recomputed [observed]:** (`tier1_active`, TRUE) = 80; (`tier1_active`, FALSE)
+= 25; (`tier2_active`, TRUE) = 85 after the double-count fix below; (`tier2_active`,
+FALSE) = 31. Seven likelihood groups, not five.
+
+**Three defects found while auditing [observed].**
+1. **Darton double count.** Individualization dropped only the literal `"D-F-plac"`, so
+   at `tier2_active` the grouped `D-I-plac` row (n=30, y=19, stool shedding,
+   η-corrected) sat in the likelihood beside the 30 `ox_inf_indiv` rows
+   (`bact_or_stool`, 26/30) for the **same 30 volunteers**. Both grouped rows are now
+   replaced. Under ψ (Sec 2.8) the stool-vs-broad contrast is carried by a decoupled
+   sub-likelihood on the S1 cross-tab, so no grouped row is needed for it.
+2. **The figure suite hard-errored on every grouped Darton row.** The Darton curve
+   spec's regex was `"^D-(I|FgI)-plac-"` — trailing hyphen, no `F` — so `D-F-plac` and
+   `D-I-plac` matched **zero** groupings and `validate_curve_specs()` stopped. That
+   blocked three of the four configurations, not just Tier 2; only the individualized
+   t1 rung ran end to end.
+3. **The φ₀ ladder was missing from `log_lik`.** Those three binomials contributed to
+   `target` but appeared in neither `log_lik` nor `lprior`, so
+   `target != lprior + sum(log_lik)`: priorsense power-scales exactly those two
+   objects, so the reported likelihood-sensitivity of `phi0_a`/`phi0_b` omitted the
+   three binomials that **identify** them, and LOO dropped them too.
+
+**`sigma_study` deleted [observed].** It was declared with a prior and used in **zero**
+likelihood terms at *every* configuration — there was no study index in the Stan data
+at all, so it was never Tier-1-specific as its comment claimed. Refit evidence that the
+removal was safe: the posterior moved by at most **0.05 sd units** across all 16
+reported parameters, and divergences improved 1/4000 → 0/4000.
+
+**What changed.** `tier_specs.R` is now the registry and the single source of truth for
+the ladder. Configurations are named by their two data switches — `t1-grouped`,
+`t1-indiv`, `t2-grouped`, `t2-indiv` — and run directories are
+`<config>__<model stage>`, where the stage token is **derived** from the `.stan`'s
+`parameters{}` and **asserted** against the registry, so a directory cannot misdescribe
+its own model and a new stage never overwrites the previous fit. `TIER_LADDER.md` is
+generated with every count computed and asserted; no other document states a tier
+observation count. Every run directory carries `run_manifest.json` (tier, input md5s,
+resolved prior scalars, seeds, git SHA, tool versions), and `audit_run_dirs()` reports
+what is regenerable — of the 11 pre-existing run dirs, 2 were regenerable and 0 carried
+any provenance. Definitions, naming rule, blockers and unlock conditions: `TIER_LOCK.md`
+(shipped as **PROPOSED**, awaiting [Mike]).
+
+**Verification.** `t1-indiv` reproduced the pre-lock fit **exactly** (max |Δmean| = 0
+over 16 parameters) before the `.stan` change, which is the evidence that the registry
+refactor did not touch the science. Parity gate green including a new independent
+transcription of the ladder terms and of group 2 — η previously had only a
+two-implementation check on exactly the branch Tier 2 turns on, and η shares `N50_inf`
+in its exponent, so a misfit there moves the *biological* parameters rather than failing
+visibly. New `test_curve_math.R` gates the figure math with no fit at all.
+
+**Not corrected, deliberately.** `tier1_pathology_diagnosis.md` (2026-06-23),
+`reviewer2_response.md` (2026-03-17) and `tier1.5_harness_handoff.md` (closed out
+2026-07-15) are frozen; each got an as-of banner and no body edits — their counts were
+true when written. `cohort_random_effects_design.md` is untouched: its count was already
+right. The dated entries above stand, including the 2026-06-23 "current model snapshot"
+that still reads 25 obs / 11 params / φ_md ≈ 0.97 — true for that session, superseded by
+this entry.
+
+**Open, not resolved here.** The items at the bottom of `TIER_LOCK.md`: the
+concentration-vs-ICC wording inside the Step-2 lock; that lock's missing end marker;
+`joint_inference_plan.md`'s internal 24-vs-25 disagreement; whether the `t2-*` rungs
+should be fit at all given that §2.6 excludes Oxford shedding while the Tier 2 design
+restores it with η; and whether Levine's paired endpoints get factorized (the one place
+the repo's own no-double-counting rule is not applied).

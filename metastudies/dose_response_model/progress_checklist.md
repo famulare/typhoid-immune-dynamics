@@ -5,7 +5,26 @@
 
 ---
 
-## Current status (2026-06-23)
+## Current status (2026-07-31)
+
+The configuration that exists is **`t1-indiv`** (`tier1_active` rows with the Darton
+placebo individualized into the per-subject cascade). Configuration definitions, the
+naming rule, and what is runnable vs blocked: `calibration/TIER_LOCK.md`. Observation
+and parameter counts: `calibration/TIER_LADDER.md` — **generated from the registry and
+not restated in any prose doc**.
+
+`tier_specs.R` is the single source of truth for the ladder; every entry point reads
+it, and every run directory carries a `run_manifest.json` (tier, input hashes, seeds,
+git SHA, tool versions) so a result can be tied to the code that made it.
+
+Next structural step: the single beta-binomial overdispersion parameter
+`grand_overdispersion_rho` (designed and LOCKED, not implemented). **The study/cohort
+random effect is WITHDRAWN, not deferred** — LOCKED 2026-07-31, see
+`calibration/cohort_random_effects_design.md`; `sigma_study` was deleted from the
+`.stan` on 2026-07-31. The `t2-*` configurations are **declared and blocked** (one
+mechanical defect, two open scientific questions), not "not started".
+
+## Status as of 2026-06-23 (superseded)
 
 Phases 1–3 complete. Phases 4–7 were carried out in **consolidated form** inside
 `joint_inference_plan.md` (+ `reviewer2_response.md`, a data verification pass
