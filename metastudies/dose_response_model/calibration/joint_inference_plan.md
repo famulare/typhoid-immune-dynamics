@@ -277,6 +277,85 @@ For the **infection** outcome, the definition difference is smaller. Maryland's 
 
 ---
 
+### 2.8 ψ-Correction: Infection-Endpoint Definition Sensitivity (Tier 2)
+
+**Status: Tier 2 design element, adopted 2026-07-31 [Mike]. Expected to be only
+partly identified at adoption, and that is accepted — document it, do not hide it
+(same treatment as `CoP_imm`).**
+
+**The gap this closes.** Fever has a fitted definition map, `phi(T,D)` (Section 2.5).
+Infection has nothing. `obs_prob()` group 4 (`md_inf`) applies one probability to
+three materially different endpoints:
+
+| row | endpoint as published | breadth |
+|---|---|---|
+| `H-I-7` | stool **or blood** culture (Hornick Table 2) | broadest |
+| `Lev-I-1..4` | "any-time **stool** positive" | narrower |
+| `Gil-I-ctrl` | "**late** shedding (4–30 days)" | narrowest |
+
+So the `P(infection | D)` curve is *identical* across the Hornick / Levine / Gilman
+columns of `dose_response_grid_maryland.png` while the endpoints genuinely differ.
+
+**The form.** Exactly parallel to φ, and multiplicative like η:
+
+$$
+p^{\text{obs}}_{\text{inf}} = \psi_d \cdot P_{\text{inf}}(D_{\text{eff}}, \mathrm{CoP})
+$$
+
+with $\psi_d \in (0,1]$ the sensitivity of endpoint definition $d$ to true infection.
+Fix $\psi = 1$ for the broadest definition (stool-or-blood culture / `bact_or_stool`)
+as the reference, exactly as $T_{\text{ref}} = 38.0$ anchors φ. Free parameters:
+`psi_stool` (Levine, Oxford shedding) and `psi_late` (Gilman 4–30 d).
+
+**Identification — a decoupled sub-likelihood, mirroring the Darton φ₀ ladder.**
+The φ₀ ladder pins the fever definition map with its own binomial term. The Darton S1
+cross-tabulation gives the exact infection analogue, measured **in the same men**:
+
+    among the 30 Darton placebo subjects:  stool_positive = 19,  bact_or_stool = 26
+    => 19 ~ binomial(26, psi_stool)                       # psi_stool_hat = 0.73
+
+That is a direct measurement of stool-only sensitivity against the broad reference,
+and it does **not** compete with `pi_susc` / `CoP_imm` for Maryland variance — which
+was the identifiability worry. Source: `analysis_data/darton_cross_tabulation.csv`
+(Placebo row: 13 stool+/fever+, 6 stool+/fever−, 7 stool−/fever+, 4 stool−/fever−).
+
+**Corroboration from the fitted residuals** (implied sensitivity = observed / current
+model prediction, which currently forces ψ ≡ 1):
+
+| row | observed | model | implied ψ |
+|---|---|---|---|
+| `H-I-7` (broad) | 0.933 | 0.884 | ≈ 1.06 |
+| `Lev-I-*` pooled (stool) | 0.588 | 0.676 | ≈ 0.87 |
+| `Gil-I-ctrl` (late shedding) | 0.605 | 0.676 | ≈ 0.89 |
+
+Ordered by definition breadth, in the expected direction. This is also the leading
+explanation for the two worst-fitting targets in `calibration_targets.png`
+(`Lev-I-2`, `Lev-I-4` — the only pair whose 90% posterior misses the 95% Wilson
+interval): a definition effect, not cohort noise.
+
+**Known confounds — record these, do not pretend otherwise:**
+
+1. **ψ_stool vs η.** Both multiply `P_inf` for Oxford shedding rows. Darton's
+   cross-tab is measured at a single dose (18 200), so what it actually pins is
+   $\psi_{\text{stool}} \cdot \eta(18200)$, not ψ alone. η's dose-dependence is what
+   separates them, and only across the Oxford dose range. Expect these two to trade
+   off. Keep them as separate parameters anyway — definition breadth and treatment
+   truncation are different mechanisms and collapsing them would misattribute both.
+2. **ψ_late is prior-carried.** Gilman's 4–30 day window has no cross-tab anywhere.
+   Constrain it below `psi_stool` (a narrower window cannot detect more) and expect
+   the prior to carry it, as `CoP_imm` is carried. Say so in the results.
+3. **It competes with the Maryland mixture.** ψ < 1 and a larger immune fraction both
+   depress observed Maryland infection. The Darton sub-likelihood is what keeps
+   ψ_stool from absorbing `pi_susc`; ψ_late has no such protection.
+
+**What it unlocks.** With ψ explicit, fever becomes nested inside the *broad* infection
+endpoint (verified in Darton: all 20 TD+ are `bact_or_stool` positive, though **7 of 20
+are stool-NEGATIVE**). That is the precondition for factorizing Levine's paired
+endpoints into marginal + conditional the way Hornick (`H-I-7` + `H-FgI-7`, with
+`H-F-7` deleted as double-counting) and Darton (groups 6/7) already are. Until then
+`Lev-F-k` and `Lev-I-k` remain two marginals on the same men treated as independent —
+the one place the package's own no-double-counting rule is not applied.
+
 ## 3. Parameter Table
 
 ### 3.1 Biological Parameters (shared across all studies)

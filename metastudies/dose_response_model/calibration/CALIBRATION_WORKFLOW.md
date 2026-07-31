@@ -193,7 +193,17 @@ improve on the existing `compute_loo_units()` grouping. The `Gil-F-Hlo` residual
 **not** a gate — it is a within-cohort stratum contrast and is expected to persist.
 This is repo-canonical Tier 1.
 
-## Step 3 — Tier 2 (Oxford shedding + η)
+## Step 3 — Tier 2 (Oxford shedding + η + ψ infection-definition map)
+**ψ adopted 2026-07-31 [Mike]**, accepting that it will be only partly identified.
+`psi_stool` / `psi_late` give infection the definition map that fever already has via
+`phi(T,D)`: today one probability serves Hornick's stool-or-blood culture, Levine's
+any-time stool, and Gilman's late shedding 4-30 d. Anchored by a decoupled binomial
+on the Darton cross-tab (19 of 26 `bact_or_stool` were stool-positive -> psi ~ 0.73),
+mirroring how the Darton temperature ladder pins `phi0`. Confounded with η at Oxford
+(both multiply P_inf; the ladder is measured at one dose) and `psi_late` is
+prior-carried. See joint_inference_plan.md Sec 2.8.
+
+
 Restore the 6 Oxford shedding rows (`tier2_active==1`, `N_ox_inf>0`). **Decide
 first:** η Option A (parametric `eta_lo`, `κ` — what the Stan code currently
 implements) vs Option C (fixed per-obs `eta_fixed_optC` from the CSV).
