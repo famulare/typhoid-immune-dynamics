@@ -62,11 +62,24 @@ curve_parity_check <- function(fit, stan_data, tol = 1e-6) {
 #' per-grouping files.
 curve_grid_data <- function(fit, stan_data, specs = curve_specs(),
                             ngrid = 60, n_spaghetti = 100, ndraw_ribbon = 1000,
-                            seed = 1, x_scale = c("fixed", "free")) {
+                            seed = 1, x_scale = c("fixed", "free"),
+                            drop_empty_columns = TRUE) {
   x_scale <- match.arg(x_scale)
   obs   <- attr(stan_data, "obs")
   T_ref <- stan_data$T_ref %||% 38.0
   chk   <- validate_curve_specs(specs, obs)
+
+  # Validate against the FULL spec set above -- so a mis-specified regex still
+  # hard-errors -- then draw only the columns this tier has data for. The grouped and
+  # per-subject Darton columns are mutually exclusive by construction, so exactly one
+  # of them is empty in every tier; a column with a curve and no data beneath it
+  # invites reading the model as evidence.
+  if (isTRUE(drop_empty_columns)) {
+    keep <- specs$col_key %in% unique(chk$col_key)
+    if (!any(keep)) stop("curve_grid_data: no spec column matches any observation",
+                         call. = FALSE)
+    specs <- specs[keep, , drop = FALSE]
+  }
 
   p_full <- mm_draws(fit, T_ref = T_ref)
   p_rib  <- mm_thin(p_full, ndraw_ribbon, seed)
@@ -216,6 +229,7 @@ plot_grouping_grid <- function(fit, stan_data, out_dir, specs = curve_specs(),
                                ngrid = 60, n_spaghetti = 100, ndraw_ribbon = 1000,
                                seed = 1, label = "Tier 1", write_columns = TRUE) {
   gd <- curve_grid_data(fit, stan_data, specs, ngrid, n_spaghetti, ndraw_ribbon, seed)
+  specs <- gd$specs   # curve_grid_data() drops columns with no data in this tier
   sub <- sprintf(.GRID_SUBTITLE, gd$T_ref, gd$T_ref)
 
   # combined grid: one common dose range so columns are directly comparable

@@ -118,6 +118,19 @@ darton_phi0_ladder <- function(data_csv, thresholds = LADDER_THRESHOLDS_C) {
   )
 }
 
+# The grouped Darton placebo rows, which the per-subject cascade REPLACES. Both are
+# the same 30 volunteers under different markers: D-F-plac is composite fever (TD),
+# D-I-plac is stool shedding (tier2_active only). Under psi (joint_inference_plan
+# Sec 2.8) the stool-vs-broad contrast is carried by a decoupled sub-likelihood on the
+# S1 cross-tab, so neither grouped row is needed in the main likelihood.
+DARTON_PLACEBO_GROUPED_OBS <- c("D-F-plac", "D-I-plac")
+
+#' obs_id of the per-subject Darton rows, so a scenario's drop_obs/keep_obs can
+#' address them (they exist only after individualization, so they are not in the CSV).
+darton_indiv_obs_ids <- function(data_csv) {
+  darton_placebo_individual_rows(data_csv)$obs_id
+}
+
 #' Tier 1.5 +cascade (issue #15): Darton placebo as individual n=1 rows, decomposed
 #' into the proper CASCADE — an infection endpoint (bact_or_stool) for ALL subjects
 #' (group ox_inf_indiv, P_inf), and a fever|infection endpoint (fever_td) for the
@@ -205,13 +218,21 @@ build_stan_data <- function(data_csv, priors,
                             individualize_darton = TRUE) {
   d <- readr::read_csv(data_csv, show_col_types = FALSE)
   dat <- d %>% filter(.data[[tier_col]] == 1)
-  if (!is.null(keep_obs)) dat <- dat %>% filter(obs_id %in% keep_obs)
-  if (length(drop_obs))   dat <- dat %>% filter(!obs_id %in% drop_obs)
-  # Tier 1.5: replace the D-F-plac group binomial with per-subject n=1 rows.
-  if (individualize_darton && "D-F-plac" %in% dat$obs_id) {
-    dat <- dat %>% filter(obs_id != "D-F-plac") %>%
+  # The per-subject rows REPLACE **both** grouped Darton placebo rows: same 30
+  # volunteers, nested markers. Dropping only D-F-plac left the grouped D-I-plac
+  # shedding row (tier2_active, n=30 y=19, eta-corrected) in the likelihood beside the
+  # 30 ox_inf_indiv rows (bact_or_stool, 26/30) for those same men -- the same
+  # infection events entering twice as independent observations.
+  #
+  # Individualization runs BEFORE drop_obs/keep_obs so that (a) a scenario can address
+  # the per-subject rows at all, and (b) drop_obs = "D-F-plac" no longer silently
+  # removes all 56 Darton rows by making the guard below false.
+  if (individualize_darton && any(DARTON_PLACEBO_GROUPED_OBS %in% dat$obs_id)) {
+    dat <- dat %>% filter(!obs_id %in% DARTON_PLACEBO_GROUPED_OBS) %>%
       bind_rows(darton_placebo_individual_rows(data_csv))
   }
+  if (!is.null(keep_obs)) dat <- dat %>% filter(obs_id %in% keep_obs)
+  if (length(drop_obs))   dat <- dat %>% filter(!obs_id %in% drop_obs)
   dat <- dat %>% arrange(match(likelihood_group, names(.GROUP_CODE)), obs_id)
 
   # phi(T,D) reads a strict fever threshold only for Maryland fever obs; elsewhere

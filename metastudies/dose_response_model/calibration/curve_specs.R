@@ -56,28 +56,28 @@ CASCADE_FACTORS <- c("P_inf", "P_fev|inf", "P_inf x P_fev|inf", "phi(T,D)", "obs
 curve_specs <- function(era_dose_range = list(oxford = c(1e2, 1e6),
                                               maryland = c(1e2, 1e10))) {
   s <- tibble::tribble(
-    ~col_key,         ~study_set,              ~obs_match,               ~arm_label,                  ~cop_mode,    ~CoP,   ~stratum, ~inf_def,
-    "ox_naive",       "Waddington + Gibani",   "^(W-[FI]-|G20-)",        "naive",                     "fixed",       1.00,  0L,       "stool shedding",
-    "ox_darton_plac", "Darton",                "^D-(I|FgI)-plac-",       "placebo, per-subject anti-Vi", "individual", NA,   0L,       "bacteraemia or stool",
-    "ox_jin_ctrl",    "Jin",                   "^J-[FI]-ctrl$",          "control",                   "fixed",       2.16,  0L,       "stool shedding",
-    "ox_jin_vips",    "Jin",                   "^J-[FI]-ViPS$",          "Vi-PS vaccinated",          "fixed",      38.11,  0L,       "stool shedding",
-    "ox_jin_vitt",    "Jin",                   "^J-[FI]-ViTT$",          "Vi-TT vaccinated",          "fixed",     152.16,  0L,       "stool shedding",
-    "md_hornick",     "Hornick",               "^H-(F|I|FgI)-[0-9]",     "latent mixture",            "mixture",       NA,  0L,       "stool/blood culture (Table 2)",
-    "md_levine",      "Levine",                "^Lev-",                  "latent mixture",            "mixture",       NA,  0L,       "any-time stool positive",
-    "md_gilman_mix",  "Gilman",                "^Gil-(F-rest|I-ctrl)$",  "no H-Ab data (mixture)",    "mixture",       NA,  0L,       "late shedding (4-30 d)",
-    "md_gilman_susc", "Gilman",                "^Gil-F-Hlo$",            "H-Ab <1:20 (susceptible)",  "stratum",       NA,  1L,       "fever + culture",
-    "md_gilman_imm",  "Gilman",                "^Gil-F-Hhi$",            "H-Ab >=1:20 (immune)",      "stratum",       NA,  2L,       "fever + culture"
+    ~col_key,         ~study_set,              ~obs_match,               ~arm_label,                  ~cop_mode,    ~CoP,   ~stratum, ~thr_study, ~inf_def,
+    "ox_naive",       "Waddington + Gibani",   "^(W-[FI]-|G20-)",        "naive",                     "fixed",       1.00,  0L,       NA,         "stool shedding",
+    "ox_darton_plac", "Darton",                "^D-(I|FgI)-plac-",       "placebo, per-subject anti-Vi", "individual", NA,   0L,       NA,         "bacteraemia or stool",
+    "ox_darton_plac_grp", "Darton",            "^D-[FI]-plac$",          "placebo, cohort GMT anti-Vi", "fixed",      1.98,  0L,       NA,         "stool shedding (grouped)",
+    "ox_jin_ctrl",    "Jin",                   "^J-[FI]-ctrl$",          "control",                   "fixed",       2.16,  0L,       NA,         "stool shedding",
+    "ox_jin_vips",    "Jin",                   "^J-[FI]-ViPS$",          "Vi-PS vaccinated",          "fixed",      38.11,  0L,       NA,         "stool shedding",
+    "ox_jin_vitt",    "Jin",                   "^J-[FI]-ViTT$",          "Vi-TT vaccinated",          "fixed",     152.16,  0L,       NA,         "stool shedding",
+    "md_hornick",     "Hornick",               "^H-(F|I|FgI)-[0-9]",     "latent mixture",            "mixture",       NA,  0L,       "Hornick",  "stool/blood culture (Table 2)",
+    "md_levine",      "Levine",                "^Lev-",                  "latent mixture",            "mixture",       NA,  0L,       "Levine",   "any-time stool positive",
+    "md_gilman_mix",  "Gilman",                "^Gil-(F-rest|I-ctrl)$",  "no H-Ab data (mixture)",    "mixture",       NA,  0L,       "Gilman",   "late shedding (4-30 d)",
+    "md_gilman_susc", "Gilman",                "^Gil-F-Hlo$",            "H-Ab <1:20 (susceptible)",  "stratum",       NA,  1L,       "Gilman",   "fever + culture",
+    "md_gilman_imm",  "Gilman",                "^Gil-F-Hhi$",            "H-Ab >=1:20 (immune)",      "stratum",       NA,  2L,       "Gilman",   "fever + culture"
   )
-  # study used only to look up the fever threshold; the column may hold several studies
-  thr_study <- c(ox_naive = NA, ox_darton_plac = NA, ox_jin_ctrl = NA, ox_jin_vips = NA,
-                 ox_jin_vitt = NA, md_hornick = "Hornick", md_levine = "Levine",
-                 md_gilman_mix = "Gilman", md_gilman_susc = "Gilman", md_gilman_imm = "Gilman")
+  # thr_study (fever-threshold lookup; a column may hold several studies) is a tribble
+  # column, not a parallel named vector -- a new col_key can no longer be added to one
+  # and silently forgotten in the other.
   s %>% mutate(
     era      = if_else(grepl("^md_", col_key), "maryland", "oxford"),
     vehicle  = if_else(era == "maryland", "milk", "bicarbonate"),
     # DERIVED from data_prep.R constants -- never re-typed, so it cannot drift
     T_thresh = unname(if_else(era == "maryland",
-                              STUDY_FEVER_THRESHOLD_C[thr_study[col_key]], T_REF)),
+                              STUDY_FEVER_THRESHOLD_C[thr_study], T_REF)),
     dose_lo  = vapply(era, function(e) era_dose_range[[e]][1], numeric(1)),
     dose_hi  = vapply(era, function(e) era_dose_range[[e]][2], numeric(1)),
     col_label = sprintf("%s (%s)\n%s\nfever T>=%.1fC | inf: %s",
