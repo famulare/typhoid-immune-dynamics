@@ -425,9 +425,11 @@ into a marginal and a conditional on the same men:
 - Hornick 10^7: `H-I-7` (28/30 infected) + `H-FgI-7` (16/28 fever|infected). The
   marginal fever row `H-F-7` was **deleted** from the dataset for double-counting.
 - Darton placebo: groups 6/7, infection over all 30 + fever|infection over the infected.
-- Levine is the outstanding exception — `Lev-F-k` and `Lev-I-k` are two marginals
-  over the same men, treated as independent. Fixing it requires the nesting that
-  `psi` supplies (see below), because fever is NOT nested in stool-positivity.
+- Levine is the outstanding exception — `Lev-F-k` and `Lev-I-k` are two marginals over
+  the same men, treated as independent. **Known limitation, tolerated:** the clean fix
+  needs fever nested inside the infection endpoint, but Levine's endpoint is stool-only
+  and fever is NOT nested in it (Darton: 7 of 20 TD+ stool-negative), and Levine
+  publishes no cross-tabulation. Mitigated only in LOO, where the pair is one unit.
 
 **CoP caveat — the axis is known to be wrong for the Maryland era.** The scalar CoP is
 anti-Vi IgG. In the Maryland volunteers, every paper that looked found baseline anti-Vi
@@ -513,7 +515,7 @@ that plan — if they disagree, the plan is authoritative and this is stale.
 | Host heterogeneity | Absorbed into `alpha` | Per §6.2 |
 | Age / sex | Not used | Unavailable for most Maryland rows. Glynn 1995 finds age <30 RR 1.79 in this population, so this is a real unmodelled confound. |
 | Prior exposure | Latent mixture (Maryland); measured CoP (Oxford) | Maryland `pi_susc ~ 0.62`; concordant with Gilman's H-negative fraction 36/53 = 0.68 and Woodward's non-veteran fraction 200/305 = 0.66 |
-| Cohort membership | Recorded as `cohort_id`, **provenance only** | Not passed to Stan; no likelihood term reads it |
+| Cohort membership | Recorded as `cohort_id` | Not passed to Stan; no likelihood term reads it. Post-fit it keys the LOO units (80 rows -> 46), so model comparison does not count the same volunteers twice. |
 
 ### 8.4 Prior Specification
 

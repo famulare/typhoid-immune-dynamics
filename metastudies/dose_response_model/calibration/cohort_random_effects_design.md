@@ -13,9 +13,9 @@ Written 2026-07-31. Triggered by the Gilman residual surfaced in
 > `CALIBRATION_WORKFLOW.md` Step 2 and the tier ladder. `sigma_study` should be
 > deleted from the `.stan` when Step 2 is implemented.
 >
-> `cohort_id` was still added to `dose_response_data.csv` (2026-07-31) as **provenance
-> only** — it records which rows share volunteers, is not passed to Stan, and is read
-> by no likelihood term.
+> `cohort_id` was still added to `dose_response_data.csv` (2026-07-31). It is not passed
+> to Stan and no likelihood term reads it; post-fit it keys the LOO units so model
+> comparison does not count the same volunteers twice (80 rows -> 46 units).
 >
 > The analysis below is retained as the record of why.
 

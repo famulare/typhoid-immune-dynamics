@@ -806,10 +806,22 @@ $\gamma_{\text{inf}} \approx 0.18$ the CoP channel is compressed — moving CoP 
 to 53 buys only a 2.40× change in P(fever) — so a CoP-scale offset has almost no
 leverage on a rate.
 
-**Note on `cohort_id`**: added to `dose_response_data.csv` 2026-07-31 as **provenance
-only**. It records which rows share volunteers (Levine's fever/infection pairs are the
-same men; Hornick's dose groups are distinct men within one paper-year). It is not
-passed to Stan and no likelihood term reads it.
+**Note on `cohort_id`**: added to `dose_response_data.csv` 2026-07-31. It records which
+rows share volunteers (Levine's fever/infection pairs are the same men; Hornick's dose
+groups are distinct men within one paper-year). It is not passed to Stan and no
+likelihood term reads it. Post-fit it keys the LOO units (`compute_loo_units()`), so
+model comparison does not count the same volunteers twice: Tier 1 resolves 80 rows to
+**46 units**, where previously only the Hornick pair was merged (79 units).
+
+**KNOWN LIMITATION — tolerated [Mike 2026-07-31].** The LOO fix corrects model
+COMPARISON only. The posterior itself still treats `Lev-F-k` and `Lev-I-k` as
+independent binomials over the same men, so their shared volunteers are double-counted
+in the likelihood and the effective sample size is overstated. The clean fix is the
+marginal + conditional factorization used for Hornick (`H-I-7` + `H-FgI-7`) and Darton
+(groups 6/7), but it is unavailable for Levine: it needs fever nested inside the
+infection endpoint, and Levine's endpoint is stool-only, in which fever is NOT nested
+(Darton: 7 of 20 TD+ were stool-negative). Levine publishes no cross-tabulation.
+Accepted as a fudge and recorded rather than hidden.
 
 ### 5.6 Maryland Infection-Disease Split (Hornick Table 2)
 

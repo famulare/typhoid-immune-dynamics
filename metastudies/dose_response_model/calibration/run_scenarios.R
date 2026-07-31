@@ -65,15 +65,31 @@ run_scenario <- function(spec, mod, data_csv = "dose_response_data.csv",
   invisible(out_dir)
 }
 
-#' PSIS-LOO on correctly-grouped observation UNITS: the Hornick infection marginal
-#' (H-I-7) and fever conditional (H-FgI-7) are one table factorized -> one unit.
+#' PSIS-LOO on correctly-grouped observation UNITS. Rows that share volunteers are not
+#' independent and must not be separate LOO units: grouped rows are keyed by cohort,
+#' individual (n=1) rows by subject. Tier 1: 80 rows -> 46 units (was 79).
 compute_loo_units <- function(fit, obs) {
   if (!requireNamespace("loo", quietly = TRUE)) return(NULL)
   if (!"log_lik" %in% fit$metadata()$stan_variables) return(NULL)
   ll_arr <- fit$draws("log_lik")                          # iter x chain x N_obs (col order = obs rows)
   ll <- posterior::as_draws_matrix(ll_arr)                 # (iter*chain) x N_obs
-  unit <- obs$obs_id
-  unit[unit %in% c("H-I-7", "H-FgI-7")] <- "hornick_1e7"   # combine the joint factorization
+  # LOO units must be INDEPENDENT, and rows that share volunteers are not. Group by
+  # who the people are, not by which row they came from:
+  #   - grouped rows (n > 1): the cohort. Lev-F-k and Lev-I-k are the same men, as are
+  #     H-I-7 and H-FgI-7 (nested); previously only the Hornick pair was merged, so
+  #     Levine's four pairs were each counted twice.
+  #   - individual rows (n = 1): the SUBJECT, not the cohort. Darton's 56 rows are 30
+  #     different men, so cohort-level merging would wrongly collapse them into one.
+  #     D-I-plac-102 and D-FgI-plac-102 are one man and do merge.
+  # Conservative where overlap is real but unresolvable: the Gilman control cohort
+  # becomes one unit, because Gil-I-ctrl (43 of 64) partially overlaps all three
+  # disjoint H-strata and no cross-tab exists to separate them.
+  # NOTE this corrects MODEL COMPARISON only. The posterior itself still treats
+  # Lev-F-k and Lev-I-k as independent binomials on the same men -- a known and
+  # tolerated double-count. See joint_inference_plan.md Sec 6.5 / Sec 8.1.
+  unit <- ifelse(obs$n == 1L,
+                 paste0(obs$cohort_id, "::subj-", sub("^.*-", "", obs$obs_id)),
+                 obs$cohort_id)
   u <- unique(unit)
   ll_u <- vapply(u, function(k) rowSums(ll[, unit == k, drop = FALSE]), numeric(nrow(ll)))
   r_eff <- tryCatch(loo::relative_eff(exp(ll_u),

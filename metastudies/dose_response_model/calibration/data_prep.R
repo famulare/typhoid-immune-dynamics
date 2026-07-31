@@ -46,9 +46,13 @@ NAIVE_VI_REF <- 3.7
 
 # ---- cohort_id: PROVENANCE ONLY (added 2026-07-31) ---------------------------
 # `cohort_id` records which observations come from the SAME GROUP OF VOLUNTEERS.
-# It is deliberately NOT passed to Stan and NOT used by any likelihood. It exists
-# so that shared-subject structure is recoverable from the data, and as the
-# precondition for any future hierarchical term (see cohort_random_effects_design.md).
+# It is NOT passed to Stan and NO likelihood term reads it. Its two uses are both
+# post-fit / bookkeeping:
+#   1. provenance -- shared-subject structure is recoverable from the data;
+#   2. LOO unit grouping in run_scenarios.R::compute_loo_units(), so model comparison
+#      does not count the same volunteers twice (Tier 1: 80 rows -> 46 units).
+# It is also the precondition for any future hierarchical term
+# (see cohort_random_effects_design.md).
 #
 # Why it cannot be derived from existing columns:
 #   - `study` is the PAPER. Levine's four trials (1970-73) are one study but four
