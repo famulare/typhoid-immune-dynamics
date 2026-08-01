@@ -14,9 +14,18 @@ This is a lock on the default configuration and result artifact for downstream
 work, not a claim that the model is fully identified or that all adequacy questions
 are resolved.
 
-The [Tier 2 posterior summary](calibration/results/t2-indiv-vax__phi-rho-eta-psi-vax/summary.md)
-is the entry point for the fitted results, parameter tables, diagnostics, and
-the full set of linked figures. The [Tier 2 prior-predictive summary](calibration/results/t2-indiv-vax__phi-rho-eta-psi-vax-prior/summary.md)
+Two entry points, depending on what you want:
+
+- [**Tier 2 findings report**](tier2_findings_report.md) — what the calibration
+  says and what it means. Dose-response for infection and fever, the anti-Vi
+  titer effect, fever severity and detection, treatment truncation and stool
+  shedding, Ty21a and M01ZH09 protection beyond anti-Vi, and where the corpus
+  disagrees with itself. Interpretation, with the open questions named.
+- [**Tier 2 posterior summary**](calibration/results/t2-indiv-vax__phi-rho-eta-psi-vax/summary.md)
+  — the generated output: every fitted parameter, sampler diagnostics, priorsense
+  power-scaling, and the full figure index. Authoritative on numbers.
+
+The [Tier 2 prior-predictive summary](calibration/results/t2-indiv-vax__phi-rho-eta-psi-vax-prior/summary.md)
 contains the corresponding prior run. The posterior has **1 divergent transition
 in 4,000 draws (0.025%)**, no max-treedepth hits, minimum E-BFMI 0.947, and
 maximum reported R-hat 1.003; retain that residual as a review item rather than
@@ -37,6 +46,7 @@ Estimate how the probability of infection and fever depends on:
 
 | Document | Purpose |
 |----------|---------|
+| `tier2_findings_report.md` | **What the calibration says.** Scientific findings and their decision consequences, written for a reader who will not open the fit |
 | `dose_response_extraction_contract.md` | Project contract: goals, workflow, decision conventions |
 | `progress_checklist.md` | Phase-by-phase progress tracking |
 | `onboarding_one_pager.md` | Current project orientation and Tier 2 result lock |
@@ -46,7 +56,7 @@ Estimate how the probability of infection and fever depends on:
 | `notes/outcome_mapping.md` | Decision rules for mapping observed outcomes to model variables |
 | `notes/paper_triage.md` | Paper-by-paper inclusion/exclusion decisions |
 | `notes/cross_cutting_observations.md` | Patterns across the literature corpus |
-| `calibration/results/t2-indiv-vax__phi-rho-eta-psi-vax/summary.md` | Preferred Tier 2 fit, diagnostics, parameter results, and figure index |
+| `calibration/results/t2-indiv-vax__phi-rho-eta-psi-vax/summary.md` | Generated: every parameter, sampler diagnostics, priorsense, full figure index. Authoritative on numbers |
 
 ## Folder Structure
 
