@@ -4,8 +4,8 @@
     "kind": "posterior",
     "model_name": "t2-indiv-vax",
     "out_dir": "results/t2-indiv-vax__phi-rho-eta-psi-vax",
-    "started_utc": "2026-08-01T08:42:36Z",
-    "finished_utc": "2026-08-01T08:43:42Z"
+    "started_utc": "2026-08-01T09:21:38Z",
+    "finished_utc": "2026-08-01T09:22:48Z"
   },
   "tier": {
     "key": "t2-indiv-vax",
@@ -54,9 +54,9 @@
       {
         "path": "typhoid_dose_response.stan",
         "exists": true,
-        "md5": "9e5cb8c8b56a9eb86b1f28f6b39d5a36",
-        "bytes": 34600,
-        "mtime_utc": "2026-08-01T08:19:07Z"
+        "md5": "82bfe66011fb316452bf7d1ccdeb0111",
+        "bytes": 35985,
+        "mtime_utc": "2026-08-01T09:19:46Z"
       },
       {
         "path": "dose_response_data.csv",
@@ -164,11 +164,11 @@
     "thin": 1
   },
   "code": {
-    "git_sha": "4ca115a2fd6c0c88e0e1a319dee46a8f10f7b441",
-    "git_short": "4ca115a",
+    "git_sha": "bad30113dff88f49949a96b8012aac3d43f37ecb",
+    "git_short": "bad3011",
     "git_branch": "main",
     "git_dirty": true,
-    "git_dirty_files": [" M metastudies/dose_response_model/calibration/CALIBRATION_WORKFLOW.md", " M metastudies/dose_response_model/calibration/figures_components.R", " M metastudies/dose_response_model/calibration/results/t2-indiv-vax__phi-rho-eta-psi-vax-prior/cop_response_milk_doses.png", " M metastudies/dose_response_model/calibration/results/t2-indiv-vax__phi-rho-eta-psi-vax-prior/curve_parity.json", " M metastudies/dose_response_model/calibration/results/t2-indiv-vax__phi-rho-eta-psi-vax-prior/delta_bridge.png", " M metastudies/dose_response_model/calibration/results/t2-indiv-vax__phi-rho-eta-psi-vax-prior/dose_response_fit.png", " M metastudies/dose_response_model/calibration/results/t2-indiv-vax__phi-rho-eta-psi-vax-prior/fit.rds", " M metastudies/dose_response_model/calibration/results/t2-indiv-vax__phi-rho-eta-psi-vax-prior/ppc.png", " M metastudies/dose_response_model/calibration/results/t2-indiv-vax__phi-rho-eta-psi-vax-prior/run_manifest.json", " M metastudies/dose_response_model/calibration/results/t2-indiv-vax__phi-rho-eta-psi-vax-prior/summary.md", " M metastudies/dose_response_model/calibration/results/t2-indiv-vax__phi-rho-eta-psi-vax-prior/titre_protection.png", " M metastudies/dose_response_model/calibration/results/t2-indiv-vax__phi-rho-eta-psi-vax/delta_bridge.png", " M metastudies/dose_response_model/calibration/typhoid_dose_response.stan"]
+    "git_dirty_files": [" M metastudies/dose_response_model/calibration/results/t2-indiv-vax__phi-rho-eta-psi-vax-prior/curve_parity.json", " M metastudies/dose_response_model/calibration/results/t2-indiv-vax__phi-rho-eta-psi-vax-prior/fit.rds", " M metastudies/dose_response_model/calibration/results/t2-indiv-vax__phi-rho-eta-psi-vax-prior/ppc.png", " M metastudies/dose_response_model/calibration/results/t2-indiv-vax__phi-rho-eta-psi-vax-prior/run_manifest.json", " M metastudies/dose_response_model/calibration/results/t2-indiv-vax__phi-rho-eta-psi-vax-prior/summary.md", " M metastudies/dose_response_model/calibration/results/t2-indiv-vax__phi-rho-eta-psi-vax-prior/titre_protection.png", " M metastudies/dose_response_model/calibration/typhoid_dose_response.stan", "?? metastudies/dose_response_model/calibration/jin_within_arm_titre_plan.md"]
   },
   "env": {
     "r_version": "R version 4.5.3 (2026-03-11)",

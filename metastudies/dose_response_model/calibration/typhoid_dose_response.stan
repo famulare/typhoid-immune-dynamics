@@ -424,12 +424,19 @@ generated quantities {
   // hornick_cond are one table factorized; combine them into one loo unit).
   vector[N_obs] p_pred;
   array[N_obs] int y_rep;
-  // log_lik covers the WHOLE likelihood: N_obs dose-response rows, then the
-  // N_ladder phi0(T) threshold binomials, then (only when psi_active) the single
-  // Darton psi cross-tab binomial -- layout recorded in each run's run_manifest.json
-  // as data.log_lik_layout. Sized N_obs + N_ladder + psi_active so the invariant
-  // target = lprior + sum(log_lik) holds exactly whether or not psi is active
-  // (mirrors the ladder-tail fix this comment already describes for phi0).
+  // log_lik covers the WHOLE likelihood, in this order:
+  //   [1 .. N_obs]                          dose-response rows (obs_id order)
+  //   [N_obs+1 .. N_obs+N_ladder]           phi0(T) threshold binomials
+  //   [N_obs+N_ladder+1]                    Darton psi cross-tab (only if psi_active)
+  // Sized N_obs + N_ladder + psi_active so the invariant target = lprior +
+  // sum(log_lik) holds exactly whether or not psi is active (mirrors the
+  // ladder-tail fix this comment already describes for phi0).
+  // Corrected 2026-08-01 [Mike]: this comment previously claimed the layout was
+  // "recorded in each run's run_manifest.json as data.log_lik_layout". It is not --
+  // manifest `data` carries only N_obs, obs_id, groups, n_total, y_total,
+  // n_obs_tier, dropped, ladder. THIS COMMENT IS THE LAYOUT'S ONLY SPECIFICATION;
+  // any consumer that slices log_lik (run_scenarios.R takes the first N_obs for
+  // loo; priorsense power-scales the whole vector) depends on the order above.
   //
   // Why the tail is here: the ladder terms contribute to `target` in the model block
   // but used to appear in NEITHER log_lik NOR lprior, so target != lprior +
@@ -512,20 +519,27 @@ generated quantities {
   real eta_1e3 = eta_detection(1e3, N50_inf, eta_lo, kappa);
   real eta_1e4 = eta_detection(1e4, N50_inf, eta_lo, kappa);
 
-  // Vaccine efficacy predictions (PLACEHOLDER CoP; requires titer model g(anti-Vi))
-  real VE_fev_ViTT;
-  real VE_fev_ViPS;
-  {
-    real CoP_ViTT = 5.0;  // PLACEHOLDER
-    real CoP_ViPS = 2.0;  // PLACEHOLDER
-    real p_fev_ctrl = p_fev_1e4_naive;
-    real p_fev_vitt = beta_poisson(2e4, N50_inf, alpha_inf, CoP_ViTT, gamma_inf)
-                      * beta_poisson(2e4, N50_fevginf, alpha_fevginf, CoP_ViTT, gamma_fevginf);
-    real p_fev_vips = beta_poisson(2e4, N50_inf, alpha_inf, CoP_ViPS, gamma_inf)
-                      * beta_poisson(2e4, N50_fevginf, alpha_fevginf, CoP_ViPS, gamma_fevginf);
-    VE_fev_ViTT = 1.0 - p_fev_vitt / p_fev_ctrl;
-    VE_fev_ViPS = 1.0 - p_fev_vips / p_fev_ctrl;
-  }
+  // VE_fev_ViTT / VE_fev_ViPS DELETED 2026-08-01 [Mike]. They were placeholder
+  // wiring with two defects, not results:
+  //   (1) hard-coded CoP_ViTT=5.0 / CoP_ViPS=2.0, stale against the CSV's real
+  //       arm CoPs of 152.16 and 38.11 (VaccZyme EU/mL relative to naive);
+  //   (2) the numerator was evaluated at 2e4 CFU and the denominator was
+  //       p_fev_1e4_naive at 1e4 -- a ratio across two different DOSES as well as
+  //       two CoPs, which depressed the emitted VE further.
+  // As emitted they read VE_ViTT=0.098 and VE_ViPS=0.006 at the posterior median
+  // -- i.e. "Vi-PS does nothing" -- against 0.437 / 0.300 once CoP, dose, and the
+  // Jin control reference (CoP 2.16, not naive) are all correct. Those corrected
+  // values match the ppc fitted rows for the same arms (0.449 / 0.308), so the
+  // arithmetic was never the problem; the inputs were.
+  // Deleted rather than fixed because the ppc rows already carry the answer for
+  // every arm actually in the likelihood. Nothing read these: they appear in
+  // neither summary.csv nor summary.md (generated quantities are not summarized).
+  // The in-code rationale "requires titer model g(anti-Vi)" no longer applies --
+  // the CSV has carried real per-arm CoP since the EU/mL value-swap.
+  // NOTE: results/t2-indiv-vax__phi-rho-eta-psi-vax/fit.rds predates this deletion
+  // and still contains both variables. Generated quantities do not feed back into
+  // sampling, so the posterior is unaffected and no refit is required for
+  // correctness -- only to regenerate a fit.rds without them.
 
   real inf_fev_gap_1e4 = p_inf_1e4_naive - p_fev_1e4_naive;
   real delta_fold = delta;

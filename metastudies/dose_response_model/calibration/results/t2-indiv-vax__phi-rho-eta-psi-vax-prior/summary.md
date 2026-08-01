@@ -1,6 +1,6 @@
 # Fit summary: t2-indiv-vax-prior
 
-**Date:** 2026-08-01 01:42
+**Date:** 2026-08-01 02:21
 
 ## Sampler diagnostics
 
