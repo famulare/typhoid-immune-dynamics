@@ -87,12 +87,26 @@ locked as the working baseline, not described as diagnostically perfect.
   Sec 2.8 assumed. `eta_lo` meets `tier2_plan.md` Sec 5's stated trigger for a
   second look at the eta confound, though priorsense flags 16 of 26 parameters at
   similar magnitudes, so the signal is not specific. OPEN.
-- `gamma_inf` falls monotonically as individualized Darton rows enter the
-  likelihood (t1-indiv 0.166, t1-indiv-vax 0.111, t2-indiv-vax 0.081) while
-  `gamma_fevginf` rises. The fitted titre slope is shallower than every direct
-  contrast in the corpus, including both Jin Vi-vaccine arms. Individualization
-  puts 153 thin-titre-range rows against 3 arm-level rows that carry the high-titre
-  information. A down-weighted / grouped-Darton sensitivity fit is the check. OPEN.
+- `gamma_inf` falls across the tier ladder (t1-indiv 0.166, t1-indiv-vax 0.111,
+  t2-indiv-vax 0.081) while `gamma_fevginf` rises, and the fitted titre slope is
+  shallower than every direct contrast in the corpus. The row-count explanation was
+  corrected 2026-08-01 (`tier2_findings_report.md` Sec 5): only the first step adds
+  individual rows; the second keeps 153 fixed and adds the eta/psi/Oxford-shedding
+  observation terms. Grouping is not itself a loss of information because a
+  binomial count is sufficient for its arm. Of the 90 individualized Darton
+  infection rows, 64 have CoP=1 and provide no titre-slope information. The other
+  26 give an arm-adjusted infection slope of the opposite sign (+0.71 per log10
+  CoP, z=+1.25) and a fever|inf slope near zero (-0.08, z=-0.14). `gamma_inf` is a
+  compromise between this result and Jin's ~9%/10x shedding contrast; the prior
+  keeps its posterior above zero. A separate weighting asymmetry exists: at n=1 the
+  beta-binomial is exactly binomial, so the 153 Darton rows neither inform
+  `grand_overdispersion_rho` nor receive its discount, while Jin's arms are
+  discounted ~1.8x. **DECIDED 2026-08-01 [Mike]: rho stays as specified; the rho=0
+  and grouped-Darton sensitivity fits are not being run.** The adopted change is to
+  integrate the Jin/Oxford arm rows over their within-arm titre distribution rather
+  than plug in the arm GMT (`joint_inference_plan.md` Sec 5.3,
+  `calibration/jin_within_arm_titre_plan.md`). The science remains open; the
+  weighting decision is closed.
 - A single posterior divergence remains in the preferred fit.
 - The Gibani rechallenge/susceptibility paradox, incubation, seroconversion, and
   other unused outcomes remain outside the current likelihood.

@@ -1,23 +1,9 @@
 # Typhoid dose-response from human challenge: what the Tier 2 calibration says
 
-**Source:** `t2-indiv-vax`, stage `phi-rho-eta-psi-vax`, 182 observations. 1
-divergent transition in 4,000 draws, max R-hat 1.003. All intervals are 90%
-posterior credible intervals, median first. Everything is conditional on this
-model and this corpus.
-
-**This document is the interpretation.** It selects the results that carry a
-scientific or decision consequence and says what we think they mean. It is not the
-complete output of the fit. For that, read the generated
-[Tier 2 posterior summary](calibration/results/t2-indiv-vax__phi-rho-eta-psi-vax/summary.md):
-every fitted parameter with its interval and sampler diagnostics, the pairwise
-correlations above |r| = 0.7, the full priorsense power-scaling table, and an index
-of all 33 figures — including the ones not discussed here (`calibration_targets`,
-`delta_bridge`, `dose_cop_surface`, `maryland_mixture`, `titre_protection`, the
-per-cohort `grid/` panels, and the sampler-diagnostic set). That file is written by
-`diagnose_fit()` and is authoritative on numbers; where it and this document
-disagree, it wins. The corresponding
-[prior-predictive summary](calibration/results/t2-indiv-vax__phi-rho-eta-psi-vax-prior/summary.md)
-is the matching prior run.
+**Source:** `t2-indiv-vax`, stage `phi-rho-eta-psi-vax`, 182 observations, fitted
+2026-07-31. 1 divergent transition in 4,000 draws, max R-hat 1.003. All intervals
+are 90% posterior credible intervals, median first. Everything is conditional on
+this model and this corpus.
 
 ## 1. What the model is fitted to
 
@@ -133,11 +119,16 @@ Two things qualify it.
 exponents are indistinguishable. The split emerges when the vaccine arms enter and
 widens at Tier 2:
 
-| configuration | individual rows | γ_inf | γ_fev\|inf |
-|---|---|---|---|
-| `t1-indiv` | 56 | 0.166 [0.068–0.303] | 0.163 [0.066–0.298] |
-| `t1-indiv-vax` | 153 | 0.111 [0.046–0.215] | 0.164 [0.069–0.284] |
-| `t2-indiv-vax` | 153 | 0.081 [0.037–0.151] | 0.192 [0.089–0.307] |
+| configuration | individual rows | what else changed | γ_inf | γ_fev\|inf |
+|---|---|---|---|---|
+| `t1-indiv` | 56 | — | 0.166 [0.068–0.303] | 0.163 [0.066–0.298] |
+| `t1-indiv-vax` | 153 | Darton M01ZH09 + Ty21a individualized; `V` added | 0.111 [0.046–0.215] | 0.164 [0.069–0.284] |
+| `t2-indiv-vax` | 153 | 5 Oxford shedding rows restored; η, ψ added | 0.081 [0.037–0.151] | 0.192 [0.089–0.307] |
+
+Only the first step adds individual rows. The second keeps the row count at 153
+and changes the observation model by adding η, ψ, and the Oxford shedding rows. It
+is not an individualization effect. Jin's three shedding rows enter the likelihood
+at that step.
 
 **The overall slope is shallower than any direct contrast in the corpus** — see
 §5. That affects the level of both exponents, though not obviously their ordering.
@@ -173,13 +164,39 @@ After both corrections the model is at 22% and Darton is at 59%, with intervals
 that overlap only at the edges. That is a smaller disagreement than 22-versus-71
 but it is a real one.
 
-**Why our number is the low one.** The model is shallower than *every* direct
-contrast, including both Jin arms, and the reason is likelihood weight rather than
-evidence. Individualizing Darton's three arms puts 153 per-subject rows into the
-likelihood. Those subjects' anti-Vi titers are mostly at or near the naive floor —
-a thin range with a weak association. Jin's Vi-vaccine arms, which carry nearly all
-the high-titer information, are three grouped rows. γ_inf falls monotonically as
-the individual rows accumulate (table in §4).
+**Why the estimate is low.** The explanation is not that 153 individual rows
+outvote three grouped rows. Grouping is not by itself a loss of information: a
+binomial count is sufficient for its arm, so `binomial(37, p)` contains the same
+information as 37 Bernoulli rows. Two mechanisms explain the estimate, and only
+one is a design artifact. `[corrected 2026-08-01]`
+
+**Darton and Jin imply different slopes.** Of the 90 per-subject Darton infection
+rows, 64 sit at CoP = 1, the imputed naive floor at the assay's limit of detection.
+Those rows provide no titer-slope information; they set the CoP = 1 anchor. The
+slope is informed by the remaining 26 titer-informative subjects and Jin's three
+arms. The Darton estimate has the opposite sign. An arm-adjusted logistic model on
+the rows used by the likelihood gives:
+
+| endpoint | slope per log₁₀ CoP | z |
+|---|---|---|
+| `bact_or_stool` (group 6, feeds γ_inf) | **+0.71** | +1.25 |
+| `fever_td \| infected` (group 7, feeds γ_fev\|inf) | −0.08 | −0.14 |
+
+The Darton point estimate is that *higher* anti-Vi is associated with *more*
+infection. γ_inf is bounded below at zero, so the posterior is near that boundary
+and the prior keeps it above zero. γ_inf = 0.081 is a compromise between Jin
+(approximately 9% reduction per 10× on shedding, unadjusted) and Darton (opposite
+sign, not significant). Both results should be reported.
+
+**The weighting asymmetry comes from ρ, not row count.** At n = 1 the
+beta-binomial is exactly binomial for any concentration. The 153 individualized
+Darton rows therefore do not inform `grand_overdispersion_rho` and are not
+discounted by it. ρ is estimated from and applied to the 29 grouped rows. At
+ρ = 0.024, the design effect 1 + (n−1)ρ discounts Jin's arms to about
+18, 20, and 19 effective subjects out of 31, 37, and 35; at the top of ρ's interval
+the discount approaches 3×. This results from applying one corpus-wide
+overdispersion parameter to a mix of grouped and individualized data. `[Mike
+2026-08-01: ρ remains as specified; no correction is planned]`
 
 It shows in the fit. The model compresses Jin's contrast:
 
@@ -189,12 +206,30 @@ It shows in the fit. The model compresses Jin's contrast:
 | ViPS | 38 | 13/35 = 0.37 | 0.48 [0.39–0.57] |
 | ViTT | 152 | 13/37 = 0.35 | 0.38 [0.27–0.50] |
 
-We do not read Darton's hazard ratio as contradicting the model. We do read the
-tier ladder as saying γ_inf is set more by row count than by titer range, and that
-is a consequence of the individualization design rather than of the data. The
-check is a sensitivity fit with the Darton individual rows grouped or
-down-weighted: if γ_inf recovers toward 0.15, the effect is weighting.
-`[open, not run]`
+The largest compression is on fever and is concentrated in one arm. On shedding,
+the model gives 0.60 / 0.55 / 0.52 versus observed 0.71 / 0.60 / 0.60. The fitted
+slope is 7.5% per 10× versus 9.2% observed; both are within sampling error at
+n ≈ 35. The largest miss is Vi-PS fever: 0.48 fitted versus 0.37 observed. Jin
+also reports the strongest within-arm contrast in this arm (Supplementary Table
+S2: diagnosed GMT 73 versus undiagnosed 207, p = 0.007; Vi-TT: 522 versus 586,
+p = 0.84).
+
+**Within-arm information not used by the current model.** Each Jin arm enters as
+one row at its geometric-mean titer. Within-arm spread derived from the reported
+GMT confidence intervals is about 0.5 decades of log₁₀ titer per arm, similar to
+the spread in the Darton cohort (sd 0.47, with 71% at the floor). Integrating over
+that spread instead of using the GMT changes the fitted Jin probabilities by
+0.6–2.2% relative (`joint_inference_plan.md` §5.3). The information lost by
+grouping is the joint titer-outcome distribution within an arm, which marginal
+integration cannot recover. Jin's Vi-PS diagnosed/undiagnosed titer split implies
+a within-arm slope near 65% risk reduction per 10×, steeper than the arm-level
+contrasts above, but its interval ranges from roughly 10% to near-total
+protection. Vi-TT and control provide little evidence of a within-arm slope. The
+three arms therefore give inconsistent within-arm evidence.
+
+Darton's hazard ratio is not a model contradiction. It is evidence that the corpus
+does not agree on the titer slope, with the disagreement concentrated where the
+data are thinnest. `[open]`
 
 ## 6. Fever is a threshold, not a state
 
@@ -301,11 +336,14 @@ their bars are expected at these sample sizes and are not misfits.
 
 The shared beta-binomial overdispersion is small: ICC ρ = 0.024 [0.005–0.055].
 After the observation-process terms are in, these studies are more consistent with
-each other than the raw attack rates suggest.
+each other than the raw attack rates suggest. ρ is estimated from, and
+applied to, only the 29 grouped rows: at n = 1 the beta-binomial is exactly
+binomial, so the 153 individualized Darton rows neither inform ρ nor pay its
+discount (§5).
 
 Two structural misses are directional rather than large: the Waddington shedding
 pair (§7), where the model's dose trend runs opposite to the data, and the Jin
-titer contrast (§5), which the model compresses.
+fever contrast (§5), which the model compresses, mostly in the Vi-PS arm.
 
 ## 10. The observation-process terms are a result, not plumbing
 
@@ -339,8 +377,6 @@ what those protocols would have recorded.
 
 ## 11. What is weakly identified
 
-Do not quote these as measurements.
-
 - **δ and the N50 values trade off** (r ≈ −0.6 to −0.7) but are not jointly
   unidentified. Marginals contract ~2× from prior; the sloppy direction still
   contracts 1.7×. δ is the weakest of the three on priorsense and the one most
@@ -354,7 +390,12 @@ Do not quote these as measurements.
 - **ψ_stool and η are confounded by construction.** The Darton cross-tab (15 of
   26) pins their product. Only η's dose dependence separates them, and η's dose
   dependence is not identified.
-- **γ_inf may be weighting rather than evidence** (§5). Open.
+- **γ_inf reflects a contradiction, not only weak data** (§5). The 26 titer-informative
+  Darton subjects give an arm-adjusted infection slope of the *wrong sign* (+0.71
+  per log₁₀ CoP, z = +1.25); Jin's grouped shedding contrast gives ≈9% reduction per
+  10×. The posterior is a compromise, kept above its zero boundary by the prior. A
+  separate and smaller weighting asymmetry exists — ρ discounts only the grouped
+  rows — and Mike chose not to change it. Open.
 - **`VE_fev_ViTT` and `VE_fev_ViPS`** in the generated quantities use placeholder
   CoP values. They are wiring, not results.
 - One divergent transition remains unexplained.

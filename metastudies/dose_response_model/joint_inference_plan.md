@@ -700,16 +700,57 @@ $$
 p_j = \int P_k(D, \text{CoP}) \cdot f_j(\text{CoP}) \, d\text{CoP}
 $$
 
-In practice, approximate with the group-level GMT:
+**Updated 2026-08-01 [Mike].** The implemented model
+(`typhoid_dose_response.stan`, `obs_prob()` groups 1 and 2) currently uses the GMT
+plug-in:
 
 $$
 p_j \approx P_k(D, g(\text{GMT}_j))
 $$
 
-where $g(\cdot)$ is the CoP mapping from the titer model. This applies to:
-- Jin 2017 Vi-TT (GMT = 563 EU/mL), Vi-PS (GMT = 141 EU/mL)
+**Decision: replace the plug-in with quadrature over the within-arm titre
+distribution.** The implementation and verification plan is in
+`calibration/jin_within_arm_titre_plan.md`. Applies to Jin 2017 Vi-TT (GMT = 563
+EU/mL), Vi-PS (GMT = 141 EU/mL), and control (GMT = 8.0 EU/mL); Waddington and
+Gibani naive arms are treated as CoP = 1 and are unaffected.
 
-**Empirical evidence on the group-GMT approximation (Jin Supplementary Table S2)**: The adequacy of the group-GMT approximation differs by vaccine group. Vi-TT diagnosed vs undiagnosed GMT = 522 vs 586 (p=0.84): within-group anti-Vi variation does NOT predict outcome, so the group-GMT approximation is empirically justified. Vi-PS diagnosed vs undiagnosed GMT = 73 vs 207 (p=0.007): within-group variation DOES predict outcome, so the group-GMT approximation introduces Jensen's inequality bias for this group. For Vi-PS, integrating over the within-group CoP distribution is warranted. Individual-level anti-Vi data are not tabulated in Jin (only group GMTs and CI), but the Darton S1 individual-level data provides an empirical CoP distribution that can inform the integration for both studies.
+**Empirical evidence on the group-GMT approximation (Jin Supplementary Table S2)**: The adequacy of the group-GMT approximation differs by vaccine group. Vi-TT diagnosed vs undiagnosed GMT = 522 vs 586 (p=0.84): within-group anti-Vi variation does NOT predict outcome, so the group-GMT approximation is empirically justified. Vi-PS diagnosed vs undiagnosed GMT = 73 vs 207 (p=0.007): within-group variation DOES predict outcome, so the group-GMT approximation introduces Jensen's inequality bias for this group. For Vi-PS, integrating over the within-group CoP distribution is warranted. Individual-level anti-Vi data are not tabulated in Jin (only group GMTs and CI), but the reported GMT confidence intervals recover the within-arm log-titre spread.
+
+**Measured size of the Jensen bias [2026-08-01, computed at the `t2-indiv-vax`
+posterior medians].** Deriving $\sigma_j = \mathrm{sd}(\log_{10}\text{titre})$ from
+Jin's reported GMT 95% CIs and arm $n$ gives 0.53 (control), 0.57 (Vi-PS), and
+0.47 (Vi-TT) decades. Each arm has about as much log-titre spread as the whole
+Darton cohort (0.47, with 71% at the floor). Integrating over that spread instead
+of using the GMT changes the fitted probabilities by:
+
+| arm | $P_{\text{inf}}$ ratio $E[P]/P(\text{GMT})$ | $P_{\text{fev}}$ ratio |
+|---|---|---|
+| control (floor-censored at CoP = 1) | 0.994 | 0.978 |
+| Vi-PS | 0.999 | 1.005 |
+| Vi-TT | 0.999 | 1.008 |
+
+The change is small and is not expected to move $\gamma$. It removes a documented
+approximation and provides the quadrature code needed for a future within-arm
+likelihood term. It does not recover the information lost by grouping.
+
+**What quadrature does not recover.** Marginal integration corrects $E[P]$ versus
+$P(E[\cdot])$, but uses no information about which subjects in an arm were
+diagnosed. The lost information is the joint (titre, outcome) distribution. An
+implied within-arm logistic slope from Jin's diagnosed/undiagnosed GMT split is:
+
+| arm | diagnosed / undiagnosed GMT | implied slope | implied risk reduction per 10× |
+|---|---|---|---|
+| control | 7.1 / 12.0 (p = 0.19) | −0.85 [−5.5, +1.2] | 17%, interval spans zero |
+| Vi-PS | 73 / 207 (p = 0.0070) | −1.65 [−5.2, −0.35] | 65%, interval excludes zero |
+| Vi-TT | 522 / 586 (p = 0.84) | −0.23 [−2.4, +1.7] | 14%, interval spans zero |
+
+Vi-PS alone implies a slope steeper than every arm-level contrast in the corpus,
+but its interval is too wide to estimate the magnitude well. The other two arms
+provide little evidence of a within-arm slope. Possible additions, not adopted,
+are (a) a moment-matching sub-likelihood on the reported diagnosed/undiagnosed
+GMTs, following the φ₀ ladder and ψ cross-tab terms, or (b) digitization of Jin
+Supplementary Figure S3 (individual titre versus diagnosis probability) for true
+individualization. `[open — flagged, not decided]`
 
 **Darton vaccine arms are EXCLUDED from γ estimation via anti-Vi CoP.** Neither M01ZH09 nor Ty21a raised anti-Vi IgG (Darton p.13). Ty21a genetically lacks the Vi capsule gene. M01ZH09 is derived from Vi-expressing Ty2 (ΔaroC ΔssaV) but a single oral dose does not generate measurable anti-Vi IgG; its protection is primarily through anti-LPS. Both vaccines operate through non-Vi mechanisms and cannot be mapped to CoP via anti-Vi GMT. They are retained in Section 11 for **validation** (does the model correctly predict their attack rates are between placebo and Vi-vaccinated?) but do not enter the γ likelihood.
 

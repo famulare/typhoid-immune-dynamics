@@ -53,6 +53,7 @@ Estimate how the probability of infection and fever depends on:
 | `dose_response_model_specification.md` | Model specification: biology, causal structure, equations |
 | `joint_inference_plan.md` | Locked joint likelihood and identifiability assumptions |
 | `stan_model_structure.md` | Current Stan program dataflow and likelihood dispatch |
+| `calibration/jin_within_arm_titre_plan.md` | Draft: quadrature over within-arm titre for Oxford grouped rows |
 | `notes/outcome_mapping.md` | Decision rules for mapping observed outcomes to model variables |
 | `notes/paper_triage.md` | Paper-by-paper inclusion/exclusion decisions |
 | `notes/cross_cutting_observations.md` | Patterns across the literature corpus |
