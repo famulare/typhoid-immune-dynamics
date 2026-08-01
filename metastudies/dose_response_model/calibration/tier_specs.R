@@ -32,23 +32,38 @@ if (!exists("MM_RAW_PARS")) source("model_math.R")
 #' vax is the same situation with a different gate: log_V_M01ZH09/log_V_Ty21a are
 #' declared unconditionally (like rho), but unlike rho they only enter the
 #' likelihood for rows with vaccine_id != 0 -- `needs_vaccine_rows` is that gate.
+#'
+#' psi is a THIRD kind of gate, `needs_psi_flag` (tier2_plan.md decision B): unlike
+#' eta/vax, psi's target rows (group 4, md_inf: Hornick/Levine/Gilman) are already
+#' present in EVERY active tier, so row presence can't signal "psi is active here"
+#' the way it does for eta (group 2 rows only exist in tier2_active data) or vax
+#' (vaccine_id!=0 rows only exist in vax tiers). psi is gated instead by the Stan
+#' data scalar `psi_active`, threaded through build_stan_data() like
+#' include_vaccine_arms. An EARLIER version of this entry (`needs_group2 = FALSE,
+#' needs_vaccine_rows = FALSE`, no third gate) would have activated psi in every
+#' tier the moment psi_stool was declared in the .stan -- caught before any tier
+#' spec below relied on it.
 STAGE_INCREMENTS <- list(
-  list(token = "phi", pars = c("phi0_a", "phi0_b"),          needs_group2 = FALSE, needs_vaccine_rows = FALSE),
-  list(token = "rho", pars = "grand_overdispersion_rho",     needs_group2 = FALSE, needs_vaccine_rows = FALSE),
-  list(token = "eta", pars = c("eta_lo", "kappa"),           needs_group2 = TRUE,  needs_vaccine_rows = FALSE),
-  list(token = "psi", pars = "psi_stool",                    needs_group2 = FALSE, needs_vaccine_rows = FALSE),
-  list(token = "vax", pars = c("log_V_M01ZH09", "log_V_Ty21a"), needs_group2 = FALSE, needs_vaccine_rows = TRUE)
+  list(token = "phi", pars = c("phi0_a", "phi0_b"),          needs_group2 = FALSE, needs_vaccine_rows = FALSE, needs_psi_flag = FALSE),
+  list(token = "rho", pars = "grand_overdispersion_rho",     needs_group2 = FALSE, needs_vaccine_rows = FALSE, needs_psi_flag = FALSE),
+  list(token = "eta", pars = c("eta_lo", "kappa"),           needs_group2 = TRUE,  needs_vaccine_rows = FALSE, needs_psi_flag = FALSE),
+  list(token = "psi", pars = c("psi_stool", "frac_late"),    needs_group2 = FALSE, needs_vaccine_rows = FALSE, needs_psi_flag = TRUE),
+  list(token = "vax", pars = c("log_V_M01ZH09", "log_V_Ty21a"), needs_group2 = FALSE, needs_vaccine_rows = TRUE, needs_psi_flag = FALSE)
 )
 
 #' Derive the stage token from the model's parameter block and the tier's data.
 #' @param model_pars character vector, names(mod$variables()$parameters).
 #' @param has_group2 does this tier's data contain any ox_inf (group 2) row?
 #' @param has_vaccine_rows does this tier's data contain any vaccine_id != 0 row?
-derive_stage_token <- function(model_pars, has_group2, has_vaccine_rows = FALSE) {
+#' @param has_psi_active is the tier's stan_data$psi_active flag set (not inferrable
+#'   from row presence -- see the psi gate note above STAGE_INCREMENTS)?
+derive_stage_token <- function(model_pars, has_group2, has_vaccine_rows = FALSE,
+                               has_psi_active = FALSE) {
   toks <- vapply(STAGE_INCREMENTS, function(inc) {
     active <- all(inc$pars %in% model_pars) &&
       (!inc$needs_group2 || has_group2) &&
-      (!isTRUE(inc$needs_vaccine_rows) || has_vaccine_rows)
+      (!isTRUE(inc$needs_vaccine_rows) || has_vaccine_rows) &&
+      (!isTRUE(inc$needs_psi_flag) || has_psi_active)
     if (active) inc$token else NA_character_
   }, character(1))
   toks <- toks[!is.na(toks)]
@@ -77,7 +92,8 @@ TIER_SPECS <- list(
     expect = list(N_obs = 25L,
                   groups = c(ox_fev = 7L, md_fev = 11L, md_inf = 6L,
                              hornick_cond = 1L)),
-    inert_pars = c("eta_lo", "kappa", "log_V_M01ZH09", "log_V_Ty21a"),
+    inert_pars = c("eta_lo", "kappa", "log_V_M01ZH09", "log_V_Ty21a",
+                  "psi_stool", "frac_late"),
     requires_params = character(),
     status_declared = "runnable",
     blocked_reason = NULL,
@@ -95,7 +111,8 @@ TIER_SPECS <- list(
                   groups = c(ox_fev = 6L, md_fev = 11L, md_inf = 6L,
                              hornick_cond = 1L, ox_inf_indiv = 30L,
                              ox_fevginf_indiv = 26L)),
-    inert_pars = c("eta_lo", "kappa", "log_V_M01ZH09", "log_V_Ty21a"),
+    inert_pars = c("eta_lo", "kappa", "log_V_M01ZH09", "log_V_Ty21a",
+                  "psi_stool", "frac_late"),
     requires_params = character(),
     status_declared = "runnable",
     blocked_reason = NULL,
@@ -112,7 +129,7 @@ TIER_SPECS <- list(
                   groups = c(ox_fev = 6L, md_fev = 11L, md_inf = 6L,
                              hornick_cond = 1L, ox_inf_indiv = 90L,
                              ox_fevginf_indiv = 63L)),
-    inert_pars = c("eta_lo", "kappa"),
+    inert_pars = c("eta_lo", "kappa", "psi_stool", "frac_late"),
     requires_params = c("log_V_M01ZH09", "log_V_Ty21a"),
     status_declared = "runnable",
     blocked_reason = NULL,
@@ -126,48 +143,80 @@ TIER_SPECS <- list(
   `t2-grouped` = list(
     key = "t2-grouped",
     label = "Tier 2 rows (+Oxford shedding), Darton placebo grouped",
-    doc_ref = "CALIBRATION_WORKFLOW.md Step 3",
+    doc_ref = "CALIBRATION_WORKFLOW.md Step 3 (RETIRED, see note)",
     tier_col = "tier2_active", individualize_darton = FALSE,
     drop_obs = character(), keep_obs = NULL,
     stage = "phi-rho-eta",
     expect = list(N_obs = 31L,
                   groups = c(ox_fev = 7L, ox_inf = 6L, md_fev = 11L, md_inf = 6L,
                              hornick_cond = 1L)),
-    inert_pars = c("log_V_M01ZH09", "log_V_Ty21a"),
+    inert_pars = c("log_V_M01ZH09", "log_V_Ty21a", "psi_stool", "frac_late"),
     requires_params = c("eta_lo", "kappa"),
     status_declared = "blocked",
     blocked_reason = paste(
-      "SCIENTIFIC DECISION, not a code defect. (a) eta Option A (parametric",
-      "eta_lo/kappa, what the .stan implements) vs Option C (fixed eta_fixed_optC,",
-      "a CSV column no code reads) is undecided; eta_detection() is monotone",
-      "DECREASING in dose while eta_fixed_optC is non-monotone (1.00@1e3, 0.62@1e4,",
-      "0.94@1.82e4, 0.92@2e4). Because eta multiplies P_inf and shares N50_inf in its",
-      "exponent, a misfit moves the BIOLOGICAL parameters instead of failing visibly.",
-      "(b) ../joint_inference_plan.md Sec 2.6 EXCLUDES Oxford shedding on",
-      "treatment-truncation grounds while the Tier 2 design restores it with eta --",
-      "unresolved tension. (c) psi (Sec 2.8, adopted 34aac76) is unimplemented, and",
-      "psi_stool is confounded with eta at the single Darton dose.",
-      "Unblock deliberately with allow_blocked = TRUE.")
+      "RETIRED 2026-07-31 [Mike, tier2_plan.md]: Tier 2 is individualized-Darton",
+      "only going forward -- no new grouped configuration will be built. Kept in the",
+      "registry (not deleted) so the reason stays visible, same principle as every",
+      "other blocked/retired rung. The grouped-vs-individualized contrast this entry",
+      "existed for is already made by t1-grouped vs t1-indiv; t2-grouped would only",
+      "duplicate that contrast one increment later. See t2-indiv / t2-indiv-vax for",
+      "the live Tier 2 configurations (eta + psi implemented, tier2_plan.md).")
   ),
   `t2-indiv` = list(
     key = "t2-indiv",
-    label = "Tier 2 rows (+Oxford shedding), Darton placebo individualized",
-    doc_ref = "no prose-doc equivalent; this registry is the definition",
-    tier_col = "tier2_active", individualize_darton = TRUE,
+    label = "Tier 2 rows (+Oxford shedding, +psi), Darton placebo individualized",
+    doc_ref = "tier2_plan.md",
+    tier_col = "tier2_active", individualize_darton = TRUE, psi_active = TRUE,
     drop_obs = character(), keep_obs = NULL,
-    stage = "phi-rho-eta",
+    stage = "phi-rho-eta-psi",
     expect = list(N_obs = 85L,
                   groups = c(ox_fev = 6L, ox_inf = 5L, md_fev = 11L, md_inf = 6L,
                              hornick_cond = 1L, ox_inf_indiv = 30L,
                              ox_fevginf_indiv = 26L)),
     inert_pars = c("log_V_M01ZH09", "log_V_Ty21a"),
-    requires_params = c("eta_lo", "kappa"),
-    status_declared = "blocked",
-    blocked_reason = paste(
-      "Everything blocking t2-grouped, plus: Darton contributes no group-2 row here",
-      "(the grouped D-I-plac is dropped as a double count of the 30 ox_inf_indiv rows",
-      "for the same volunteers), so eta is identified by 5 rows -- W-I-3/4 and the",
-      "three Jin arms. N_obs 85 = 86 - 1 for that drop.")
+    requires_params = c("eta_lo", "kappa", "psi_stool", "frac_late"),
+    status_declared = "runnable",
+    blocked_reason = NULL,
+    note = paste(
+      "UNBLOCKED 2026-07-31 [Mike, tier2_plan.md]: eta Option A and psi are both",
+      "implemented; accepted (not resolved) confounds carried forward, same",
+      "treatment as CoP_imm being prior-carried -- (1) eta's cross-study confound:",
+      "eta_fixed_optC's apparent non-monotonicity (1.00@1e3, 0.62@1e4, 0.94@1.82e4,",
+      "0.92@2e4) is dose confounded with per-study treatment protocol across only 3",
+      "studies; within Waddington (the only paired-dose study) the two points ARE",
+      "monotone decreasing, consistent with Option A. (2) psi_stool*eta(18200) are",
+      "jointly identified by the single Darton cross-tab -- only eta's OTHER-dose",
+      "data separates them. (3) frac_late (psi_late = psi_stool*frac_late) is fully",
+      "prior-carried, no cross-tab of its own. Darton contributes no group-2 row",
+      "here (the grouped D-I-plac is dropped as a double count of the 30",
+      "ox_inf_indiv rows for the same volunteers), so eta is identified by 5 rows --",
+      "W-I-3/4 and the three Jin arms. N_obs 85 = 86 - 1 for that drop.")
+  ),
+  `t2-indiv-vax` = list(
+    key = "t2-indiv-vax",
+    label = "Tier 2 rows (+Oxford shedding, +psi), Darton placebo + M01ZH09 + Ty21a all individualized",
+    doc_ref = "tier2_plan.md",
+    tier_col = "tier2_active", individualize_darton = TRUE, include_vaccine_arms = TRUE,
+    psi_active = TRUE,
+    drop_obs = character(), keep_obs = NULL,
+    stage = "phi-rho-eta-psi-vax",
+    expect = list(N_obs = 182L,
+                  groups = c(ox_fev = 6L, ox_inf = 5L, md_fev = 11L, md_inf = 6L,
+                             hornick_cond = 1L, ox_inf_indiv = 90L,
+                             ox_fevginf_indiv = 63L)),
+    inert_pars = character(),
+    requires_params = c("eta_lo", "kappa", "psi_stool", "frac_late",
+                        "log_V_M01ZH09", "log_V_Ty21a"),
+    status_declared = "runnable",
+    blocked_reason = NULL,
+    note = paste(
+      "The requested configuration: t1-indiv-vax (+vaccine-terms, phi-rho-vax) plus",
+      "the eta+psi Tier 2 increment (tier2_plan.md). N_obs 182 = 177 (t1-indiv-vax)",
+      "+ 5 restored Oxford ox_inf rows (W-I-3/4, three Jin arms; D-I-plac stays",
+      "dropped, same double-count reasoning as t2-indiv). Every parameter is active",
+      "-- nothing inert. Carries all of t2-indiv's accepted-not-resolved confounds",
+      "(see that entry's note) plus +vaccine-terms' own documented shared-biology",
+      "shift check.")
   )
 )
 
@@ -257,7 +306,8 @@ validate_tier_spec <- function(spec, stan_data, mod = NULL, check_curve_specs = 
       stop(sprintf("tier '%s': inert_pars not in the .stan: %s", spec$key,
                    paste(unknown_inert, collapse = ", ")), call. = FALSE)
     got_stage <- derive_stage_token(model_pars, any(stan_data$group == 2L),
-                                    has_vaccine_rows = any(stan_data$vaccine_id != 0L))
+                                    has_vaccine_rows = any(stan_data$vaccine_id != 0L),
+                                    has_psi_active = isTRUE(stan_data$psi_active == 1L))
     if (!identical(got_stage, spec$stage))
       stop(sprintf("tier '%s': stage token is '%s' but the registry declares '%s'.
   The .stan's parameter set changed. Update TIER_SPECS$%s$stage deliberately -- that
@@ -306,7 +356,8 @@ build_tier_data <- function(key,
                           prior_only = prior_only,
                           drop_obs = spec$drop_obs, keep_obs = spec$keep_obs,
                           individualize_darton = spec$individualize_darton,
-                          include_vaccine_arms = spec$include_vaccine_arms %||% FALSE)
+                          include_vaccine_arms = spec$include_vaccine_arms %||% FALSE,
+                          psi_active = spec$psi_active %||% FALSE)
   if (validate) validate_tier_spec(spec, base, mod, check_curve_specs = TRUE)
 
   drop_all <- union(spec$drop_obs, drop_obs)
@@ -315,7 +366,8 @@ build_tier_data <- function(key,
                           tier_col = spec$tier_col, prior_only = prior_only,
                           drop_obs = drop_all, keep_obs = keep_obs,
                           individualize_darton = spec$individualize_darton,
-                          include_vaccine_arms = spec$include_vaccine_arms %||% FALSE)
+                          include_vaccine_arms = spec$include_vaccine_arms %||% FALSE,
+                          psi_active = spec$psi_active %||% FALSE)
     if (validate && exists("validate_curve_specs") && exists("curve_specs"))
       validate_curve_specs(curve_specs(), attr(sd, "obs"))
   } else {

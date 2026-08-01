@@ -59,6 +59,19 @@
 //   (Ty21a is Vi-negative; M01ZH09 did not raise anti-Vi IgG) that each subject's own
 //   titre does not explain. beta_poisson() is unchanged (a 1-line wrapper at V=1), so
 //   none of its ~25 pre-existing call sites needed to change.
+// Update 2026-07-31 (tier2_plan.md, LOCKED): psi-correction (joint_inference_plan.md
+//   Sec 2.8) for group 4 (md_inf) definition-sensitivity: p_obs = psi(def) * P_inf.
+//   psi=1 at the broad reference (Hornick stool-or-blood); psi_stool for Levine
+//   (any-time stool); psi_late = psi_stool*frac_late for Gilman (late shedding,
+//   STRUCTURALLY <= psi_stool -- "a narrower window cannot detect more"). Anchored by
+//   a NEW decoupled sub-likelihood (psi_crosstab_*, mirrors the phi0 ladder pattern):
+//   the Darton S1 stool-vs-broad cross-tab (19/26) pins psi_stool * eta(18200) jointly
+//   -- known confound with eta, documented not resolved (tier2_plan.md). Gated by
+//   `psi_active` (data flag) + per-row `psi_def` covariate so t1-* tiers, whose md_inf
+//   rows already exist, are BIT-IDENTICAL to before (psi_active=0 -> psi factor = 1
+//   unconditionally, sub-likelihood term skipped). Restores Oxford `ox_inf` shedding
+//   (group 2, eta already implemented) for t2-indiv/t2-indiv-vax -- no grouped Tier 2
+//   config; individualized-Darton only going forward (tier2_plan.md).
 // Implements: cascaded beta-Poisson (infection x fever|infection),
 //   cross-era delta bridge, Maryland mixture, dose-dependent phi(T,D),
 //   individual-subject cascade endpoints, one beta-binomial overdispersion parameter,
@@ -99,6 +112,19 @@ functions {
     return eta_lo + (1.0 - eta_lo) * exp(-kappa * D_eff / N50_inf);
   }
 
+  // psi infection-definition sensitivity (Tier 2, joint_inference_plan.md Sec 2.8).
+  // psi_def: 0 = broad reference (Hornick stool-or-blood, psi=1), 1 = Levine
+  // any-time-stool (psi_stool), 2 = Gilman late shedding (psi_stool*frac_late,
+  // STRUCTURALLY <= psi_stool). psi_active=0 forces psi=1 for every row regardless
+  // of psi_def -- the gate that keeps t1-* tiers bit-identical (tier2_plan.md
+  // decision B); psi_def is ALSO 0 for every row at psi_active=0 (belt-and-suspenders,
+  // set on the R side).
+  real psi_factor(int psi_active, int psi_def, real psi_stool, real frac_late) {
+    if (psi_active == 0 || psi_def == 0) return 1.0;
+    else if (psi_def == 1) return psi_stool;
+    else return psi_stool * frac_late;
+  }
+
   // Low-dose definition sensitivity phi0(T): fraction of TD cases crossing the
   // strict threshold T at low dose. Monotone-decreasing in T (phi0_b >= 0),
   // logit-linear, centered at T_ref. Pinned by the Darton placebo ladder.
@@ -131,7 +157,8 @@ functions {
   // Covariates: dose (raw CFU), CoP (group-average, used by ox only),
   //             T_thresh (fever threshold in degC, md_fev/hornick only),
   //             stratum (gilman: 0=mixture, 1=susceptible, 2=immune),
-  //             vaccine_id (0=none/Placebo, 1=M01ZH09, 2=Ty21a; groups 6/7 only).
+  //             vaccine_id (0=none/Placebo, 1=M01ZH09, 2=Ty21a; groups 6/7 only),
+  //             psi_def (0=broad/none, 1=Levine stool, 2=Gilman late; group 4 only).
   // phi(T,D) is computed internally for md_fev/hornick from (phi0_a,phi0_b,
   // beta_phi,T_ref); unused covariates take harmless defaults from the caller.
   real obs_prob(int group, real dose, real CoP, real T_thresh, int stratum,
@@ -141,7 +168,8 @@ functions {
                 real delta, real pi_susc, real CoP_susc, real CoP_imm,
                 real eta_lo, real kappa,
                 real T_ref, real phi0_a, real phi0_b,
-                int vaccine_id, real V_M01ZH09, real V_Ty21a) {
+                int vaccine_id, real V_M01ZH09, real V_Ty21a,
+                int psi_def, int psi_active, real psi_stool, real frac_late) {
     if (group == 1) {                                   // ox_fev (delta=1, no mixture)
       real D = dose;
       return beta_poisson(D, N50_inf, alpha_inf, CoP, gamma_inf)
@@ -168,8 +196,9 @@ functions {
                         * beta_poisson(D, N50_fevginf, alpha_fevginf, CoP_imm, gamma_fevginf);
         return phi * (pi_susc * p_fev_susc + (1.0 - pi_susc) * p_fev_imm);
       }
-    } else if (group == 4) {                            // md_inf (delta>1, mixture)
-      return maryland_mixture(dose / delta, N50_inf, alpha_inf, gamma_inf,
+    } else if (group == 4) {                            // md_inf (delta>1, mixture, *psi)
+      real psi = psi_factor(psi_active, psi_def, psi_stool, frac_late);
+      return psi * maryland_mixture(dose / delta, N50_inf, alpha_inf, gamma_inf,
                               pi_susc, CoP_susc, CoP_imm);
     } else if (group == 5) {                            // hornick_cond: P(fever | infected)
       real D = dose / delta;
@@ -219,6 +248,12 @@ data {
   // 39.4, Levine/Gilman 38.3, T_ref elsewhere (unused where phi is not applied).
   vector<lower=0>[N_obs] T_thresh;
   real T_ref;                                  // reference threshold (Oxford composite, 38.0 degC)
+  // psi-correction (Tier 2, tier2_plan.md): 0=broad/none, 1=Levine stool, 2=Gilman
+  // late (group 4 only; 0 elsewhere). psi_active gates the whole correction so t1-*
+  // tiers are bit-identical to before this increment (set on the R side; psi_def is
+  // ALSO 0 everywhere at psi_active=0, belt-and-suspenders).
+  array[N_obs] int<lower=0, upper=2> psi_def;
+  int<lower=0, upper=1> psi_active;
 
   // ---- Darton placebo temperature ladder (identifies phi0(T)) --------------
   // Among the N_TD TD+ placebo subjects, how many crossed each strict threshold.
@@ -227,6 +262,16 @@ data {
   vector<lower=0>[N_ladder] ladder_T;          // thresholds (degC)
   array[N_ladder] int<lower=0> ladder_count;   // TD+ subjects crossing each threshold
   int<lower=0> ladder_N;                        // number of TD+ placebo subjects (denominator)
+
+  // ---- Darton stool-vs-broad cross-tab (identifies psi_stool*eta(dose) jointly) ---
+  // A decoupled binomial sub-likelihood, same pattern as the phi0 ladder above:
+  // psi_crosstab_y ~ Binomial(psi_crosstab_n, psi_stool * eta_detection(dose, ...)).
+  // Gated by psi_active (0 rows contributed / declared when psi is inactive is not
+  // possible in Stan's fixed data layout, so the TERM is skipped in the model block
+  // and the log_lik tail is sized N_obs + N_ladder + psi_active).
+  int<lower=0> psi_crosstab_y;                  // Darton placebo stool-positive (19)
+  int<lower=0> psi_crosstab_n;                  // Darton placebo bact_or_stool+ (26)
+  real<lower=0> psi_crosstab_dose;              // Darton dose (18200 CFU)
 
   // ---- Control flag --------------------------------------------------------
   int<lower=0, upper=1> prior_only;            // 1 = skip likelihood (prior predictive)
@@ -252,6 +297,8 @@ data {
   real<lower=0> pr_grand_overdispersion_rho_b;
   real pr_log_V_M01ZH09_mu;      real<lower=0> pr_log_V_M01ZH09_sd;   // normal, log scale
   real pr_log_V_Ty21a_mu;        real<lower=0> pr_log_V_Ty21a_sd;
+  real<lower=0> pr_psi_stool_a;  real<lower=0> pr_psi_stool_b;        // beta
+  real<lower=0> pr_frac_late_a;  real<lower=0> pr_frac_late_b;        // beta
 }
 
 parameters {
@@ -287,6 +334,10 @@ parameters {
   // subject's own anti-Vi titre" -- the data can move it either direction.
   real log_V_M01ZH09;
   real log_V_Ty21a;
+
+  // ---- psi-correction parameters (Tier 2, tier2_plan.md) ----
+  real<lower=0, upper=1> psi_stool;   // Levine any-time-stool sensitivity vs broad ref
+  real<lower=0, upper=1> frac_late;   // psi_late = psi_stool*frac_late (structural <=)
 }
 
 transformed parameters {
@@ -300,6 +351,9 @@ transformed parameters {
   // Per-vaccine non-anti-Vi protection factors, natural scale (+vaccine-terms).
   real<lower=0> V_M01ZH09 = exp(log_V_M01ZH09);
   real<lower=0> V_Ty21a   = exp(log_V_Ty21a);
+  // Reported psi at the Gilman (late) definition -- derived, not a free parameter
+  // (decision A, tier2_plan.md): structurally <= psi_stool.
+  real<lower=0, upper=1> psi_late = psi_stool * frac_late;
 
   // ---- lprior accumulator (priors written ONCE; hyperparameters from data) --
   // Reproduces the original three-term N50 prior exactly under the (Jacobian=1)
@@ -324,6 +378,8 @@ transformed parameters {
                                                   pr_grand_overdispersion_rho_b);
   lprior += normal_lpdf(log_V_M01ZH09 | pr_log_V_M01ZH09_mu, pr_log_V_M01ZH09_sd);
   lprior += normal_lpdf(log_V_Ty21a   | pr_log_V_Ty21a_mu,   pr_log_V_Ty21a_sd);
+  lprior += beta_lpdf(psi_stool | pr_psi_stool_a, pr_psi_stool_b);
+  lprior += beta_lpdf(frac_late | pr_frac_late_a, pr_frac_late_b);
 }
 
 model {
@@ -336,7 +392,8 @@ model {
                        gamma_inf, gamma_fevginf, delta, pi_susc,
                        CoP_susc, CoP_imm, eta_lo, kappa,
                        T_ref, phi0_a, phi0_b,
-                       vaccine_id[i], V_M01ZH09, V_Ty21a);
+                       vaccine_id[i], V_M01ZH09, V_Ty21a,
+                       psi_def[i], psi_active, psi_stool, frac_late);
       // Guard the beta_binomial's alpha/beta > 0 requirement (binomial tolerates
       // p in {0,1}; beta_binomial does not). At n=1 this is exactly binomial(1,p).
       real pc = fmin(fmax(p, 1e-12), 1.0 - 1e-12);
@@ -347,6 +404,12 @@ model {
     // NOT overdispersed -- a different sub-model than the Maryland replication rho targets).
     for (k in 1:N_ladder) {
       ladder_count[k] ~ binomial(ladder_N, phi0_fn(ladder_T[k], T_ref, phi0_a, phi0_b));
+    }
+    // Darton stool-vs-broad cross-tab -> psi_stool*eta(18200) jointly (tier2_plan.md;
+    // gated by psi_active so t1-* tiers never see this term).
+    if (psi_active == 1) {
+      psi_crosstab_y ~ binomial(psi_crosstab_n,
+                                 psi_stool * eta_detection(psi_crosstab_dose, N50_inf, eta_lo, kappa));
     }
   }
 }
@@ -359,9 +422,12 @@ generated quantities {
   // hornick_cond are one table factorized; combine them into one loo unit).
   vector[N_obs] p_pred;
   array[N_obs] int y_rep;
-  // log_lik covers the WHOLE likelihood: N_obs dose-response rows followed by the
-  // N_ladder phi0(T) threshold binomials, in that order (the layout is recorded in
-  // each run's run_manifest.json as data.log_lik_layout).
+  // log_lik covers the WHOLE likelihood: N_obs dose-response rows, then the
+  // N_ladder phi0(T) threshold binomials, then (only when psi_active) the single
+  // Darton psi cross-tab binomial -- layout recorded in each run's run_manifest.json
+  // as data.log_lik_layout. Sized N_obs + N_ladder + psi_active so the invariant
+  // target = lprior + sum(log_lik) holds exactly whether or not psi is active
+  // (mirrors the ladder-tail fix this comment already describes for phi0).
   //
   // Why the tail is here: the ladder terms contribute to `target` in the model block
   // but used to appear in NEITHER log_lik NOR lprior, so target != lprior +
@@ -370,14 +436,15 @@ generated quantities {
   // omitted the three binomials that IDENTIFY them; and loo dropped them from every
   // unit. They are genuine observations (16/10/8 of 20 TD+ Darton placebo subjects
   // crossing >=38/38.5/39 degC) and belong in both.
-  vector[N_obs + N_ladder] log_lik;
+  vector[N_obs + N_ladder + psi_active] log_lik;
   for (i in 1:N_obs) {
     p_pred[i]  = obs_prob(group[i], dose[i], CoP[i], T_thresh[i], stratum[i],
                           N50_inf, N50_fevginf, alpha_inf, alpha_fevginf,
                           gamma_inf, gamma_fevginf, delta, pi_susc,
                           CoP_susc, CoP_imm, eta_lo, kappa,
                           T_ref, phi0_a, phi0_b,
-                          vaccine_id[i], V_M01ZH09, V_Ty21a);
+                          vaccine_id[i], V_M01ZH09, V_Ty21a,
+                          psi_def[i], psi_active, psi_stool, frac_late);
     {
       real pc = fmin(fmax(p_pred[i], 1e-12), 1.0 - 1e-12);
       real a = pc * grand_concentration_k;
@@ -389,6 +456,10 @@ generated quantities {
   for (k in 1:N_ladder)
     log_lik[N_obs + k] = binomial_lpmf(ladder_count[k] | ladder_N,
                                        phi0_fn(ladder_T[k], T_ref, phi0_a, phi0_b));
+  if (psi_active == 1) {
+    log_lik[N_obs + N_ladder + 1] = binomial_lpmf(psi_crosstab_y | psi_crosstab_n,
+      psi_stool * eta_detection(psi_crosstab_dose, N50_inf, eta_lo, kappa));
+  }
 
   // ---- Reference-dose derived quantities (naive Oxford, bicarb frame) -------
   real p_inf_1e3_naive = beta_poisson(1e3, N50_inf, alpha_inf, 1.0, gamma_inf);
@@ -402,21 +473,25 @@ generated quantities {
   real p_fev_md_1e3 = obs_prob(3, 1e3, 1.0, 39.4, 0, N50_inf, N50_fevginf,
                                alpha_inf, alpha_fevginf, gamma_inf, gamma_fevginf,
                                delta, pi_susc, CoP_susc, CoP_imm, eta_lo, kappa,
-                               T_ref, phi0_a, phi0_b, 0, V_M01ZH09, V_Ty21a);
+                               T_ref, phi0_a, phi0_b, 0, V_M01ZH09, V_Ty21a,
+                               0, psi_active, psi_stool, frac_late);
   real p_fev_md_1e5 = obs_prob(3, 1e5, 1.0, 39.4, 0, N50_inf, N50_fevginf,
                                alpha_inf, alpha_fevginf, gamma_inf, gamma_fevginf,
                                delta, pi_susc, CoP_susc, CoP_imm, eta_lo, kappa,
-                               T_ref, phi0_a, phi0_b, 0, V_M01ZH09, V_Ty21a);
+                               T_ref, phi0_a, phi0_b, 0, V_M01ZH09, V_Ty21a,
+                               0, psi_active, psi_stool, frac_late);
   real p_fev_md_1e7 = obs_prob(3, 1e7, 1.0, 39.4, 0, N50_inf, N50_fevginf,
                                alpha_inf, alpha_fevginf, gamma_inf, gamma_fevginf,
                                delta, pi_susc, CoP_susc, CoP_imm, eta_lo, kappa,
-                               T_ref, phi0_a, phi0_b, 0, V_M01ZH09, V_Ty21a);
+                               T_ref, phi0_a, phi0_b, 0, V_M01ZH09, V_Ty21a,
+                               0, psi_active, psi_stool, frac_late);
 
   // Hornick Table 2 conditional prediction (phi(T,D) at Hornick 39.4)
   real p_cond_pred = obs_prob(5, 1e7, 1.0, 39.4, 0, N50_inf, N50_fevginf,
                               alpha_inf, alpha_fevginf, gamma_inf, gamma_fevginf,
                               delta, pi_susc, CoP_susc, CoP_imm, eta_lo, kappa,
-                              T_ref, phi0_a, phi0_b, 0, V_M01ZH09, V_Ty21a);
+                              T_ref, phi0_a, phi0_b, 0, V_M01ZH09, V_Ty21a,
+                              0, psi_active, psi_stool, frac_late);
 
   // ---- phi(T,D) diagnostics: low-dose asymptote phi0(T) + dose-lift at Hornick 39.4
   real phi0_38_3 = phi0_fn(38.3, T_ref, phi0_a, phi0_b);   // Levine/Gilman threshold

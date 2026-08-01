@@ -90,6 +90,38 @@ phi0_b:            { family: half_normal, mu: 0.0,  sd: 2.0 }
 eta_lo:            { family: beta,        a: 5,     b: 5 }       # ~0.5
 kappa:             { family: lognormal,   meanlog: 0.0,  sdlog: 1.0 }
 
+# ---- psi-correction parameters (Tier 2, joint_inference_plan.md Sec 2.8) ----
+# psi_stool: infection-definition sensitivity of "any-time stool positive" (Levine)
+# relative to the broad stool-or-blood reference (psi=1, Hornick). Anchored by the
+# Darton S1 cross-tab decoupled sub-likelihood -- see typhoid_dose_response.stan psi
+# crosstab term, which pins psi_stool * eta(18200) jointly.
+#
+# CORRECTION 2026-07-31 [Mike, caught mid-implementation]: joint_inference_plan.md
+# Sec 2.8 states "19 ~ binomial(26, psi_stool)" using the MARGINAL totals (19 total
+# stool_positive, 26 total bact_or_stool positive) among the 30 Darton Placebo
+# subjects. But the SUBJECT-LEVEL cross-tab (analysis_data/darton_individual_endpoints.csv)
+# shows these do not nest: only 15 of the 26 bact_or_stool+ subjects are ALSO
+# stool_positive (4 subjects have stool_positive=1 with bact_or_stool=0 AND
+# bacteremia=0 -- bact_or_stool is not a simple OR of its visible input columns in
+# this extract; source of the discrepancy not yet tracked to darton_s1_extract.R).
+# DECISION: use the true nested intersection, 15 ~ binomial(26, psi_stool) (anchor
+# ~0.58), NOT the doc's marginal 19/26 (~0.73). joint_inference_plan.md Sec 2.8 needs
+# a correction note alongside this one.
+# Prior is deliberately NOT tightly anchored on this same 15/26 (would double-count
+# the crosstab likelihood term's own information) -- weakly-informative only.
+psi_stool:         { family: beta,        a: 3,     b: 2 }       # ~0.60, weakly-informative
+# frac_late: psi_late = psi_stool * frac_late, frac_late in (0,1). Encodes "a narrower
+# detection window (Gilman 4-30d late shedding) cannot exceed a broader one (Levine
+# any-time stool)" STRUCTURALLY. No cross-tab anchors frac_late directly -- fully
+# prior-carried, same treatment as CoP_imm [joint_inference_plan.md Sec 2.8 caveat 2].
+# Sec 2.8's implied-psi corroboration table (t1 residuals) gives Levine ~0.87, Gilman
+# ~0.89 -- i.e. the RESIDUAL-implied Gilman value is not below Levine's, which is in
+# mild tension with the "narrower cannot exceed broader" assumption this parameter
+# structurally encodes. Not resolved here [flagged, honest]: those residuals come from
+# a fit with psi forced to 1 everywhere, so they're suggestive, not a clean anchor.
+# Prior centered near 1 (frac_late close to "no further loss") but left genuinely vague.
+frac_late:         { family: beta,        a: 4,     b: 1.5 }     # ~0.73, vague
+
 # ---- Overdispersion (Step 2, LOCKED 2026-07-31; cohort_random_effects_design.md) ----
 # grand_overdispersion_rho = the beta-binomial ICC (0 = exactly the binomial). Applied
 # to every flat obs_prob() row -- beta_binomial(n,p*k,(1-p)*k) is EXACTLY binomial(n,p)

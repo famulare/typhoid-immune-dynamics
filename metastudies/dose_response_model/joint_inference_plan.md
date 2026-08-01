@@ -314,6 +314,18 @@ cross-tabulation gives the exact infection analogue, measured **in the same men*
     among the 30 Darton placebo subjects:  stool_positive = 19,  bact_or_stool = 26
     => 19 ~ binomial(26, psi_stool)                       # psi_stool_hat = 0.73
 
+**CORRECTION 2026-07-31 [Mike, caught mid-implementation, tier2_plan.md]**: the 19 and
+26 above are MARGINAL totals (19 total stool_positive, 26 total bact_or_stool+ among
+the 30 Placebo subjects) and do NOT nest at the subject level. The subject-level
+cross-tab (`analysis_data/darton_individual_endpoints.csv`) shows only **15** of the
+26 bact_or_stool+ subjects are ALSO stool_positive — 4 subjects have
+`stool_positive=1` with `bact_or_stool=0` *and* `bacteremia=0`, so `bact_or_stool` is
+not a simple OR of its visible input columns in this extract (source of the
+discrepancy not yet traced to `darton_s1_extract.R`). **The implemented sub-likelihood
+uses the true nested intersection, 15 ~ binomial(26, psi_stool) (psi_stool_hat ≈
+0.58), not the marginal 19/26 (≈0.73) above.** Left uncorrected here as the record of
+what was originally proposed; the number actually in the model is 15/26.
+
 That is a direct measurement of stool-only sensitivity against the broad reference,
 and it does **not** compete with `pi_susc` / `CoP_imm` for Maryland variance — which
 was the identifiability worry. Source: `analysis_data/darton_cross_tabulation.csv`

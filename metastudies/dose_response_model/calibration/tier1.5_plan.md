@@ -251,3 +251,12 @@ Normal(0,1)); the anti-Vi-vs-cell-mediated decomposition as its own analysis que
   rather than part of the dose-response/CoP calibration.
 - **Verdict:** park unless the decomposition question is the goal. If pursued it's low-risk
   (`V_v` well-identified by its own arm) and self-contained — no threat to the existing fit.
+
+## Beyond Tier 1.5: see tier2_plan.md
+
+This document stops at `t1-indiv-vax` (stage `phi-rho-vax`). The next increment — Oxford
+`ox_inf` shedding restored (η, already implemented at C3/pre-Tier-1.5) + ψ
+infection-definition correction (`joint_inference_plan.md` Sec 2.8, adopted 2026-07-31,
+implemented 2026-07-31) — is `tier2_plan.md`, LOCKED 2026-07-31. It produces `t2-indiv`
+and `t2-indiv-vax` (stages `phi-rho-eta-psi` / `phi-rho-eta-psi-vax`); no new grouped Tier 2
+configuration is being built (Tier 2 is individualized-Darton only going forward).

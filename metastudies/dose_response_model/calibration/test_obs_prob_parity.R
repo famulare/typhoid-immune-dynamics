@@ -63,7 +63,16 @@ phi_TD_R <- function(T, D, N50i, N50f, p) {
   phi0 + (1 - phi0) * p_fev_naive
 }
 
-obs_prob_R <- function(row, p) {
+# Per-row psi factor (Tier 2, tier2_plan.md): 0=broad/none -> 1, 1=Levine stool
+# (psi_stool), 2=Gilman late (psi_stool*frac_late). psi_active=0 forces 1 regardless
+# of psi_def -- same gate as the .stan's psi_factor().
+psi_factor_R <- function(psi_def, psi_active, p) {
+  if (!isTRUE(psi_active == 1L) || is.na(psi_def) || psi_def == 0L) return(1)
+  else if (psi_def == 1L) return(p$psi_stool)
+  else return(p$psi_stool * p$frac_late)
+}
+
+obs_prob_R <- function(row, p, psi_active = 0L) {
   N50i <- 10^p$log10_N50_inf
   N50f <- 10^(p$log10_N50_inf + p$d_fev)         # reparam: log10_N50_fevginf = inf + d_fev
   delta <- 10^p$log10_delta
@@ -80,8 +89,10 @@ obs_prob_R <- function(row, p) {
     if (!is.na(st) && st == 1L) phi * pf(p$CoP_susc)
     else if (!is.na(st) && st == 2L) phi * pf(p$CoP_imm)
     else phi * (p$pi_susc * pf(p$CoP_susc) + (1 - p$pi_susc) * pf(p$CoP_imm))
-  } else if (g == 4L) {                           # md_inf
-    md_mix(row$dose_cfu / delta, N50i, p$alpha_inf, p$gamma_inf, p$pi_susc, p$CoP_susc, p$CoP_imm)
+  } else if (g == 4L) {                           # md_inf (*psi)
+    psi_def <- if ("psi_def" %in% names(row)) row$psi_def else 0L
+    psi_factor_R(psi_def, psi_active, p) *
+      md_mix(row$dose_cfu / delta, N50i, p$alpha_inf, p$gamma_inf, p$pi_susc, p$CoP_susc, p$CoP_imm)
   } else if (g == 5L) {                           # hornick_cond
     D <- row$dose_cfu / delta
     phi <- phi_TD_R(row$T_thresh, D, N50i, N50f, p)
@@ -118,22 +129,24 @@ mod <- cmdstan_model("typhoid_dose_response.stan")
 PARAM_NAMES <- c("log10_N50_inf","d_fev","alpha_inf","alpha_fevginf","gamma_inf",
                  "gamma_fevginf","log10_delta","pi_susc","CoP_imm","CoP_susc",
                  "phi0_a","phi0_b","eta_lo","kappa","grand_overdispersion_rho",
-                 "log_V_M01ZH09","log_V_Ty21a")
+                 "log_V_M01ZH09","log_V_Ty21a","psi_stool","frac_late")
 # NAMED, then indexed by PARAM_NAMES: these were positional over the name vector,
 # so a reordering of parameters{} would have silently permuted the gate's inputs.
-vecs <- lapply(list(                   # log_V_M01ZH09/log_V_Ty21a added (+vaccine-terms)
+vecs <- lapply(list(                   # log_V_M01ZH09/log_V_Ty21a added (+vaccine-terms);
+                                        # psi_stool/frac_late added (tier2_plan.md)
   c(log10_N50_inf=2.5, d_fev=0.3, alpha_inf=0.30, alpha_fevginf=0.35, gamma_inf=0.60,
     gamma_fevginf=0.90, log10_delta=3.5, pi_susc=0.65, CoP_imm=3.0, CoP_susc=1.0,
     phi0_a=1.4, phi0_b=1.8, eta_lo=0.5, kappa=1.0, grand_overdispersion_rho=0.02,
-    log_V_M01ZH09=0.3, log_V_Ty21a=0.6),
+    log_V_M01ZH09=0.3, log_V_Ty21a=0.6, psi_stool=0.6, frac_late=0.8),
   c(log10_N50_inf=2.0, d_fev=0.0, alpha_inf=0.15, alpha_fevginf=0.50, gamma_inf=0.20,
     gamma_fevginf=1.50, log10_delta=2.0, pi_susc=0.40, CoP_imm=5.0, CoP_susc=1.1,
     phi0_a=0.5, phi0_b=1.0, eta_lo=0.4, kappa=0.7, grand_overdispersion_rho=0.10,
-    log_V_M01ZH09=0.0, log_V_Ty21a=-0.4),   # d_fev=0 edge; log_V_M01ZH09=0 -> V=1 edge
+    log_V_M01ZH09=0.0, log_V_Ty21a=-0.4,    # d_fev=0 edge; log_V_M01ZH09=0 -> V=1 edge
+    psi_stool=1.0, frac_late=1.0),          # psi_stool/frac_late=1 -> psi identity edge
   c(log10_N50_inf=3.1, d_fev=1.2, alpha_inf=0.50, alpha_fevginf=0.20, gamma_inf=1.00,
     gamma_fevginf=0.30, log10_delta=4.5, pi_susc=0.80, CoP_imm=2.0, CoP_susc=0.9,
     phi0_a=2.0, phi0_b=0.5, eta_lo=0.6, kappa=1.5, grand_overdispersion_rho=0.005,
-    log_V_M01ZH09=-0.8, log_V_Ty21a=1.1)
+    log_V_M01ZH09=-0.8, log_V_Ty21a=1.1, psi_stool=0.35, frac_late=0.5)
 ), function(v) v[PARAM_NAMES])
 truth <- posterior::as_draws_matrix(do.call(rbind, lapply(vecs, function(v) setNames(v, PARAM_NAMES))))
 
@@ -238,9 +251,16 @@ cases <- c(
 )
 
 
+psi_crosstab <- darton_psi_crosstab("dose_response_data.csv")
 for (nm in names(cases)) {
   rows <- cases[[nm]]
-  sd_c <- stan_data_from_rows(rows, priors, ladder, T_ref = T_REF)
+  # psi_active (tier2_plan.md): the "grid" case predates psi_def entirely (0 always,
+  # harmless); real tier cases carry psi_def from build_tier_data()'s pipeline, which
+  # is nonzero only when that tier's spec$psi_active is TRUE.
+  psi_def_c <- if ("psi_def" %in% names(rows)) rows$psi_def else 0L
+  psi_active_c <- as.integer("psi_def" %in% names(rows) && any(rows$psi_def != 0, na.rm = TRUE))
+  sd_c <- stan_data_from_rows(rows, priors, ladder, psi_crosstab = psi_crosstab,
+                              T_ref = T_REF, psi_active = psi_active_c)
   gq_c <- mod$generate_quantities(fitted_params = truth, data = sd_c, seed = 1)
   p_s  <- posterior::as_draws_matrix(gq_c$draws("p_pred"))
   grp  <- as.integer(.GROUP_CODE[rows$likelihood_group])
@@ -249,14 +269,15 @@ for (nm in names(cases)) {
   for (di in seq_len(nrow(p_s))) {
     p_mm <- as.vector(mm_obs_prob(grp, rows$dose_cfu, rows$CoP, rows$T_thresh,
                                   rows$gilman_stratum, par_bundles[[di]],
-                                  vaccine_id = rows$vaccine_id))
+                                  vaccine_id = rows$vaccine_id,
+                                  psi_def = psi_def_c, psi_active = psi_active_c))
     d_mm <- max(d_mm, max(abs(p_s[di, ] - p_mm)))
     # obs_prob_R() now covers all 7 groups including ox_inf, so eta gets the same
     # THREE-implementation check (Stan / model_math / independent R) as every other
     # branch. It previously had only two, on exactly the branch Tier 2 turns on.
     pl <- as.list(vecs[[di]])
-    r  <- rows; r$group <- grp
-    p_rr <- vapply(seq_len(nrow(r)), function(i) obs_prob_R(r[i, ], pl), numeric(1))
+    r  <- rows; r$group <- grp; r$psi_def <- psi_def_c
+    p_rr <- vapply(seq_len(nrow(r)), function(i) obs_prob_R(r[i, ], pl, psi_active = psi_active_c), numeric(1))
     d_rr <- max(d_rr, max(abs(p_rr - p_mm)))
   }
   cat(sprintf("model_math parity [%s: %d rows x %d param vectors]\n", nm, nrow(rows), nrow(p_s)))

@@ -28,7 +28,8 @@
 MM_RAW_PARS <- c("log10_N50_inf", "d_fev", "alpha_inf", "alpha_fevginf",
                  "gamma_inf", "gamma_fevginf", "log10_delta", "pi_susc",
                  "CoP_imm", "CoP_susc", "phi0_a", "phi0_b", "eta_lo", "kappa",
-                 "grand_overdispersion_rho", "log_V_M01ZH09", "log_V_Ty21a")
+                 "grand_overdispersion_rho", "log_V_M01ZH09", "log_V_Ty21a",
+                 "psi_stool", "frac_late")
 
 # ---- shape helpers -----------------------------------------------------------
 
@@ -78,6 +79,9 @@ mm_pars <- function(raw, T_ref = 38.0) {
   # Per-vaccine non-anti-Vi protection factors, natural scale (+vaccine-terms).
   p$V_M01ZH09 <- exp(p$log_V_M01ZH09)
   p$V_Ty21a   <- exp(p$log_V_Ty21a)
+  # psi_late = psi_stool*frac_late (tier2_plan.md decision A), mirrors the .stan's
+  # transformed parameters{}.
+  p$psi_late  <- p$psi_stool * p$frac_late
   p$.ndraws <- length(p$log10_N50_inf)
   p$.draw   <- seq_len(p$.ndraws)
   p$T_ref   <- T_ref
@@ -104,7 +108,7 @@ mm_thin <- function(p, ndraw, seed = 1) {
   idx <- unique(pmin(n, round(seq(1, n, length.out = ndraw)) + off))
   q <- p
   for (nm in c(MM_RAW_PARS, "log10_N50_fevginf", "N50_inf", "N50_fevginf", "delta",
-              "grand_concentration_k", "V_M01ZH09", "V_Ty21a", ".draw"))
+              "grand_concentration_k", "V_M01ZH09", "V_Ty21a", "psi_late", ".draw"))
     q[[nm]] <- p[[nm]][idx]
   q$.ndraws <- length(idx)
   q
@@ -234,6 +238,22 @@ mm_eta <- function(D_eff, p) {
                               mm_by_grid(D_eff, nd, ng) / mm_by_draw(p$N50_inf, nd, ng))
 }
 
+#' psi infection-definition sensitivity (Tier 2, tier2_plan.md), mirrors Stan's
+#' psi_factor(). psi_def: 0=broad/none, 1=Levine stool, 2=Gilman late. psi_active=0
+#' forces psi=1 regardless of psi_def -- the gate that keeps t1-* tiers bit-identical.
+mm_psi_factor <- function(psi_def, psi_active, p) {
+  nd <- p$.ndraws; ng <- .mm_ng(nd, psi_def)
+  psi_def <- mm_by_grid(as.integer(psi_def), nd, ng)
+  out <- matrix(1, nd, ng)
+  if (isTRUE(psi_active) || identical(psi_active, 1L)) {
+    psi_stool <- mm_by_draw(p$psi_stool, nd, ng)
+    psi_late  <- mm_by_draw(p$psi_late, nd, ng)
+    out[psi_def == 1] <- psi_stool[psi_def == 1]
+    out[psi_def == 2] <- psi_late[psi_def == 2]
+  }
+  out
+}
+
 # ---- the mirror: obs_prob() dispatch -----------------------------------------
 
 #' Per-observation binomial success probability, mirroring obs_prob() exactly.
@@ -241,17 +261,23 @@ mm_eta <- function(D_eff, p) {
 #' @param vaccine_id 0=none/Placebo, 1=M01ZH09, 2=Ty21a (+vaccine-terms; groups 6/7 only).
 #'   Kept LAST (after `p`, with a default) so every pre-existing positional call site
 #'   -- `mm_obs_prob(group, dose, CoP, T_thresh, stratum, p)` -- is unaffected.
+#' @param psi_def 0=broad/none, 1=Levine stool, 2=Gilman late (group 4 only,
+#'   tier2_plan.md). psi_active gates the whole correction (0 = psi forced to 1
+#'   everywhere, t1-* behavior).
 #' @return ndraws x N_obs matrix, column order = the order of `group`
-mm_obs_prob <- function(group, dose, CoP, T_thresh, stratum, p, vaccine_id = 0L) {
+mm_obs_prob <- function(group, dose, CoP, T_thresh, stratum, p, vaccine_id = 0L,
+                        psi_def = 0L, psi_active = 0L) {
   nd <- p$.ndraws
   ng <- max(length(group), length(dose), length(CoP), length(T_thresh), length(stratum),
-           length(vaccine_id))
+           length(vaccine_id), length(psi_def))
   rep_to <- function(x) if (length(x) == 1L) rep(x, ng) else x
   group <- as.integer(rep_to(group)); dose <- rep_to(dose); CoP <- rep_to(CoP)
   T_thresh <- rep_to(T_thresh); stratum <- as.integer(rep_to(stratum))
   vaccine_id <- as.integer(rep_to(vaccine_id))
+  psi_def <- as.integer(rep_to(psi_def))
   stopifnot(length(group) == ng, length(dose) == ng, length(CoP) == ng,
-            length(T_thresh) == ng, length(stratum) == ng, length(vaccine_id) == ng)
+            length(T_thresh) == ng, length(stratum) == ng, length(vaccine_id) == ng,
+            length(psi_def) == ng)
 
   out <- matrix(NA_real_, nd, ng)
   D_ox <- mm_by_grid(dose, nd, ng)                                # delta = 1
@@ -270,8 +296,9 @@ mm_obs_prob <- function(group, dose, CoP, T_thresh, stratum, p, vaccine_id = 0L)
   j <- which(g == 7L)                                             # ox_fevginf_indiv (+vaccine V)
   if (length(j)) out[, j] <- mm_p_fevginf_vax(sel(D_ox, j), sel(CoPm, j),
                                               mm_vaccine_V(vaccine_id[j], p), p)
-  j <- which(g == 4L)                                             # md_inf
-  if (length(j)) out[, j] <- mm_md_mix(sel(D_md, j), p, "inf")
+  j <- which(g == 4L)                                             # md_inf (*psi)
+  if (length(j)) out[, j] <- mm_psi_factor(psi_def[j], psi_active, p) *
+                             mm_md_mix(sel(D_md, j), p, "inf")
 
   j <- which(g == 3L)                                             # md_fev
   if (length(j)) {

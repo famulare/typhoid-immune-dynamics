@@ -3,7 +3,7 @@
 # Tier ladder — generated from tier_specs.R
 
 Generated 2026-07-31 from `tier_specs.R` + `dose_response_data.csv` +
-`../analysis_data/darton_individual_endpoints.csv` at git `0b9ea70`.
+`../analysis_data/darton_individual_endpoints.csv` at git `e31dcf5`.
 
 Counts are **computed** by calling `build_stan_data()` for each spec and counting
 the rows it returns; the generator hard-errors when a computed count disagrees
@@ -17,7 +17,8 @@ states a tier observation count.**
 | t1-indiv     | tier1_active | TRUE         |  80          | 24           |  56          | phi-rho      | runnable     |
 | t1-indiv-vax | tier1_active | TRUE         | 177          | 24           | 153          | phi-rho-vax  | runnable     |
 | t2-grouped   | tier2_active | FALSE        |  31          | 31           |   0          | phi-rho-eta  | blocked      |
-| t2-indiv     | tier2_active | TRUE         |  85          | 29           |  56          | phi-rho-eta  | blocked      |
+| t2-indiv        | tier2_active    | TRUE            |  85             | 29              |  56             | phi-rho-eta-psi | runnable        |
+| t2-indiv-vax        | tier2_active        | TRUE                | 182                 | 29                  | 153                 | phi-rho-eta-psi-vax | runnable            |
 
 ## Likelihood groups per tier
 
@@ -28,6 +29,7 @@ states a tier observation count.**
 | t1-indiv-vax                                                                   | hornick_cond=1 md_fev=11 md_inf=6 ox_fev=6 ox_fevginf_indiv=63 ox_inf_indiv=90 |
 | t2-grouped                                          | hornick_cond=1 md_fev=11 md_inf=6 ox_fev=7 ox_inf=6 |
 | t2-indiv                                                                                | hornick_cond=1 md_fev=11 md_inf=6 ox_fev=6 ox_fevginf_indiv=26 ox_inf=5 ox_inf_indiv=30 |
+| t2-indiv-vax                                                                            | hornick_cond=1 md_fev=11 md_inf=6 ox_fev=6 ox_fevginf_indiv=63 ox_inf=5 ox_inf_indiv=90 |
 
 ## Run directories
 
@@ -37,7 +39,8 @@ states a tier observation count.**
 | t1-indiv                  | results/t1-indiv__phi-rho |
 | t1-indiv-vax                      | results/t1-indiv-vax__phi-rho-vax |
 | t2-grouped                      | results/t2-grouped__phi-rho-eta |
-| t2-indiv                      | results/t2-indiv__phi-rho-eta |
+| t2-indiv                          | results/t2-indiv__phi-rho-eta-psi |
+| t2-indiv-vax                              | results/t2-indiv-vax__phi-rho-eta-psi-vax |
 
 ## Naming rule
 
@@ -65,24 +68,13 @@ not by renaming.
 
 **`t2-grouped`** — Tier 2 rows (+Oxford shedding), Darton placebo grouped
 
-> SCIENTIFIC DECISION, not a code defect. (a) eta Option A (parametric eta_lo/kappa, what
-> the .stan implements) vs Option C (fixed eta_fixed_optC, a CSV column no code reads) is
-> undecided; eta_detection() is monotone DECREASING in dose while eta_fixed_optC is
-> non-monotone (1.00@1e3, 0.62@1e4, 0.94@1.82e4, 0.92@2e4). Because eta multiplies P_inf
-> and shares N50_inf in its exponent, a misfit moves the BIOLOGICAL parameters instead of
-> failing visibly. (b) ../joint_inference_plan.md Sec 2.6 EXCLUDES Oxford shedding on
-> treatment-truncation grounds while the Tier 2 design restores it with eta -- unresolved
-> tension. (c) psi (Sec 2.8, adopted 34aac76) is unimplemented, and psi_stool is
-> confounded with eta at the single Darton dose. Unblock deliberately with allow_blocked =
-> TRUE.
-> 
-
-**`t2-indiv`** — Tier 2 rows (+Oxford shedding), Darton placebo individualized
-
-> Everything blocking t2-grouped, plus: Darton contributes no group-2 row here (the
-> grouped D-I-plac is dropped as a double count of the 30 ox_inf_indiv rows for the same
-> volunteers), so eta is identified by 5 rows -- W-I-3/4 and the three Jin arms. N_obs 85
-> = 86 - 1 for that drop.
+> RETIRED 2026-07-31 [Mike, tier2_plan.md]: Tier 2 is individualized-Darton only going
+> forward -- no new grouped configuration will be built. Kept in the registry (not
+> deleted) so the reason stays visible, same principle as every other blocked/retired
+> rung. The grouped-vs-individualized contrast this entry existed for is already made by
+> t1-grouped vs t1-indiv; t2-grouped would only duplicate that contrast one increment
+> later. See t2-indiv / t2-indiv-vax for the live Tier 2 configurations (eta + psi
+> implemented, tier2_plan.md).
 > 
 
 `fit_tier.R` refuses a blocked configuration unless `--allow-blocked` is passed.

@@ -13,8 +13,10 @@ this file disagrees with it.
 |---|---|---|
 | `t1-grouped` | Darton placebo as one grouped binomial (`D-F-plac`) | **runnable** — the diagnostic contrast for what individualizing Darton buys |
 | `t1-indiv` | Darton placebo individualized into per-subject infection + fever\|infection rows (issue [#15](https://github.com/famulare/typhoid-immune-dynamics/issues/15), `tier1.5_plan.md`) | **RUNNABLE — this is the fit** |
-| `t1-indiv` + ρ | one beta-binomial overdispersion parameter, `grand_overdispersion_rho` (Step 2 below) | designed, LOCKED, **not implemented** |
-| `t2-grouped` / `t2-indiv` | Oxford grouped shedding rows + η | **declared and BLOCKED** — one mechanical defect and two open scientific questions; see TIER_LADDER.md |
+| `t1-indiv` + ρ | one beta-binomial overdispersion parameter, `grand_overdispersion_rho` (Step 2 below) | **IMPLEMENTED** (LOCKED 2026-07-31, `cohort_random_effects_design.md`) — active in every tier's stage token |
+| `t1-indiv-vax` | +vaccine-terms: M01ZH09 + Ty21a individualized, per-vaccine non-anti-Vi protection factor (`tier1.5_plan.md`) | **runnable** |
+| `t2-indiv` / `t2-indiv-vax` | Oxford `ox_inf` shedding restored + η (Option A) + ψ infection-definition correction (`tier2_plan.md`) | **runnable** (unblocked 2026-07-31; accepted-not-resolved confounds documented, not fixed) — see TIER_LADDER.md |
+| `t2-grouped` | grouped-Darton analogue of `t2-indiv` | **RETIRED** 2026-07-31 — Tier 2 is individualized-Darton only going forward, no new grouped configuration |
 
 Historical note: this ladder was previously written as "Step 1 / 1.5 / 2 / 3" with
 `phi_md` as a live parameter and Tier 1 stated as 25 observations. `phi_md` was retired
