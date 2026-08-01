@@ -12,8 +12,9 @@
 #' itself. A third axis -- the parameter set -- moves at every increment, so it is
 #' the run dir's STAGE token, derived from the .stan and asserted, never typed.
 #'
-#' See TIER_LADDER.md -- generated from this file: counts, the naming rule, and each
-#' blocked configuration's reason.
+#' See TIER_LADDER.md -- generated from this file: counts, the naming rule, and the
+#' discoverable runnable rebuild ladder. Retired entries remain in this registry for
+#' historical provenance and explicit refusal behavior.
 
 if (!exists("calib_dir")) source("utils.R")
 if (!exists("MM_RAW_PARS")) source("model_math.R")
@@ -248,6 +249,12 @@ tier_keys <- function(status = NULL) {
   ks[vapply(ks, function(k) TIER_SPECS[[k]]$status_declared %in% status, logical(1))]
 }
 
+#' Tiers exposed by the fresh-clone CLI and generated ladder.
+#'
+#' Retired/blocked entries remain in TIER_SPECS so their historical decision and
+#' refusal reason are preserved, but they are not part of the rebuild surface.
+discoverable_tier_keys <- function() tier_keys(status = "runnable")
+
 tier_report_pars <- function(spec)
   setdiff(c(MM_RAW_PARS, DERIVED_REPORT_PARS), spec$inert_pars)
 
@@ -429,6 +436,7 @@ validate_all_tiers <- function(data_csv = "dose_response_data.csv", stanc = TRUE
 write_tier_ladder_md <- function(path = "TIER_LADDER.md",
                                  data_csv = "dose_response_data.csv") {
   tab <- validate_all_tiers(data_csv, stanc = TRUE, quiet = TRUE)
+  visible <- tab[tab$status == "runnable", , drop = FALSE]
   sha <- tryCatch(sub("\\s.*$", "", system2("git", c("rev-parse", "--short", "HEAD"),
                                             stdout = TRUE, stderr = FALSE)),
                   error = function(e) "unknown")
@@ -446,15 +454,15 @@ write_tier_ladder_md <- function(path = "TIER_LADDER.md",
     "data is wrong — fix it there and regenerate. **No other document in this repo",
     "states a tier observation count.**",
     "",
-    paste(knitr_table(tab[, c("key", "tier_col", "individualize_darton", "N_obs",
+    paste(knitr_table(visible[, c("key", "tier_col", "individualize_darton", "N_obs",
                               "grouped", "individual", "stage", "status")]),
           collapse = "\n"),
     "",
     "## Likelihood groups per tier", "",
-    paste(knitr_table(tab[, c("key", "groups")]), collapse = "\n"),
+    paste(knitr_table(visible[, c("key", "groups")]), collapse = "\n"),
     "",
     "## Run directories", "",
-    paste(knitr_table(tab[, c("key", "run_dir")]), collapse = "\n"),
+    paste(knitr_table(visible[, c("key", "run_dir")]), collapse = "\n"),
     "",
     "## Naming rule", "",
     "A configuration is named by its DATA switches and nothing else:",
@@ -477,15 +485,9 @@ write_tier_ladder_md <- function(path = "TIER_LADDER.md",
     "stage, runs are distinguished by `run_manifest.json` (git SHA, input hashes, seeds),",
     "not by renaming.",
     "",
-    "## Blocked configurations", "",
-    unlist(lapply(tier_keys(), function(k) {
-      s <- tier_spec(k)
-      if (identical(s$status_declared, "runnable")) return(NULL)
-      c(sprintf("**`%s`** — %s", k, s$label), "",
-        paste0("> ", gsub("(.{1,88})(\\s|$)", "\\1\n> ", s$blocked_reason)), "")
-    })),
-    "`fit_tier.R` refuses a blocked configuration unless `--allow-blocked` is passed.",
-    "`Rscript fit_tier.R --list` prints this table and these reasons from the registry.",
+    "Retired/blocked registry entries are retained in `tier_specs.R` for history,",
+    "but are intentionally omitted from this discoverable rebuild ladder.",
+    "`Rscript fit_tier.R --list` prints exactly the runnable tiers shown here.",
     "")
   writeLines(L, path)
   message("wrote ", path)

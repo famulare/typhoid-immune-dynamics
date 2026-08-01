@@ -6,11 +6,11 @@
 #' this file -- declares the row set (`tier_col`), the Darton representation
 #' (`individualize_darton`), the expected observation count, which parameters are
 #' reported vs INERT, the model stage token, and the output directory. Default spec:
-#' `t1-indiv`. Counts, the naming rule and each blocked configuration's reason:
+#' `t2-indiv-vax`. Counts and the naming rule for the discoverable rebuild ladder:
 #' TIER_LADDER.md (generated from the registry).
 #'
-#' This file names no tier as a literal and hardcodes no parameter list. Its
-#' predecessor (fit_dose_response.R) did both, and its header claimed "the 25
+#' Apart from the preferred default below, this file names no tier as a literal and
+#' hardcodes no parameter list. Its predecessor (fit_dose_response.R) did both, and its header claimed "the 25
 #' tier1_active observations" while fitting 80 -- because build_stan_data() defaults
 #' to individualize_darton = TRUE and nothing overrode it.
 #'
@@ -23,16 +23,15 @@
 #' retired at C3 (d1880a8), replaced by `phi0_a`/`phi0_b`.
 #'
 #' Usage:
-#'   Rscript fit_tier.R                      # default spec (t1-indiv)
+#'   Rscript fit_tier.R                      # default spec (t2-indiv-vax)
 #'   Rscript fit_tier.R t1-grouped
-#'   Rscript fit_tier.R --list               # the registry, with blocked reasons
-#'   Rscript fit_tier.R t2-grouped --allow-blocked
+#'   Rscript fit_tier.R --list               # the discoverable rebuild ladder
 #'   Rscript fit_tier.R t1-indiv --quick     # short chains, for a plumbing check
 
 suppressPackageStartupMessages({library(cmdstanr); library(posterior)})
 if (!exists("calib_dir")) source("utils.R")
 
-DEFAULT_TIER <- "t1-indiv"
+DEFAULT_TIER <- "t2-indiv-vax"
 
 #' Fit one tier: prior predictive + posterior + diagnostics + figure suite.
 #'
@@ -119,7 +118,7 @@ fit_tier <- function(key = DEFAULT_TIER,
 
 #' The registry as a table -- the "declare a tier without running it" surface.
 list_tiers <- function(mod = NULL) {
-  rows <- do.call(rbind, lapply(tier_keys(), function(k) {
+  rows <- do.call(rbind, lapply(discoverable_tier_keys(), function(k) {
     s <- tier_spec(k)
     data.frame(key = k, tier_col = s$tier_col,
                indiv = s$individualize_darton, N_obs = s$expect$N_obs,
@@ -127,11 +126,8 @@ list_tiers <- function(mod = NULL) {
                run_dir = tier_out_dir(s), stringsAsFactors = FALSE)
   }))
   cat("\n", paste(knitr_table(rows), collapse = "\n"), "\n", sep = "")
-  blocked <- Filter(function(k) tier_status(tier_spec(k), mod) == "blocked", tier_keys())
-  for (k in blocked)
-    cat(sprintf("\n%s is BLOCKED:\n  %s\n", k,
-                gsub("(.{1,76})(\\s|$)", "\\1\n  ", tier_spec(k)$blocked_reason)))
-  cat("\nCounts, naming rule and blocked reasons are generated into TIER_LADDER.md.\n")
+  cat("\nThis is the discoverable rebuild ladder. Retired/blocked registry entries are\n",
+      "kept in tier_specs.R for history but omitted here.\n")
   invisible(rows)
 }
 
