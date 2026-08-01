@@ -265,11 +265,17 @@ plot_prior_posterior <- function(fit, out_dir, priors, true_params = NULL,
   indiv <- dplyr::filter(base, level == "individual")
   if (!nrow(indiv)) return(dplyr::select(base, -.row))
 
+  # cohort_id in the grouping (+vaccine-terms, 2026-07-31): Darton's Placebo/M01ZH09/
+  # Ty21a individual rows share study/likelihood_group/group/dose_cfu (same trial, same
+  # 18200 CFU challenge), so without cohort_id they would POOL across arms into one
+  # misleading point despite being mechanistically different (vaccine vs none). Adding
+  # it is a no-op for every pre-existing single-cohort case (Darton placebo was already
+  # one cohort_id).
   pooled <- indiv |>
-    dplyr::group_by(study, likelihood_group, group, dose_cfu) |>
+    dplyr::group_by(study, likelihood_group, group, dose_cfu, cohort_id) |>
     dplyr::mutate(cop_bin = .ppc_quantile_bins(CoP, indiv_bins, indiv_bin_min),
                   .n_bin = max(cop_bin)) |>
-    dplyr::group_by(study, likelihood_group, group, dose_cfu, cop_bin) |>
+    dplyr::group_by(study, likelihood_group, group, dose_cfu, cohort_id, cop_bin) |>
     dplyr::group_modify(function(g, key) {
       w <- g$n / sum(g$n)
       qq <- stats::quantile(as.numeric(pp[, g$.row, drop = FALSE] %*% w),

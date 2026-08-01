@@ -28,7 +28,7 @@
 MM_RAW_PARS <- c("log10_N50_inf", "d_fev", "alpha_inf", "alpha_fevginf",
                  "gamma_inf", "gamma_fevginf", "log10_delta", "pi_susc",
                  "CoP_imm", "CoP_susc", "phi0_a", "phi0_b", "eta_lo", "kappa",
-                 "grand_overdispersion_rho")
+                 "grand_overdispersion_rho", "log_V_M01ZH09", "log_V_Ty21a")
 
 # ---- shape helpers -----------------------------------------------------------
 
@@ -75,6 +75,9 @@ mm_pars <- function(raw, T_ref = 38.0) {
   p$delta             <- 10^p$log10_delta
   # beta-binomial concentration (Step 2); mirrors the .stan's transformed parameters{}.
   p$grand_concentration_k <- (1 - p$grand_overdispersion_rho) / p$grand_overdispersion_rho
+  # Per-vaccine non-anti-Vi protection factors, natural scale (+vaccine-terms).
+  p$V_M01ZH09 <- exp(p$log_V_M01ZH09)
+  p$V_Ty21a   <- exp(p$log_V_Ty21a)
   p$.ndraws <- length(p$log10_N50_inf)
   p$.draw   <- seq_len(p$.ndraws)
   p$T_ref   <- T_ref
@@ -101,7 +104,7 @@ mm_thin <- function(p, ndraw, seed = 1) {
   idx <- unique(pmin(n, round(seq(1, n, length.out = ndraw)) + off))
   q <- p
   for (nm in c(MM_RAW_PARS, "log10_N50_fevginf", "N50_inf", "N50_fevginf", "delta",
-              "grand_concentration_k", ".draw"))
+              "grand_concentration_k", "V_M01ZH09", "V_Ty21a", ".draw"))
     q[[nm]] <- p[[nm]][idx]
   q$.ndraws <- length(idx)
   q
@@ -109,12 +112,17 @@ mm_thin <- function(p, ndraw, seed = 1) {
 
 # ---- kernels (mirror of typhoid_dose_response.stan functions{}) --------------
 
-#' beta_poisson(): P = 1 - (1 + D_eff*(2^(1/alpha)-1)/N50)^(-alpha/CoP^gamma)
-#' Elementwise and shape-free, so it reads exactly like the Stan one-liner.
-mm_bp <- function(D_eff, N50, alpha, CoP, gamma) {
+#' beta_poisson_vax(): P = 1 - (1+D_eff*(2^(1/alpha)-1)/N50)^(-alpha/(CoP^gamma * V))
+#' (+vaccine-terms). V=1 recovers mm_bp() exactly. Elementwise and shape-free.
+mm_bp_vax <- function(D_eff, N50, alpha, CoP, gamma, V) {
   scale <- (2^(1 / alpha) - 1) / N50
-  1 - (1 + D_eff * scale)^(-alpha / CoP^gamma)
+  1 - (1 + D_eff * scale)^(-alpha / (CoP^gamma * V))
 }
+
+#' beta_poisson(): P = 1 - (1 + D_eff*(2^(1/alpha)-1)/N50)^(-alpha/CoP^gamma)
+#' A 1-line wrapper at V=1, mirroring the .stan's own beta_poisson()/beta_poisson_vax()
+#' split -- every pre-existing caller of mm_bp() is untouched by +vaccine-terms.
+mm_bp <- function(D_eff, N50, alpha, CoP, gamma) mm_bp_vax(D_eff, N50, alpha, CoP, gamma, 1)
 
 #' phi0(T) = inv_logit(phi0_a - phi0_b*(T - T_ref)); low-dose definition sensitivity.
 mm_phi0 <- function(T, p) {
@@ -150,6 +158,37 @@ mm_p_fevginf <- function(D_eff, CoP = 1, p) {
 
 #' The cascade product P_inf x P_fev|inf (= obs_prob group 1, ox_fev).
 mm_p_fev <- function(D_eff, CoP = 1, p) mm_p_inf(D_eff, CoP, p) * mm_p_fevginf(D_eff, CoP, p)
+
+#' Per-observation additional protection factor V (+vaccine-terms): 0=none/Placebo -> 1,
+#' 1=M01ZH09, 2=Ty21a. `vaccine_id` is grid-indexed (constant across draws) while
+#' V_M01ZH09/V_Ty21a are draw-indexed, so this returns the full ndraws x length(vaccine_id)
+#' selection directly (mm_by_grid/mm_by_draw's matrix passthrough then treats it as
+#' already-conformed).
+mm_vaccine_V <- function(vaccine_id, p) {
+  nd <- p$.ndraws; ng <- length(vaccine_id)
+  V <- matrix(1, nd, ng)
+  j <- which(vaccine_id == 1L); if (length(j)) V[, j] <- p$V_M01ZH09
+  j <- which(vaccine_id == 2L); if (length(j)) V[, j] <- p$V_Ty21a
+  V
+}
+
+#' P_inf with an additional vaccine protection factor V (+vaccine-terms). V=1 recovers
+#' mm_p_inf() exactly. Used only by mm_obs_prob()'s group 6 (ox_inf_indiv).
+mm_p_inf_vax <- function(D_eff, CoP, V, p) {
+  nd <- p$.ndraws; ng <- .mm_ng(nd, D_eff, CoP, V)
+  mm_bp_vax(mm_by_grid(D_eff, nd, ng), mm_by_draw(p$N50_inf, nd, ng),
+           mm_by_draw(p$alpha_inf, nd, ng), mm_by_grid(CoP, nd, ng),
+           mm_by_draw(p$gamma_inf, nd, ng), mm_by_grid(V, nd, ng))
+}
+
+#' P_fev|inf with an additional vaccine protection factor V (+vaccine-terms). V=1
+#' recovers mm_p_fevginf() exactly. Used only by mm_obs_prob()'s group 7 (ox_fevginf_indiv).
+mm_p_fevginf_vax <- function(D_eff, CoP, V, p) {
+  nd <- p$.ndraws; ng <- .mm_ng(nd, D_eff, CoP, V)
+  mm_bp_vax(mm_by_grid(D_eff, nd, ng), mm_by_draw(p$N50_fevginf, nd, ng),
+           mm_by_draw(p$alpha_fevginf, nd, ng), mm_by_grid(CoP, nd, ng),
+           mm_by_draw(p$gamma_fevginf, nd, ng), mm_by_grid(V, nd, ng))
+}
 
 #' One Maryland mixture component evaluated at CoP_susc or CoP_imm.
 #' layer: "inf" = P_inf, "fevginf" = P_fev|inf, "fev" = their product.
@@ -199,15 +238,20 @@ mm_eta <- function(D_eff, p) {
 
 #' Per-observation binomial success probability, mirroring obs_prob() exactly.
 #' Covariates are per-observation (grid-indexed, length 1 or N_obs).
+#' @param vaccine_id 0=none/Placebo, 1=M01ZH09, 2=Ty21a (+vaccine-terms; groups 6/7 only).
+#'   Kept LAST (after `p`, with a default) so every pre-existing positional call site
+#'   -- `mm_obs_prob(group, dose, CoP, T_thresh, stratum, p)` -- is unaffected.
 #' @return ndraws x N_obs matrix, column order = the order of `group`
-mm_obs_prob <- function(group, dose, CoP, T_thresh, stratum, p) {
+mm_obs_prob <- function(group, dose, CoP, T_thresh, stratum, p, vaccine_id = 0L) {
   nd <- p$.ndraws
-  ng <- max(length(group), length(dose), length(CoP), length(T_thresh), length(stratum))
+  ng <- max(length(group), length(dose), length(CoP), length(T_thresh), length(stratum),
+           length(vaccine_id))
   rep_to <- function(x) if (length(x) == 1L) rep(x, ng) else x
   group <- as.integer(rep_to(group)); dose <- rep_to(dose); CoP <- rep_to(CoP)
   T_thresh <- rep_to(T_thresh); stratum <- as.integer(rep_to(stratum))
+  vaccine_id <- as.integer(rep_to(vaccine_id))
   stopifnot(length(group) == ng, length(dose) == ng, length(CoP) == ng,
-            length(T_thresh) == ng, length(stratum) == ng)
+            length(T_thresh) == ng, length(stratum) == ng, length(vaccine_id) == ng)
 
   out <- matrix(NA_real_, nd, ng)
   D_ox <- mm_by_grid(dose, nd, ng)                                # delta = 1
@@ -220,10 +264,12 @@ mm_obs_prob <- function(group, dose, CoP, T_thresh, stratum, p) {
   if (length(j)) out[, j] <- mm_p_fev(sel(D_ox, j), sel(CoPm, j), p)
   j <- which(g == 2L)                                             # ox_inf (eta x P_inf)
   if (length(j)) out[, j] <- mm_eta(sel(D_ox, j), p) * mm_p_inf(sel(D_ox, j), sel(CoPm, j), p)
-  j <- which(g == 6L)                                             # ox_inf_indiv
-  if (length(j)) out[, j] <- mm_p_inf(sel(D_ox, j), sel(CoPm, j), p)
-  j <- which(g == 7L)                                             # ox_fevginf_indiv
-  if (length(j)) out[, j] <- mm_p_fevginf(sel(D_ox, j), sel(CoPm, j), p)
+  j <- which(g == 6L)                                             # ox_inf_indiv (+vaccine V)
+  if (length(j)) out[, j] <- mm_p_inf_vax(sel(D_ox, j), sel(CoPm, j),
+                                          mm_vaccine_V(vaccine_id[j], p), p)
+  j <- which(g == 7L)                                             # ox_fevginf_indiv (+vaccine V)
+  if (length(j)) out[, j] <- mm_p_fevginf_vax(sel(D_ox, j), sel(CoPm, j),
+                                              mm_vaccine_V(vaccine_id[j], p), p)
   j <- which(g == 4L)                                             # md_inf
   if (length(j)) out[, j] <- mm_md_mix(sel(D_md, j), p, "inf")
 

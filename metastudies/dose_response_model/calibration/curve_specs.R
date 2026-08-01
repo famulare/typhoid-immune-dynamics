@@ -64,6 +64,15 @@ curve_specs <- function(era_dose_range = list(oxford = c(1e2, 1e6),
     "ox_naive",       "Waddington + Gibani",   "^(W-[FI]-|G20-)",        "naive",                     "fixed",       1.00,  0L,       NA,         "stool shedding",
     "ox_darton_plac", "Darton",                "^D-(I|FgI)-plac-",       "placebo, per-subject anti-Vi", "individual", NA,   0L,       NA,         "bacteraemia or stool",
     "ox_darton_plac_grp", "Darton",            "^D-[FI]-plac$",          "placebo, cohort GMT anti-Vi", "fixed",      1.98,  0L,       NA,         "stool shedding (grouped)",
+    # +vaccine-terms (2026-07-31): M01ZH09/Ty21a individualized the SAME way as
+    # placebo (own anti-Vi titre). The drawn CURVE here is the titre-only reference
+    # (cop_mode "individual" -> mm_curve() calls plain mm_p_inf/mm_p_fev, V=1) -- it
+    # does NOT include the arm's additional non-anti-Vi factor V_v. The gap between
+    # this curve and the observed/fitted (x) points on the same panel IS the visual
+    # signature of V_v; mm_curve()/curve_specs do not (yet) carry a per-column fixed-V
+    # to draw a V-adjusted ribbon. Documented, not silent.
+    "ox_darton_m01",   "Darton",               "^D-(I|FgI)-m01zh09-",    "M01ZH09, per-subject anti-Vi (titre-only ref, excl. V)", "individual", NA, 0L, NA, "bacteraemia or stool",
+    "ox_darton_ty21a", "Darton",               "^D-(I|FgI)-ty21a-",      "Ty21a, per-subject anti-Vi (titre-only ref, excl. V)",   "individual", NA, 0L, NA, "bacteraemia or stool",
     "ox_jin_ctrl",    "Jin",                   "^J-[FI]-ctrl$",          "control",                   "fixed",       2.16,  0L,       NA,         "stool shedding",
     "ox_jin_vips",    "Jin",                   "^J-[FI]-ViPS$",          "Vi-PS vaccinated",          "fixed",      38.11,  0L,       NA,         "stool shedding",
     "ox_jin_vitt",    "Jin",                   "^J-[FI]-ViTT$",          "Vi-TT vaccinated",          "fixed",     152.16,  0L,       NA,         "stool shedding",

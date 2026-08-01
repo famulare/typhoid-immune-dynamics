@@ -43,7 +43,7 @@ curve_parity_check <- function(fit, stan_data, tol = 1e-6) {
   obs <- attr(stan_data, "obs")
   p   <- mm_draws(fit, T_ref = stan_data$T_ref %||% 38.0)
   p_mm   <- mm_obs_prob(obs$group, obs$dose_cfu, obs$CoP, obs$T_thresh,
-                        obs$gilman_stratum, p)
+                        obs$gilman_stratum, p, vaccine_id = obs$vaccine_id)
   p_stan <- posterior::as_draws_matrix(fit$draws("p_pred"))
   if (!identical(dim(p_mm), dim(p_stan)))
     stop("curve parity: stan_data does not match this fit (", ncol(p_mm), " obs vs ",

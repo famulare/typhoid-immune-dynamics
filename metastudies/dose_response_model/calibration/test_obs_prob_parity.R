@@ -30,6 +30,20 @@ bp <- function(D, N50, alpha, CoP, gamma) {
   1 - (1 + D * scale)^(-alpha / CoP^gamma)
 }
 
+# beta_poisson_vax (+vaccine-terms): P = 1 - (1+D*scale)^(-alpha/(CoP^gamma*V)). V=1
+# recovers bp() exactly. An INDEPENDENT hand transcription, same rule as everything
+# else in this section.
+bp_vax <- function(D, N50, alpha, CoP, gamma, V) {
+  scale <- (2^(1 / alpha) - 1) / N50
+  1 - (1 + D * scale)^(-alpha / (CoP^gamma * V))
+}
+# Per-row additional protection factor (0=none/Placebo, 1=M01ZH09, 2=Ty21a).
+vaccine_V_R <- function(vaccine_id, p) {
+  if (isTRUE(vaccine_id == 1L)) exp(p$log_V_M01ZH09)
+  else if (isTRUE(vaccine_id == 2L)) exp(p$log_V_Ty21a)
+  else 1
+}
+
 # Beta-binomial log density (Step 2), by hand: base R's dbinom no longer matches once
 # rho > 0. lbeta() is base R. At n=1 this is IDENTICAL to dbinom(y,1,p,log=TRUE) for any
 # k > 0 -- the reason the .stan applies it uniformly with no n==1 branch.
@@ -77,9 +91,11 @@ obs_prob_R <- function(row, p) {
     pc <- phi * (p$pi_susc * pf(p$CoP_susc) + (1 - p$pi_susc) * pf(p$CoP_imm)) / p_inf
     min(max(pc, 1e-12), 1 - 1e-12)
   } else if (g == 6L) {                           # ox_inf_indiv: individual Oxford infection
-    bp(row$dose_cfu, N50i, p$alpha_inf, row$CoP, p$gamma_inf)
+    V <- vaccine_V_R(row$vaccine_id, p)
+    bp_vax(row$dose_cfu, N50i, p$alpha_inf, row$CoP, p$gamma_inf, V)
   } else if (g == 7L) {                           # ox_fevginf_indiv: individual P(fever | infected)
-    bp(row$dose_cfu, N50f, p$alpha_fevginf, row$CoP, p$gamma_fevginf)
+    V <- vaccine_V_R(row$vaccine_id, p)
+    bp_vax(row$dose_cfu, N50f, p$alpha_fevginf, row$CoP, p$gamma_fevginf, V)
   } else if (g == 2L) {                           # ox_inf: eta-corrected Oxford shedding
     # Raw dose (Oxford is the bicarbonate frame, so no /delta). eta is the
     # treatment-truncation / detection factor: 1 at zero dose, decaying to eta_lo as
@@ -101,19 +117,23 @@ mod <- cmdstan_model("typhoid_dose_response.stan")
 # ---- Parameter vectors to test (constrained scale; must cover the model's params) ----
 PARAM_NAMES <- c("log10_N50_inf","d_fev","alpha_inf","alpha_fevginf","gamma_inf",
                  "gamma_fevginf","log10_delta","pi_susc","CoP_imm","CoP_susc",
-                 "phi0_a","phi0_b","eta_lo","kappa","grand_overdispersion_rho")
+                 "phi0_a","phi0_b","eta_lo","kappa","grand_overdispersion_rho",
+                 "log_V_M01ZH09","log_V_Ty21a")
 # NAMED, then indexed by PARAM_NAMES: these were positional over the name vector,
 # so a reordering of parameters{} would have silently permuted the gate's inputs.
-vecs <- lapply(list(                   # grand_overdispersion_rho added (Step 2)
+vecs <- lapply(list(                   # log_V_M01ZH09/log_V_Ty21a added (+vaccine-terms)
   c(log10_N50_inf=2.5, d_fev=0.3, alpha_inf=0.30, alpha_fevginf=0.35, gamma_inf=0.60,
     gamma_fevginf=0.90, log10_delta=3.5, pi_susc=0.65, CoP_imm=3.0, CoP_susc=1.0,
-    phi0_a=1.4, phi0_b=1.8, eta_lo=0.5, kappa=1.0, grand_overdispersion_rho=0.02),
+    phi0_a=1.4, phi0_b=1.8, eta_lo=0.5, kappa=1.0, grand_overdispersion_rho=0.02,
+    log_V_M01ZH09=0.3, log_V_Ty21a=0.6),
   c(log10_N50_inf=2.0, d_fev=0.0, alpha_inf=0.15, alpha_fevginf=0.50, gamma_inf=0.20,
     gamma_fevginf=1.50, log10_delta=2.0, pi_susc=0.40, CoP_imm=5.0, CoP_susc=1.1,
-    phi0_a=0.5, phi0_b=1.0, eta_lo=0.4, kappa=0.7, grand_overdispersion_rho=0.10),   # d_fev=0 edge
+    phi0_a=0.5, phi0_b=1.0, eta_lo=0.4, kappa=0.7, grand_overdispersion_rho=0.10,
+    log_V_M01ZH09=0.0, log_V_Ty21a=-0.4),   # d_fev=0 edge; log_V_M01ZH09=0 -> V=1 edge
   c(log10_N50_inf=3.1, d_fev=1.2, alpha_inf=0.50, alpha_fevginf=0.20, gamma_inf=1.00,
     gamma_fevginf=0.30, log10_delta=4.5, pi_susc=0.80, CoP_imm=2.0, CoP_susc=0.9,
-    phi0_a=2.0, phi0_b=0.5, eta_lo=0.6, kappa=1.5, grand_overdispersion_rho=0.005)
+    phi0_a=2.0, phi0_b=0.5, eta_lo=0.6, kappa=1.5, grand_overdispersion_rho=0.005,
+    log_V_M01ZH09=-0.8, log_V_Ty21a=1.1)
 ), function(v) v[PARAM_NAMES])
 truth <- posterior::as_draws_matrix(do.call(rbind, lapply(vecs, function(v) setNames(v, PARAM_NAMES))))
 
@@ -187,15 +207,18 @@ parity_grid <- function() {
   doses <- 10^seq(2, 9.7, length.out = 12)
   cops  <- c(1, 2.16, 38.11, 152.16, 500)          # incl. beyond any observed titre
   Ts    <- c(37.5, 38.0, 38.3, 39.0, 39.4, 40.5)   # incl. outside the study thresholds
-  cols  <- c("likelihood_group", "dose_cfu", "CoP", "T_thresh", "gilman_stratum")
+  cols  <- c("likelihood_group", "dose_cfu", "CoP", "T_thresh", "gilman_stratum", "vaccine_id")
+  # vaccine_id 0:2 crossed in (+vaccine-terms): exercises groups 6/7 at every V, and is a
+  # harmless no-op for the other groups (which never read it).
   ox <- expand.grid(likelihood_group = c("ox_fev", "ox_inf", "ox_inf_indiv", "ox_fevginf_indiv"),
-                    dose_cfu = doses, CoP = cops, stringsAsFactors = FALSE)
+                    dose_cfu = doses, CoP = cops, vaccine_id = 0:2, stringsAsFactors = FALSE)
   ox$T_thresh <- T_REF; ox$gilman_stratum <- 0L
   md <- expand.grid(likelihood_group = c("md_fev", "hornick_cond"), dose_cfu = doses,
                     T_thresh = Ts, gilman_stratum = 0:2, stringsAsFactors = FALSE)
-  md$CoP <- 1
+  md$CoP <- 1; md$vaccine_id <- 0L
   mi <- data.frame(likelihood_group = "md_inf", dose_cfu = doses, CoP = 1,
-                   T_thresh = T_REF, gilman_stratum = 0L, stringsAsFactors = FALSE)
+                   T_thresh = T_REF, gilman_stratum = 0L, vaccine_id = 0L,
+                   stringsAsFactors = FALSE)
   g <- rbind(ox[cols], md[cols], mi[cols])
   g$n <- 1L; g$y <- 0L
   g$obs_id <- sprintf("grid-%04d", seq_len(nrow(g)))
@@ -225,7 +248,8 @@ for (nm in names(cases)) {
   d_mm <- 0; d_rr <- 0
   for (di in seq_len(nrow(p_s))) {
     p_mm <- as.vector(mm_obs_prob(grp, rows$dose_cfu, rows$CoP, rows$T_thresh,
-                                  rows$gilman_stratum, par_bundles[[di]]))
+                                  rows$gilman_stratum, par_bundles[[di]],
+                                  vaccine_id = rows$vaccine_id))
     d_mm <- max(d_mm, max(abs(p_s[di, ] - p_mm)))
     # obs_prob_R() now covers all 7 groups including ox_inf, so eta gets the same
     # THREE-implementation check (Stan / model_math / independent R) as every other

@@ -49,22 +49,41 @@
 //   at n=1, so this is a no-op for the Darton individual rows without a branch); the phi0
 //   ladder binomial is deliberately NOT overdispersed (a different sub-model, not the
 //   Maryland replication this parameter targets).
+// Update 2026-07-31 (+vaccine-terms): Darton's M01ZH09 and Ty21a arms individualize the
+//   SAME way as Placebo (own anti-Vi titre -> CoP^gamma via groups 6/7), NOT forced to
+//   CoP=1 -- both arms have real per-subject pre-challenge titres (M01ZH09 31/31,
+//   Ty21a 29/30, one dropped for a missing titre). vaccine_id (0/1/2) additionally
+//   routes groups 6/7 through beta_poisson_vax(), which divides the exponent by an
+//   extra ADDITIONAL protection factor V_v (log_V_M01ZH09/log_V_Ty21a, V=exp(log_V),
+//   V=1 at Placebo/vaccine_id=0): the residual, non-anti-Vi-mediated protection
+//   (Ty21a is Vi-negative; M01ZH09 did not raise anti-Vi IgG) that each subject's own
+//   titre does not explain. beta_poisson() is unchanged (a 1-line wrapper at V=1), so
+//   none of its ~25 pre-existing call sites needed to change.
 // Implements: cascaded beta-Poisson (infection x fever|infection),
 //   cross-era delta bridge, Maryland mixture, dose-dependent phi(T,D),
 //   individual-subject cascade endpoints, one beta-binomial overdispersion parameter,
-//   eta-correction for Oxford shedding bias.
+//   per-vaccine non-anti-Vi protection factors, eta-correction for Oxford shedding bias.
 // Reference: ../joint_inference_plan.md Sections 2.1-2.7, Section 7 (priors)
 // Authors: Mike Famulare, Claude (Opus 4.6 draft; Opus 4.8 refactor)
 // =============================================================================
 
 functions {
+  // Beta-Poisson dose-response with an OPTIONAL additional protection factor V
+  // (+vaccine-terms, 2026-07-31): P = 1 - (1 + D_eff*(2^(1/alpha)-1)/N50) ^ (-alpha /
+  // (CoP^gamma * V)). V=1 recovers the plain beta_poisson() form exactly (the exponent's
+  // denominator is unchanged). D_eff = D / delta_medium (already converted by caller).
+  real beta_poisson_vax(real D_eff, real N50, real alpha, real CoP, real gamma, real V) {
+    real scale = (pow(2.0, 1.0 / alpha) - 1.0) / N50;
+    real exponent = -alpha / (pow(CoP, gamma) * V);
+    return 1.0 - pow(1.0 + D_eff * scale, exponent);
+  }
+
   // Beta-Poisson dose-response: P(outcome | dose, N50, alpha, CoP, gamma)
   //   P = 1 - (1 + D_eff * (2^(1/alpha) - 1) / N50) ^ (-alpha / CoP^gamma)
-  // D_eff = D / delta_medium (already converted by caller).
+  // A 1-line wrapper at V=1 so every pre-existing call site is untouched by
+  // +vaccine-terms; only obs_prob()'s groups 6/7 call beta_poisson_vax() directly.
   real beta_poisson(real D_eff, real N50, real alpha, real CoP, real gamma) {
-    real scale = (pow(2.0, 1.0 / alpha) - 1.0) / N50;
-    real exponent = -alpha / pow(CoP, gamma);
-    return 1.0 - pow(1.0 + D_eff * scale, exponent);
+    return beta_poisson_vax(D_eff, N50, alpha, CoP, gamma, 1.0);
   }
 
   // Maryland two-component (susceptible + immune) mixture.
@@ -107,10 +126,12 @@ functions {
 
   // ---- Unified observation probability -------------------------------------
   // ONE place that turns an observation into its binomial success probability.
-  // group: 1=ox_fev  2=ox_inf  3=md_fev  4=md_inf  5=hornick_cond
+  // group: 1=ox_fev  2=ox_inf  3=md_fev  4=md_inf  5=hornick_cond  6=ox_inf_indiv
+  //        7=ox_fevginf_indiv
   // Covariates: dose (raw CFU), CoP (group-average, used by ox only),
   //             T_thresh (fever threshold in degC, md_fev/hornick only),
-  //             stratum (gilman: 0=mixture, 1=susceptible, 2=immune).
+  //             stratum (gilman: 0=mixture, 1=susceptible, 2=immune),
+  //             vaccine_id (0=none/Placebo, 1=M01ZH09, 2=Ty21a; groups 6/7 only).
   // phi(T,D) is computed internally for md_fev/hornick from (phi0_a,phi0_b,
   // beta_phi,T_ref); unused covariates take harmless defaults from the caller.
   real obs_prob(int group, real dose, real CoP, real T_thresh, int stratum,
@@ -119,7 +140,8 @@ functions {
                 real gamma_inf, real gamma_fevginf,
                 real delta, real pi_susc, real CoP_susc, real CoP_imm,
                 real eta_lo, real kappa,
-                real T_ref, real phi0_a, real phi0_b) {
+                real T_ref, real phi0_a, real phi0_b,
+                int vaccine_id, real V_M01ZH09, real V_Ty21a) {
     if (group == 1) {                                   // ox_fev (delta=1, no mixture)
       real D = dose;
       return beta_poisson(D, N50_inf, alpha_inf, CoP, gamma_inf)
@@ -164,9 +186,12 @@ functions {
       real p_cond = p_fev_mix / p_inf;
       return fmin(fmax(p_cond, 1e-12), 1.0 - 1e-12);    // guard the division
     } else if (group == 6) {                            // ox_inf_indiv: individual Oxford infection
-      return beta_poisson(dose, N50_inf, alpha_inf, CoP, gamma_inf);   // P_inf at subject CoP (no eta/delta)
+      // P_inf at subject CoP (no eta/delta) x an additional non-anti-Vi vaccine factor.
+      real V = vaccine_id == 1 ? V_M01ZH09 : (vaccine_id == 2 ? V_Ty21a : 1.0);
+      return beta_poisson_vax(dose, N50_inf, alpha_inf, CoP, gamma_inf, V);
     } else {                                            // group == 7 ox_fevginf_indiv: P(fever | infected)
-      return beta_poisson(dose, N50_fevginf, alpha_fevginf, CoP, gamma_fevginf);
+      real V = vaccine_id == 1 ? V_M01ZH09 : (vaccine_id == 2 ? V_Ty21a : 1.0);
+      return beta_poisson_vax(dose, N50_fevginf, alpha_fevginf, CoP, gamma_fevginf, V);
     }
   }
 }
@@ -188,6 +213,8 @@ data {
   // pending the EU/mL value-swap; see tier1_lab_notebook.md D1.
   vector<lower=0>[N_obs] CoP;                  // group-average CoP (anti-Vi/naive, VaccZyme EU/mL; 1 elsewhere)
   array[N_obs] int<lower=0, upper=2> stratum;  // gilman stratum (md_fev; 0 elsewhere)
+  // +vaccine-terms: 0=none/Placebo, 1=M01ZH09, 2=Ty21a (groups 6/7 only; 0 elsewhere).
+  array[N_obs] int<lower=0, upper=2> vaccine_id;
   // Per-obs strict fever threshold (degC) for the phi(T,D) definition map: Hornick
   // 39.4, Levine/Gilman 38.3, T_ref elsewhere (unused where phi is not applied).
   vector<lower=0>[N_obs] T_thresh;
@@ -223,6 +250,8 @@ data {
   real pr_kappa_mu;              real<lower=0> pr_kappa_sd;
   real<lower=0> pr_grand_overdispersion_rho_a;   // beta (ICC; rho=0 is the binomial)
   real<lower=0> pr_grand_overdispersion_rho_b;
+  real pr_log_V_M01ZH09_mu;      real<lower=0> pr_log_V_M01ZH09_sd;   // normal, log scale
+  real pr_log_V_Ty21a_mu;        real<lower=0> pr_log_V_Ty21a_sd;
 }
 
 parameters {
@@ -252,6 +281,12 @@ parameters {
 
   // ---- Overdispersion (Step 2, LOCKED 2026-07-31) ----
   real<lower=0, upper=1> grand_overdispersion_rho;  // beta-binomial ICC (0 = binomial)
+
+  // ---- Per-vaccine non-anti-Vi protection (+vaccine-terms, 2026-07-31) ----
+  // log scale: V=exp(log_V), V=1 (log_V=0) is "no additional effect beyond the
+  // subject's own anti-Vi titre" -- the data can move it either direction.
+  real log_V_M01ZH09;
+  real log_V_Ty21a;
 }
 
 transformed parameters {
@@ -262,6 +297,9 @@ transformed parameters {
   // beta-binomial concentration (Step 2). rho -> 0 drives k -> inf, recovering the
   // binomial exactly; rho is the ICC / design-effect driver (1 + (n-1)*rho).
   real<lower=0> grand_concentration_k = (1.0 - grand_overdispersion_rho) / grand_overdispersion_rho;
+  // Per-vaccine non-anti-Vi protection factors, natural scale (+vaccine-terms).
+  real<lower=0> V_M01ZH09 = exp(log_V_M01ZH09);
+  real<lower=0> V_Ty21a   = exp(log_V_Ty21a);
 
   // ---- lprior accumulator (priors written ONCE; hyperparameters from data) --
   // Reproduces the original three-term N50 prior exactly under the (Jacobian=1)
@@ -284,6 +322,8 @@ transformed parameters {
   lprior += lognormal_lpdf(kappa          | pr_kappa_mu,             pr_kappa_sd);
   lprior += beta_lpdf(grand_overdispersion_rho | pr_grand_overdispersion_rho_a,
                                                   pr_grand_overdispersion_rho_b);
+  lprior += normal_lpdf(log_V_M01ZH09 | pr_log_V_M01ZH09_mu, pr_log_V_M01ZH09_sd);
+  lprior += normal_lpdf(log_V_Ty21a   | pr_log_V_Ty21a_mu,   pr_log_V_Ty21a_sd);
 }
 
 model {
@@ -295,7 +335,8 @@ model {
                        N50_inf, N50_fevginf, alpha_inf, alpha_fevginf,
                        gamma_inf, gamma_fevginf, delta, pi_susc,
                        CoP_susc, CoP_imm, eta_lo, kappa,
-                       T_ref, phi0_a, phi0_b);
+                       T_ref, phi0_a, phi0_b,
+                       vaccine_id[i], V_M01ZH09, V_Ty21a);
       // Guard the beta_binomial's alpha/beta > 0 requirement (binomial tolerates
       // p in {0,1}; beta_binomial does not). At n=1 this is exactly binomial(1,p).
       real pc = fmin(fmax(p, 1e-12), 1.0 - 1e-12);
@@ -335,7 +376,8 @@ generated quantities {
                           N50_inf, N50_fevginf, alpha_inf, alpha_fevginf,
                           gamma_inf, gamma_fevginf, delta, pi_susc,
                           CoP_susc, CoP_imm, eta_lo, kappa,
-                          T_ref, phi0_a, phi0_b);
+                          T_ref, phi0_a, phi0_b,
+                          vaccine_id[i], V_M01ZH09, V_Ty21a);
     {
       real pc = fmin(fmax(p_pred[i], 1e-12), 1.0 - 1e-12);
       real a = pc * grand_concentration_k;
@@ -360,21 +402,21 @@ generated quantities {
   real p_fev_md_1e3 = obs_prob(3, 1e3, 1.0, 39.4, 0, N50_inf, N50_fevginf,
                                alpha_inf, alpha_fevginf, gamma_inf, gamma_fevginf,
                                delta, pi_susc, CoP_susc, CoP_imm, eta_lo, kappa,
-                               T_ref, phi0_a, phi0_b);
+                               T_ref, phi0_a, phi0_b, 0, V_M01ZH09, V_Ty21a);
   real p_fev_md_1e5 = obs_prob(3, 1e5, 1.0, 39.4, 0, N50_inf, N50_fevginf,
                                alpha_inf, alpha_fevginf, gamma_inf, gamma_fevginf,
                                delta, pi_susc, CoP_susc, CoP_imm, eta_lo, kappa,
-                               T_ref, phi0_a, phi0_b);
+                               T_ref, phi0_a, phi0_b, 0, V_M01ZH09, V_Ty21a);
   real p_fev_md_1e7 = obs_prob(3, 1e7, 1.0, 39.4, 0, N50_inf, N50_fevginf,
                                alpha_inf, alpha_fevginf, gamma_inf, gamma_fevginf,
                                delta, pi_susc, CoP_susc, CoP_imm, eta_lo, kappa,
-                               T_ref, phi0_a, phi0_b);
+                               T_ref, phi0_a, phi0_b, 0, V_M01ZH09, V_Ty21a);
 
   // Hornick Table 2 conditional prediction (phi(T,D) at Hornick 39.4)
   real p_cond_pred = obs_prob(5, 1e7, 1.0, 39.4, 0, N50_inf, N50_fevginf,
                               alpha_inf, alpha_fevginf, gamma_inf, gamma_fevginf,
                               delta, pi_susc, CoP_susc, CoP_imm, eta_lo, kappa,
-                              T_ref, phi0_a, phi0_b);
+                              T_ref, phi0_a, phi0_b, 0, V_M01ZH09, V_Ty21a);
 
   // ---- phi(T,D) diagnostics: low-dose asymptote phi0(T) + dose-lift at Hornick 39.4
   real phi0_38_3 = phi0_fn(38.3, T_ref, phi0_a, phi0_b);   // Levine/Gilman threshold

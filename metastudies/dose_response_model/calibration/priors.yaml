@@ -101,3 +101,14 @@ kappa:             { family: lognormal,   meanlog: 0.0,  sdlog: 1.0 }
 # + Gilman) gives sigma ~ 0.26 -> k ~ 61 -> rho ~ 0.016. Beta(1,49) has mean 1/50 = 0.02,
 # bracketing the anchor while leaving rho free to move (weakly-informative, not fixed).
 grand_overdispersion_rho: { family: beta, a: 1, b: 49 }   # mean 0.02, matches sigma~0.26 anchor
+
+# ---- Per-vaccine non-anti-Vi protection (+vaccine-terms, 2026-07-31) ----
+# log_V_v: log of the ADDITIONAL protection factor beyond a subject's own anti-Vi titre
+# (V=exp(log_V); V=1 / log_V=0 is "no additional effect"). Ty21a is Vi-negative;
+# M01ZH09 did not raise anti-Vi IgG (see darton_arm_individual_rows() in data_prep.R) --
+# so both arms' protection beyond their own (mostly-naive) titre is exactly what these
+# parameters are meant to catch. Normal(0,1) on the log scale: symmetric around
+# no-effect, weakly-informative (95% V in ~[0.14, 7.4]), lets the arm's own contrast
+# vs Placebo (same challenge, same dose, individualized the same way) identify it.
+log_V_M01ZH09:     { family: normal, mu: 0.0, sd: 1.0 }
+log_V_Ty21a:       { family: normal, mu: 0.0, sd: 1.0 }

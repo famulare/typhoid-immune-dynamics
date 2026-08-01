@@ -28,19 +28,27 @@ if (!exists("MM_RAW_PARS")) source("model_math.R")
 #' eta is the reason `needs_group2` exists: eta_lo/kappa have been declared in the
 #' .stan since before Tier 1, but they appear in exactly one likelihood branch
 #' (group 2, ox_inf). Declared-but-unreached is not a model stage.
+#'
+#' vax is the same situation with a different gate: log_V_M01ZH09/log_V_Ty21a are
+#' declared unconditionally (like rho), but unlike rho they only enter the
+#' likelihood for rows with vaccine_id != 0 -- `needs_vaccine_rows` is that gate.
 STAGE_INCREMENTS <- list(
-  list(token = "phi", pars = c("phi0_a", "phi0_b"),          needs_group2 = FALSE),
-  list(token = "rho", pars = "grand_overdispersion_rho",     needs_group2 = FALSE),
-  list(token = "eta", pars = c("eta_lo", "kappa"),           needs_group2 = TRUE),
-  list(token = "psi", pars = "psi_stool",                    needs_group2 = FALSE)
+  list(token = "phi", pars = c("phi0_a", "phi0_b"),          needs_group2 = FALSE, needs_vaccine_rows = FALSE),
+  list(token = "rho", pars = "grand_overdispersion_rho",     needs_group2 = FALSE, needs_vaccine_rows = FALSE),
+  list(token = "eta", pars = c("eta_lo", "kappa"),           needs_group2 = TRUE,  needs_vaccine_rows = FALSE),
+  list(token = "psi", pars = "psi_stool",                    needs_group2 = FALSE, needs_vaccine_rows = FALSE),
+  list(token = "vax", pars = c("log_V_M01ZH09", "log_V_Ty21a"), needs_group2 = FALSE, needs_vaccine_rows = TRUE)
 )
 
 #' Derive the stage token from the model's parameter block and the tier's data.
 #' @param model_pars character vector, names(mod$variables()$parameters).
 #' @param has_group2 does this tier's data contain any ox_inf (group 2) row?
-derive_stage_token <- function(model_pars, has_group2) {
+#' @param has_vaccine_rows does this tier's data contain any vaccine_id != 0 row?
+derive_stage_token <- function(model_pars, has_group2, has_vaccine_rows = FALSE) {
   toks <- vapply(STAGE_INCREMENTS, function(inc) {
-    active <- all(inc$pars %in% model_pars) && (!inc$needs_group2 || has_group2)
+    active <- all(inc$pars %in% model_pars) &&
+      (!inc$needs_group2 || has_group2) &&
+      (!isTRUE(inc$needs_vaccine_rows) || has_vaccine_rows)
     if (active) inc$token else NA_character_
   }, character(1))
   toks <- toks[!is.na(toks)]
@@ -69,7 +77,7 @@ TIER_SPECS <- list(
     expect = list(N_obs = 25L,
                   groups = c(ox_fev = 7L, md_fev = 11L, md_inf = 6L,
                              hornick_cond = 1L)),
-    inert_pars = c("eta_lo", "kappa"),
+    inert_pars = c("eta_lo", "kappa", "log_V_M01ZH09", "log_V_Ty21a"),
     requires_params = character(),
     status_declared = "runnable",
     blocked_reason = NULL,
@@ -87,11 +95,33 @@ TIER_SPECS <- list(
                   groups = c(ox_fev = 6L, md_fev = 11L, md_inf = 6L,
                              hornick_cond = 1L, ox_inf_indiv = 30L,
                              ox_fevginf_indiv = 26L)),
-    inert_pars = c("eta_lo", "kappa"),
+    inert_pars = c("eta_lo", "kappa", "log_V_M01ZH09", "log_V_Ty21a"),
     requires_params = character(),
     status_declared = "runnable",
     blocked_reason = NULL,
     note = "THE FIT. Was labelled 'Tier 1' and written to results/tier1/."
+  ),
+  `t1-indiv-vax` = list(
+    key = "t1-indiv-vax",
+    label = "Tier 1 rows, Darton placebo + M01ZH09 + Ty21a all individualized",
+    doc_ref = "tier1.5_plan.md +vaccine-terms",
+    tier_col = "tier1_active", individualize_darton = TRUE, include_vaccine_arms = TRUE,
+    drop_obs = character(), keep_obs = NULL,
+    stage = "phi-rho-vax",
+    expect = list(N_obs = 177L,
+                  groups = c(ox_fev = 6L, md_fev = 11L, md_inf = 6L,
+                             hornick_cond = 1L, ox_inf_indiv = 90L,
+                             ox_fevginf_indiv = 63L)),
+    inert_pars = c("eta_lo", "kappa"),
+    requires_params = c("log_V_M01ZH09", "log_V_Ty21a"),
+    status_declared = "runnable",
+    blocked_reason = NULL,
+    note = paste("+vaccine-terms: M01ZH09 (31 subj, 21 infected) and Ty21a (29 subj",
+                 "-- 1 dropped for missing titre -- 16 infected) individualized the",
+                 "SAME way as Placebo (own anti-Vi titre feeds CoP^gamma), plus a",
+                 "per-vaccine ADDITIONAL non-anti-Vi protection factor V_v",
+                 "(log_V_M01ZH09/log_V_Ty21a). ox_inf_indiv 90 = 30+31+29;",
+                 "ox_fevginf_indiv 63 = 26+21+16.")
   ),
   `t2-grouped` = list(
     key = "t2-grouped",
@@ -103,7 +133,7 @@ TIER_SPECS <- list(
     expect = list(N_obs = 31L,
                   groups = c(ox_fev = 7L, ox_inf = 6L, md_fev = 11L, md_inf = 6L,
                              hornick_cond = 1L)),
-    inert_pars = character(),
+    inert_pars = c("log_V_M01ZH09", "log_V_Ty21a"),
     requires_params = c("eta_lo", "kappa"),
     status_declared = "blocked",
     blocked_reason = paste(
@@ -130,7 +160,7 @@ TIER_SPECS <- list(
                   groups = c(ox_fev = 6L, ox_inf = 5L, md_fev = 11L, md_inf = 6L,
                              hornick_cond = 1L, ox_inf_indiv = 30L,
                              ox_fevginf_indiv = 26L)),
-    inert_pars = character(),
+    inert_pars = c("log_V_M01ZH09", "log_V_Ty21a"),
     requires_params = c("eta_lo", "kappa"),
     status_declared = "blocked",
     blocked_reason = paste(
@@ -150,7 +180,8 @@ TIER_SPECS <- list(
 #' when a t2-* tier is fit, which was the whole point.
 DERIVED_REPORT_PARS <- "log10_N50_fevginf"                    # transformed, log scale
 DERIVED_LINEAR_PARS <- c("N50_inf", "N50_fevginf", "delta",
-                         "grand_concentration_k")             # redundant log<->linear
+                         "grand_concentration_k",
+                         "V_M01ZH09", "V_Ty21a")               # redundant log<->linear
 
 tier_spec <- function(key) {
   if (!is.character(key) || length(key) != 1L || !key %in% names(TIER_SPECS))
@@ -225,7 +256,8 @@ validate_tier_spec <- function(spec, stan_data, mod = NULL, check_curve_specs = 
     if (length(unknown_inert))
       stop(sprintf("tier '%s': inert_pars not in the .stan: %s", spec$key,
                    paste(unknown_inert, collapse = ", ")), call. = FALSE)
-    got_stage <- derive_stage_token(model_pars, any(stan_data$group == 2L))
+    got_stage <- derive_stage_token(model_pars, any(stan_data$group == 2L),
+                                    has_vaccine_rows = any(stan_data$vaccine_id != 0L))
     if (!identical(got_stage, spec$stage))
       stop(sprintf("tier '%s': stage token is '%s' but the registry declares '%s'.
   The .stan's parameter set changed. Update TIER_SPECS$%s$stage deliberately -- that
@@ -273,7 +305,8 @@ build_tier_data <- function(key,
                           tier_col = spec$tier_col,
                           prior_only = prior_only,
                           drop_obs = spec$drop_obs, keep_obs = spec$keep_obs,
-                          individualize_darton = spec$individualize_darton)
+                          individualize_darton = spec$individualize_darton,
+                          include_vaccine_arms = spec$include_vaccine_arms %||% FALSE)
   if (validate) validate_tier_spec(spec, base, mod, check_curve_specs = TRUE)
 
   drop_all <- union(spec$drop_obs, drop_obs)
@@ -281,7 +314,8 @@ build_tier_data <- function(key,
     sd <- build_stan_data(data_csv, priors,
                           tier_col = spec$tier_col, prior_only = prior_only,
                           drop_obs = drop_all, keep_obs = keep_obs,
-                          individualize_darton = spec$individualize_darton)
+                          individualize_darton = spec$individualize_darton,
+                          include_vaccine_arms = spec$include_vaccine_arms %||% FALSE)
     if (validate && exists("validate_curve_specs") && exists("curve_specs"))
       validate_curve_specs(curve_specs(), attr(sd, "obs"))
   } else {
@@ -371,12 +405,15 @@ write_tier_ladder_md <- function(path = "TIER_LADDER.md",
     paste(knitr_table(tab[, c("key", "run_dir")]), collapse = "\n"),
     "",
     "## Naming rule", "",
-    "A configuration is named by its two DATA switches and nothing else:",
-    "`<row set>-<Darton representation>`. `indiv` means the Darton placebo arm enters as",
-    "per-subject n=1 rows (the issue-#15 cascade: `ox_inf_indiv` + `ox_fevginf_indiv`)",
-    "rather than as a grouped binomial. (`cascade` is deliberately not used as a",
-    "configuration name -- in this repo it already denotes the P_inf x P_fev|inf",
-    "factorization.)",
+    "A configuration is named by its DATA switches and nothing else:",
+    "`<row set>-<Darton representation>[-vax]`. `indiv` means the Darton placebo arm",
+    "enters as per-subject n=1 rows (the issue-#15 cascade: `ox_inf_indiv` +",
+    "`ox_fevginf_indiv`) rather than as a grouped binomial. (`cascade` is deliberately",
+    "not used as a configuration name -- in this repo it already denotes the",
+    "P_inf x P_fev|inf factorization.) The optional third switch, `-vax`",
+    "(`include_vaccine_arms`), ALSO individualizes Darton's M01ZH09 and Ty21a arms",
+    "(+vaccine-terms, tier1.5_plan.md) -- it requires `indiv` (there is no grouped",
+    "representation of those arms in any active tier).",
     "",
     "Run directories are `<config>__<model stage>`, with `-prior` appended for the prior",
     "predictive. The stage token lists the parameter increments that are ACTIVE; it is",

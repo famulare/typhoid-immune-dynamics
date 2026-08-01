@@ -666,3 +666,63 @@ Pre-ρ fit preserved at `results/t1-indiv__phi/`. Registry now derives stage `ph
 Ty21a, designed in `tier1.5_plan.md`); `+Jin-digitize` (higher-fidelity Fig S3
 scatter, deferred to +Jin-CoP-anchor); Step 3 `t2-*` blockers (η Option A/C, §2.6
 Oxford-shedding-exclusion tension, ψ unimplemented).
+
+## +vaccine-terms IMPLEMENTED — new tier t1-indiv-vax (2026-07-31, same session as Step 2)
+
+Picked up immediately after Step 2 (rho). Mike caught that my earlier answer about a
+"Ty21a fixed effect" was describing a STALE, pre-cascade artifact (grouped `D-F-Ty21a`/
+`D-F-M01` rows in `dose_response_data.csv`, `validation_only=1`, inert) -- not the actual
+design. Checking the individual endpoints file directly also surfaced a real error in my
+own +vaccine-terms design write-up: I'd claimed Ty21a's anti-Vi was unmeasured ("NA"),
+which conflated the vaccine's MECHANISM (Ty21a is Vi-negative, doesn't raise anti-Vi) with
+whether subjects' pre-challenge titres were assayed. They were: 29/30, mostly naive-floor
+but 8 detectable up to 155 EU/mL. Corrected before building anything (see tier1.5_plan.md
+correction block).
+
+**Built:** `darton_arm_individual_rows(data_csv, arm)` generalizes the Placebo-only
+cascade individualization to all three Darton arms (own titre -> CoP^gamma, same as
+before) plus a NEW `vaccine_id` covariate (0/1/2) that routes cascade groups 6/7 through
+`beta_poisson_vax()` -- an added multiplicative factor V in the exponent's denominator,
+`V=1` recovering the existing kernel exactly (so none of beta_poisson's ~25 pre-existing
+call sites needed to change). `log_V_M01ZH09`/`log_V_Ty21a ~ Normal(0,1)`, V=exp(log_V).
+New registry tier `t1-indiv-vax` (stage `phi-rho-vax`, N_obs=177). Full pipeline touched:
+data_prep.R, typhoid_dose_response.stan, priors.yaml, model_math.R (mm_bp_vax,
+mm_vaccine_V, mm_p_inf_vax/mm_p_fevginf_vax), figures_grid.R (curve_parity_check needed
+vaccine_id threaded through), curve_specs.R (2 new grid columns), tier_specs.R (new
+`needs_vaccine_rows` stage-gate, parallel to `needs_group2`), test_obs_prob_parity.R,
+simulate_recovery.R.
+
+**Two regressions caught and fixed mid-build, both before any fit:**
+1. Generalizing the tag-derivation logic to `tolower(gsub(non-alnum, "", arm))` would have
+   silently renamed Placebo's obs_ids from `D-I-plac-*` to `D-I-placebo-*` (arm name
+   "Placebo" has no non-alnum chars to strip), breaking curve_specs.R's regex and the
+   "OX-DAR-2013-PLAC" cohort_id. Caught by `validate_curve_specs()` hard-erroring on the
+   very first fit attempt ("0 matches" for every Placebo row). Fixed: Placebo keeps its
+   historical "plac" tag by special case; M01ZH09/Ty21a get "m01zh09"/"ty21a" (not "m01" as
+   I first guessed for the curve_specs regex -- gsub strips non-alnum, and "M01ZH09" has
+   none, so nothing shortens it).
+2. `.ppc_rows()` in diagnostics.R grouped Darton individual rows by
+   `(study, likelihood_group, group, dose_cfu)` only -- all three arms share all four
+   (same trial, same 18200 CFU dose), so without `cohort_id` in the grouping the PPC would
+   have POOLED Placebo+M01ZH09+Ty21a into one misleading point. Added `cohort_id`; a no-op
+   for every pre-existing single-cohort case, correct separation for the new multi-arm one.
+
+**Parity gate GREEN** across all 5 registry tiers + a 1164-row synthetic grid (expanded
+from 684 by crossing `vaccine_id in 0:2` into the grid).
+
+**Fit clean:** 0/4000 div, R-hat <= 1.003, E-BFMI 0.94. **V_M01ZH09 = 1.40** (90% CI
+[1.00, 1.87], edge-touching -- weak) vs **V_Ty21a = 1.84** (90% CI [1.30, 2.58], clearly
+>1) -- reproduces Darton's own published asymmetry (M01ZH09 non-significant everywhere,
+Ty21a significant on infection/bacteraemia) as a JOINT posterior estimate rather than
+Darton's separate regression. priorsense: both strongly data-driven (log_V_M01ZH09
+prior 0.011 / lik 0.099 ~9x; log_V_Ty21a prior 0.018 / lik 0.085 ~5x) -- no prior-data
+conflict or prior-dominance flag on either.
+
+**Open honest finding:** alpha_inf/alpha_fevginf/gamma_inf shifted ~0.75-0.92 OLD-sd with
+92 more subjects in the cascade -- exactly the leakage risk the design worried about.
+Checked (not waved away): fitted medians on 10 key non-Darton rows (Hornick/Gilman/
+Levine/Jin) moved <=0.03 -- no fit degradation, posterior SDs shrank ~30-40%. Reads as
+"more data resolving a weakly-identified ridge," not corruption, but flagged as a
+judgment call, not a clean gate pass. See tier1.5_plan.md for full tables + reasoning.
+
+Not committed yet. Not yet validated by Mike beyond the "yes" that authorized building it.

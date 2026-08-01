@@ -45,6 +45,16 @@ assert_fitted_params_match <- function(mod, provided) {
 # CoP=1 at naive. See tier1.5_plan.md / tier1_lab_notebook.md D1.
 NAIVE_VI_REF <- 3.7
 
+# +vaccine-terms (2026-07-31): which non-anti-Vi protection channel a subject sits in.
+# 0 = none (Placebo, and every non-Darton-individual row via the harmless default).
+# Both M01ZH09 and Ty21a protect via mechanisms OTHER than anti-Vi (Ty21a is
+# Vi-negative; M01ZH09 did not raise anti-Vi IgG) -- see tier1.5_plan.md
+# "+vaccine-terms". This does NOT mean their anti-Vi titre is unusable: both arms
+# have real per-subject vi_igg_prechallenge measurements (M01ZH09 31/31, Ty21a
+# 29/30) that feed the SAME shared CoP^gamma channel as Placebo; V_v is the
+# ADDITIONAL residual protection their own titre does not explain.
+VACCINE_ID <- c(Placebo = 0L, M01ZH09 = 1L, Ty21a = 2L)
+
 # ---- cohort_id: PROVENANCE ONLY (added 2026-07-31) ---------------------------
 # `cohort_id` records which observations come from the SAME GROUP OF VOLUNTEERS.
 # It is NOT passed to Stan and NO likelihood term reads it. Its two uses are both
@@ -132,32 +142,54 @@ darton_indiv_obs_ids <- function(data_csv) {
   darton_placebo_individual_rows(data_csv)$obs_id
 }
 
-#' Tier 1.5 +cascade (issue #15): Darton placebo as individual n=1 rows, decomposed
-#' into the proper CASCADE — an infection endpoint (bact_or_stool) for ALL subjects
-#' (group ox_inf_indiv, P_inf), and a fever|infection endpoint (fever_td) for the
-#' INFECTED subjects only (group ox_fevginf_indiv, P_fev|inf). This replaces the C1
+#' Tier 1.5 +cascade (issue #15): a Darton arm's subjects as individual n=1 rows,
+#' decomposed into the proper CASCADE — an infection endpoint (bact_or_stool) for ALL
+#' subjects (group ox_inf_indiv, P_inf), and a fever|infection endpoint (fever_td) for
+#' the INFECTED subjects only (group ox_fevginf_indiv, P_fev|inf). This replaces the C1
 #' composite-fever rows (which conflated the two layers); the product recovers the
 #' composite while separating gamma_inf from gamma_fevginf via the per-subject titre
 #' spread. Infection = bact_or_stool (broadest marker, includes bacteremia; treated
 #' as true infection — no eta treatment-truncation correction at Tier 1). Single
 #' source of truth: analysis_data/darton_individual_endpoints.csv.
-darton_placebo_individual_rows <- function(data_csv) {
+#'
+#' +vaccine-terms (2026-07-31): generalized from Placebo-only to any of the trial's
+#' three arms. Subjects with a missing pre-challenge titre are DROPPED (cannot compute
+#' CoP) rather than imputed -- affects exactly one Ty21a subject. Each arm's own
+#' anti-Vi titre feeds the SAME CoP^gamma channel; `vaccine_id` (0/1/2) is read by
+#' obs_prob() to apply the arm's ADDITIONAL non-anti-Vi protection factor V_v (0 for
+#' Placebo, i.e. no additional effect -- see VACCINE_ID above).
+#' @param arm one of names(VACCINE_ID): "Placebo", "M01ZH09", "Ty21a".
+darton_arm_individual_rows <- function(data_csv, arm) {
+  if (!arm %in% names(VACCINE_ID)) stop("darton_arm_individual_rows: unknown arm '", arm, "'")
   s1 <- file.path(dirname(data_csv), "..", "analysis_data", "darton_individual_endpoints.csv")
   d <- readr::read_csv(s1, show_col_types = FALSE) %>%
-    filter(group == "Placebo") %>%
+    filter(group == arm, !is.na(vi_igg_prechallenge)) %>%
     mutate(CoP = vi_igg_prechallenge / NAIVE_VI_REF)   # VaccZyme EU/mL, ref naive
+  # "Placebo" keeps the PRE-EXISTING "plac" tag (obs_id "D-I-plac-...", cohort_id
+  # "OX-DAR-2013-PLAC") that issue #15's original individualization already committed
+  # to -- curve_specs.R's regex and every doc/plot referencing it depend on this exact
+  # string. Deriving the tag generically from the arm name (as for the two NEW arms)
+  # would have silently renamed it to "placebo" and broken all of that.
+  tag <- if (arm == "Placebo") "plac" else tolower(gsub("[^A-Za-z0-9]", "", arm))
+  cohort  <- sprintf("OX-DAR-2013-%s", toupper(tag))
+  vid     <- unname(VACCINE_ID[arm])
   infection_rows <- d %>% transmute(
-    obs_id = paste0("D-I-plac-", subject_id), study = "Darton",
-    cohort_id = "OX-DAR-2013-PLAC",
+    obs_id = sprintf("D-I-%s-%s", tag, subject_id), study = "Darton",
+    cohort_id = cohort,
     likelihood_group = "ox_inf_indiv", dose_cfu = 18200, n = 1L,
-    y = as.integer(bact_or_stool), CoP = CoP, phi = 1.0, gilman_stratum = 0L)
+    y = as.integer(bact_or_stool), CoP = CoP, phi = 1.0, gilman_stratum = 0L,
+    vaccine_id = vid)
   fevginf_rows <- d %>% filter(bact_or_stool == 1) %>% transmute(
-    obs_id = paste0("D-FgI-plac-", subject_id), study = "Darton",
-    cohort_id = "OX-DAR-2013-PLAC",   # all 30 placebo subjects are ONE challenge cohort
+    obs_id = sprintf("D-FgI-%s-%s", tag, subject_id), study = "Darton",
+    cohort_id = cohort,   # all subjects in one arm are ONE challenge cohort
     likelihood_group = "ox_fevginf_indiv", dose_cfu = 18200, n = 1L,
-    y = as.integer(fever_td), CoP = CoP, phi = 1.0, gilman_stratum = 0L)
+    y = as.integer(fever_td), CoP = CoP, phi = 1.0, gilman_stratum = 0L,
+    vaccine_id = vid)
   bind_rows(infection_rows, fevginf_rows)
 }
+
+#' Backward-compatible name: the Placebo arm only (issue #15's original scope).
+darton_placebo_individual_rows <- function(data_csv) darton_arm_individual_rows(data_csv, "Placebo")
 
 #' Apply nested prior overrides (for sensitivity scenarios), e.g.
 #'   list(log10_delta = list(mu = 3.0))  ->  fixes the delta prior mean.
@@ -185,6 +217,10 @@ stan_data_from_rows <- function(rows, priors, ladder, T_ref = T_REF, prior_only 
   grp <- unname(.GROUP_CODE[rows$likelihood_group])
   if (anyNA(grp)) stop("unmapped likelihood_group: ",
                        paste(unique(rows$likelihood_group[is.na(grp)]), collapse = ", "))
+  # vaccine_id (+vaccine-terms): 0 = no additional non-anti-Vi effect. Harmless default
+  # for every row that isn't a Darton M01ZH09/Ty21a individual row, and for any caller
+  # (e.g. the parity gate's synthetic grid) that predates this column entirely.
+  vacc <- if ("vaccine_id" %in% names(rows)) rows$vaccine_id else 0L
   stan_data <- list(
     N_obs    = nrow(rows),
     group    = as.integer(grp),
@@ -195,11 +231,12 @@ stan_data_from_rows <- function(rows, priors, ladder, T_ref = T_REF, prior_only 
     stratum  = ifelse(is.na(rows$gilman_stratum), 0L, as.integer(rows$gilman_stratum)),
     T_thresh = as.numeric(rows$T_thresh),
     T_ref    = T_ref,
+    vaccine_id = ifelse(is.na(vacc), 0L, as.integer(vacc)),
     prior_only = as.integer(prior_only)
   )
   stan_data <- c(stan_data, ladder, priors_to_stan_data(priors))
   stopifnot(!anyNA(unlist(stan_data[c("dose", "CoP", "n", "y", "group", "stratum",
-                                      "T_thresh", "ladder_count")])))
+                                      "T_thresh", "vaccine_id", "ladder_count")])))
   stan_data
 }
 
@@ -209,6 +246,12 @@ stan_data_from_rows <- function(rows, priors, ladder, T_ref = T_REF, prior_only 
 #' @param prior_only 1 to skip the likelihood (prior predictive).
 #' @param drop_obs Character vector of obs_id to exclude (data-filter sensitivities).
 #' @param keep_obs If non-NULL, restrict to these obs_id (e.g. exclude-Oxford/Maryland).
+#' @param include_vaccine_arms +vaccine-terms: also individualize Darton's M01ZH09 and
+#'   Ty21a arms (same cascade shape as Placebo), each carrying its own vaccine_id so
+#'   obs_prob() can apply its ADDITIONAL non-anti-Vi protection factor V_v. Requires
+#'   individualize_darton = TRUE (there is no grouped representation of these arms in
+#'   the active tiers -- the CSV's D-F-Ty21a/D-F-M01 rows are validation_only and
+#'   inert regardless of this flag).
 #' @return list: the flat Stan data + the prior `pr_*` scalars, plus an attribute
 #'   "obs" carrying the selected data frame (obs_id, study, group, etc.) for plotting.
 build_stan_data <- function(data_csv, priors,
@@ -216,7 +259,11 @@ build_stan_data <- function(data_csv, priors,
                             prior_only = 0L,
                             drop_obs = character(),
                             keep_obs = NULL,
-                            individualize_darton = TRUE) {
+                            individualize_darton = TRUE,
+                            include_vaccine_arms = FALSE) {
+  if (include_vaccine_arms && !individualize_darton)
+    stop("build_stan_data: include_vaccine_arms requires individualize_darton = TRUE",
+        call. = FALSE)
   d <- readr::read_csv(data_csv, show_col_types = FALSE)
   dat <- d %>% filter(.data[[tier_col]] == 1)
   # The per-subject rows REPLACE **both** grouped Darton placebo rows: same 30
@@ -232,9 +279,18 @@ build_stan_data <- function(data_csv, priors,
     dat <- dat %>% filter(!obs_id %in% DARTON_PLACEBO_GROUPED_OBS) %>%
       bind_rows(darton_placebo_individual_rows(data_csv))
   }
+  # +vaccine-terms: M01ZH09/Ty21a have NO grouped representation in any active tier
+  # (their CSV rows are validation_only, tier1_active = tier2_active = 0), so there is
+  # nothing to filter out here -- just bind the individual rows.
+  if (include_vaccine_arms) {
+    dat <- dat %>% bind_rows(darton_arm_individual_rows(data_csv, "M01ZH09"),
+                             darton_arm_individual_rows(data_csv, "Ty21a"))
+  }
   if (!is.null(keep_obs)) dat <- dat %>% filter(obs_id %in% keep_obs)
   if (length(drop_obs))   dat <- dat %>% filter(!obs_id %in% drop_obs)
   dat <- dat %>% arrange(match(likelihood_group, names(.GROUP_CODE)), obs_id)
+  if (!"vaccine_id" %in% names(dat)) dat$vaccine_id <- 0L
+  dat$vaccine_id[is.na(dat$vaccine_id)] <- 0L
 
   # phi(T,D) reads a strict fever threshold only for Maryland fever obs; elsewhere
   # T_thresh is unused, set to T_REF as a harmless default.
@@ -250,6 +306,7 @@ build_stan_data <- function(data_csv, priors,
     mutate(T_thresh = as.numeric(T_thresh),
            group = as.integer(unname(.GROUP_CODE[likelihood_group]))) %>%
     transmute(obs_id, study, cohort_id, likelihood_group, group,
-              dose_cfu, n, y, obs_rate = y / n, CoP, phi, T_thresh, gilman_stratum)
+              dose_cfu, n, y, obs_rate = y / n, CoP, phi, T_thresh, gilman_stratum,
+              vaccine_id)
   stan_data
 }
