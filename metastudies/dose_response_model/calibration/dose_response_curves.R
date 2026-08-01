@@ -1,34 +1,28 @@
-#' Bespoke model diagnostic: posterior dose-response curves vs observed data.
+#' Bespoke model diagnostic: posterior dose-response curves and CoP counterfactuals.
 #'
-#' This is the model-specific PPC (in addition to the standard bayesplot/posterior
-#' battery in diagnostics.R). It plots, per likelihood group, the posterior
-#' dose-response curve (median + 90% ribbon) over a dose grid against the observed
-#' attack rates (with Wilson 95% CIs) and the per-observation fitted `p_pred`.
+#' This is the model-specific curve view (in addition to the standard
+#' bayesplot/posterior battery in diagnostics.R). It plots the population
+#' dose-response curve (median + 90% ribbon) and fixed-CoP counterfactuals over a
+#' dose grid. Observed overlays are intentionally omitted: individual endpoints
+#' stack at one dose and are shown in the separate grouping/titre figures.
 #'
 #' The curves are computed in R from posterior parameter draws via model_math.R,
 #' which is gated against Stan by test_obs_prob_parity.R. The inference-side PPC
-#' (`p_pred`, plotted here as points) still comes from Stan.
+#' remains in diagnostics.R.
 #'
 #' 2026-07-31: the local `.bp()` beta-Poisson mirror was DELETED. It was a third,
 #' ungated transcription of the model math and every panel re-derived the Maryland
 #' fever product inline. All model algebra now lives in model_math.R.
 
 suppressPackageStartupMessages({
-  library(posterior); library(dplyr); library(tidyr); library(ggplot2)
+  library(posterior); library(dplyr); library(ggplot2)
 })
 if (!exists("mm_pars")) source("model_math.R")
 if (!exists(".wilson")) source("utils.R")
 if (!exists(".fig_save")) source("figures_common.R")
 
 #' @param fit cmdstanr fit; @param stan_data list with attr "obs"; @param outfile png path
-#' @param show_points whether to overlay observed-rate and Stan-fitted point markers
-#' @param show_errorbars whether to overlay observed Wilson confidence intervals
-#' @param fixed_cop fixed CoP values for counterfactual colored curves
-#' @param include_phi_panel whether to add the CoP-independent fever-threshold panel
-plot_dose_response_fit <- function(fit, stan_data, outfile, show_points = TRUE,
-                                   show_errorbars = TRUE, fixed_cop = numeric(),
-                                   include_phi_panel = FALSE) {
-  obs <- attr(stan_data, "obs")
+plot_dose_response_fit <- function(fit, stan_data, outfile) {
   T_ref_val <- if (!is.null(stan_data$T_ref)) stan_data$T_ref else 38.0
   T_curve   <- 39.4   # draw the Maryland fever curve at the Hornick threshold (spans dose)
   pars <- mm_draws(fit, T_ref = T_ref_val)
@@ -40,9 +34,7 @@ plot_dose_response_fit <- function(fit, stan_data, outfile, show_points = TRUE,
   ox <- 10^seq(2.3, 4.7, length.out = 60)
   md <- 10^seq(2.7, 9.7, length.out = 80)
   De <- mm_by_grid(md, pars$.ndraws, length(md)) / mm_by_draw(pars$delta, pars$.ndraws, length(md))
-  fixed_cop <- sort(unique(as.numeric(fixed_cop)))
-  if (any(!is.finite(fixed_cop)) || any(fixed_cop <= 0))
-    stop("fixed_cop must contain only positive finite values", call. = FALSE)
+  fixed_cop <- c(100, 1000)
 
   curves <- bind_rows(
     # naive Oxford fever (CoP=1, delta=1)
@@ -54,15 +46,14 @@ plot_dose_response_fit <- function(fit, stan_data, outfile, show_points = TRUE,
     gc_(mm_md_mix(De, pars, "inf"), md) %>%
       mutate(panel = "Maryland infection (milk, mixture)"),
     # phi is defined from the naive (CoP=1) fever curve and has no CoP covariate.
-    if (include_phi_panel)
-      gc_(mm_phi_td(T_curve, De, pars), md) %>%
-        mutate(panel = "Fever-threshold sensitivity (phi(39.4,D), CoP=1)")
+    gc_(mm_phi_td(T_curve, De, pars), md) %>%
+      mutate(panel = "Fever-threshold sensitivity (phi(39.4,D), CoP=1)")
   )
 
   # These are fixed-CoP counterfactuals, not additional fitted population curves.
   # phi(T,D) remains the model's naive-CoP definition-sensitivity map; immunity
   # enters here through the fixed-CoP infection/fever kernels upstream of phi.
-  cop_curves <- if (length(fixed_cop)) bind_rows(lapply(fixed_cop, function(cop) {
+  cop_curves <- bind_rows(lapply(fixed_cop, function(cop) {
     series <- sprintf("fixed CoP = %g", cop)
     bind_rows(
       gc_(mm_p_fev(ox, cop, pars), ox) %>%
@@ -72,79 +63,37 @@ plot_dose_response_fit <- function(fit, stan_data, outfile, show_points = TRUE,
       gc_(mm_p_inf(De, cop, pars), md) %>%
         mutate(panel = "Maryland infection (milk, mixture)", series = series)
     )
-  })) else tibble(dose_cfu = numeric(), lo = numeric(), med = numeric(), hi = numeric(),
-                  panel = character(), series = character())
-  cop_colors <- if (length(fixed_cop))
-    setNames(scales::hue_pal()(length(fixed_cop)), sprintf("fixed CoP = %g", fixed_cop)) else NULL
+  }))
+  cop_colors <- setNames(scales::hue_pal()(length(fixed_cop)),
+                         sprintf("fixed CoP = %g", fixed_cop))
   panel_levels <- c("Maryland fever (milk, mixture x phi(39.4,D))",
                     "Maryland infection (milk, mixture)",
-                    "Oxford fever (bicarb, naive)")
-  if (include_phi_panel)
-    panel_levels <- c(panel_levels, "Fever-threshold sensitivity (phi(39.4,D), CoP=1)")
+                    "Oxford fever (bicarb, naive)",
+                    "Fever-threshold sensitivity (phi(39.4,D), CoP=1)")
   curves$panel <- factor(curves$panel, levels = panel_levels)
-  if (nrow(cop_curves)) cop_curves$panel <- factor(cop_curves$panel, levels = panel_levels)
-
-  panel_of <- c(ox_fev = "Oxford fever (bicarb, naive)",
-                md_fev = "Maryland fever (milk, mixture x phi(39.4,D))",
-                md_inf = "Maryland infection (milk, mixture)",
-                hornick_cond = "Maryland fever (milk, mixture x phi(39.4,D))",
-                ox_inf = "Oxford fever (bicarb, naive)")
-  pp <- as_draws_matrix(fit$draws("p_pred"))
-  ci <- .wilson(obs$y, obs$n)
-  pts <- obs %>% mutate(panel = unname(panel_of[likelihood_group]),
-                        obs_rate = y / n, lo = ci$lo, hi = ci$hi,
-                        fitted = apply(pp, 2, median)) %>%
-    # conditional + individual single-dose endpoints aren't on the dose-response axis
-    # (the Darton individuals belong on the titre panel; see tier1.5 plots task)
-    filter(!likelihood_group %in% c("hornick_cond", "ox_inf_indiv", "ox_fevginf_indiv"))
+  cop_curves$panel <- factor(cop_curves$panel, levels = panel_levels)
 
   p <- ggplot(curves, aes(dose_cfu)) +
     geom_ribbon(aes(ymin = lo, ymax = hi), fill = "steelblue", alpha = 0.2) +
-    {if (length(fixed_cop))
-      geom_ribbon(data = cop_curves, aes(ymin = lo, ymax = hi, fill = series),
-                  alpha = 0.12, color = NA)} +
+    geom_ribbon(data = cop_curves, aes(ymin = lo, ymax = hi, fill = series),
+                alpha = 0.12, color = NA) +
     geom_line(aes(y = med), color = "steelblue", linewidth = 0.7) +
-    {if (show_errorbars)
-      geom_errorbar(data = pts, aes(ymin = lo, ymax = hi), width = 0.08, color = "grey50")} +
-    {if (length(fixed_cop))
-      geom_line(data = cop_curves, aes(y = med, color = series), linewidth = 0.7)} +
-    {if (show_points) geom_point(data = pts, aes(y = obs_rate, color = study), size = 2.4)} +
-    {if (show_points) geom_point(data = pts, aes(y = fitted), shape = 4, size = 2, stroke = 0.8)} +  # x = Stan fitted
+    geom_line(data = cop_curves, aes(y = med, color = series), linewidth = 0.7) +
     facet_wrap(~panel, ncol = 1, scales = "free_x") +
     scale_x_log10(breaks = 10^(2:10),
                   labels = scales::trans_format("log10", scales::math_format(10^.x))) +
     coord_cartesian(ylim = c(0, 1)) +
     labs(x = "challenge dose (CFU)", y = "probability",
-         color = if (show_points) "study" else if (length(fixed_cop)) "counterfactual" else NULL,
-         title = if (show_points)
-           "Tier 1 posterior dose-response vs data"
-         else if (show_errorbars)
-           "Tier 1 posterior dose-response with observed uncertainty"
-         else
-           "Tier 1 posterior dose-response curves",
-         subtitle = paste0(
-           if (show_points)
-             "line+ribbon: posterior median & 90% (population curve);  point: observed (Wilson 95% CI);  x: Stan p_pred"
-           else
-             "line+ribbon: posterior median & 90% (population curve)",
-           if (show_errorbars) ";  error bars: observed Wilson 95% CI" else "",
-           if (length(fixed_cop)) ";  colored lines+ribbons: fixed CoP counterfactuals" else "")) +
-    {if (length(fixed_cop)) scale_color_manual(values = cop_colors)} +
-    {if (length(fixed_cop)) scale_fill_manual(values = cop_colors, guide = "none")} +
+         color = "counterfactual",
+         title = "Posterior dose-response curves",
+         subtitle = "line+ribbon: posterior median & 90% (population curve); colored lines+ribbons: fixed CoP counterfactuals") +
+    scale_color_manual(values = cop_colors) +
+    scale_fill_manual(values = cop_colors, guide = "none") +
     theme_minimal(base_size = 11) + theme(legend.position = "bottom")
 
-  ggsave(outfile, p, width = 8.5, height = if (include_phi_panel) 13 else 10, dpi = 150)
+  ggsave(outfile, p, width = 8.5, height = 13, dpi = 150)
   message("dose-response figure: ", outfile)
   invisible(p)
-}
-
-# The adopted t1-indiv phi-rho display omits observed overlays and adds fixed-CoP
-# counterfactuals; other run directories retain the legacy display.
-dose_response_plot_options <- function(out_dir) {
-  target <- identical(basename(normalizePath(out_dir, mustWork = FALSE)), "t1-indiv__phi-rho")
-  list(show_points = !target, show_errorbars = !target,
-       fixed_cop = if (target) c(100, 1000) else numeric(),
-       include_phi_panel = target)
 }
 
 #' Titre -> protection (CoP-axis) figure: the view that shows the immunity slope,
@@ -287,18 +236,13 @@ plot_cop_response_milk <- function(fit, stan_data, outfile,
 # Standalone: Rscript dose_response_curves.R  (regenerate from the saved tier1 fit)
 if (sys.nframe() == 0) {
   setwd(calib_dir())
-  source("priors.R"); source("data_prep.R"); source("tier_specs.R")
+  source("priors.R"); source("data_prep.R"); source("tier_specs.R"); source("provenance.R")
   suppressPackageStartupMessages(library(cmdstanr))
   args <- commandArgs(trailingOnly = TRUE)
   run_dir <- if (length(args)) args[1] else tier_out_dir(tier_spec("t1-indiv"))
   fit <- readRDS(file.path(run_dir, "fit.rds"))
   sd  <- resolve_run_stan_data(run_dir)
-  opts <- dose_response_plot_options(run_dir)
-  plot_dose_response_fit(fit, sd, file.path(run_dir, "dose_response_fit.png"),
-                         show_points = opts$show_points,
-                         show_errorbars = opts$show_errorbars,
-                         fixed_cop = opts$fixed_cop,
-                         include_phi_panel = opts$include_phi_panel)
+  plot_dose_response_fit(fit, sd, file.path(run_dir, "dose_response_fit.png"))
   plot_titre_protection(fit, sd, file.path(run_dir, "titre_protection.png"))
   plot_cop_response_milk(fit, sd, file.path(run_dir, "cop_response_milk_doses.png"),
                         label = basename(run_dir))

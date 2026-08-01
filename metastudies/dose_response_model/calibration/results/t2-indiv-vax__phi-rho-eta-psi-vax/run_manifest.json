@@ -1,0 +1,212 @@
+{
+  "schema_version": 1,
+  "run": {
+    "kind": "posterior",
+    "model_name": "t2-indiv-vax",
+    "out_dir": "results/t2-indiv-vax__phi-rho-eta-psi-vax",
+    "started_utc": "2026-08-01T06:23:21Z",
+    "finished_utc": "2026-08-01T06:24:30Z"
+  },
+  "tier": {
+    "key": "t2-indiv-vax",
+    "label": "Tier 2 rows (+Oxford shedding, +psi), Darton placebo + M01ZH09 + Ty21a all individualized",
+    "doc_ref": "tier2_plan.md",
+    "tier_col": "tier2_active",
+    "individualize_darton": true,
+    "drop_obs": [],
+    "keep_obs": {},
+    "stage": "phi-rho-eta-psi-vax",
+    "expect": {
+      "N_obs": 182,
+      "groups": [6, 5, 11, 6, 1, 90, 63]
+    },
+    "inert_pars": [],
+    "requires_params": ["eta_lo", "kappa", "psi_stool", "frac_late", "log_V_M01ZH09", "log_V_Ty21a"],
+    "status": "runnable",
+    "status_declared": "runnable",
+    "blocked_reason": {}
+  },
+  "data": {
+    "N_obs": 182,
+    "obs_id": ["G20-F-naive", "J-F-ViPS", "J-F-ViTT", "J-F-ctrl", "W-F-3", "W-F-4", "J-I-ViPS", "J-I-ViTT", "J-I-ctrl", "W-I-3", "W-I-4", "Gil-F-Hhi", "Gil-F-Hlo", "Gil-F-rest", "H-F-3", "H-F-5", "H-F-8", "H-F-9", "Lev-F-1", "Lev-F-2", "Lev-F-3", "Lev-F-4", "Gil-I-ctrl", "H-I-7", "Lev-I-1", "Lev-I-2", "Lev-I-3", "Lev-I-4", "H-FgI-7", "D-I-m01zh09-10", "D-I-m01zh09-170", "D-I-m01zh09-207", "D-I-m01zh09-227", "D-I-m01zh09-285", "D-I-m01zh09-290", "D-I-m01zh09-317", "D-I-m01zh09-354", "D-I-m01zh09-372", "D-I-m01zh09-388", "D-I-m01zh09-415", "D-I-m01zh09-453", "D-I-m01zh09-458", "D-I-m01zh09-467", "D-I-m01zh09-552", "D-I-m01zh09-586", "D-I-m01zh09-634", "D-I-m01zh09-648", "D-I-m01zh09-696", "D-I-m01zh09-745", "D-I-m01zh09-759", "D-I-m01zh09-770", "D-I-m01zh09-777", "D-I-m01zh09-78", "D-I-m01zh09-780", "D-I-m01zh09-791", "D-I-m01zh09-814", "D-I-m01zh09-851", "D-I-m01zh09-882", "D-I-m01zh09-962", "D-I-m01zh09-979", "D-I-plac-102", "D-I-plac-149", "D-I-plac-179", "D-I-plac-200", "D-I-plac-330", "D-I-plac-373", "D-I-plac-383", "D-I-plac-384", "D-I-plac-402", "D-I-plac-46", "D-I-plac-499", "D-I-plac-505", "D-I-plac-587", "D-I-plac-616", "D-I-plac-630", "D-I-plac-637", "D-I-plac-672", "D-I-plac-706", "D-I-plac-707", "D-I-plac-761", "D-I-plac-779", "D-I-plac-781", "D-I-plac-783", "D-I-plac-795", "D-I-plac-859", "D-I-plac-87", "D-I-plac-871", "D-I-plac-926", "D-I-plac-95", "D-I-plac-951", "D-I-ty21a-132", "D-I-ty21a-2", "D-I-ty21a-235", "D-I-ty21a-238", "D-I-ty21a-250", "D-I-ty21a-298", "D-I-ty21a-349", "D-I-ty21a-403", "D-I-ty21a-421", "D-I-ty21a-47", "D-I-ty21a-514", "D-I-ty21a-522", "D-I-ty21a-568", "D-I-ty21a-584", "D-I-ty21a-594", "D-I-ty21a-631", "D-I-ty21a-644", "D-I-ty21a-650", "D-I-ty21a-656", "D-I-ty21a-703", "D-I-ty21a-765", "D-I-ty21a-800", "D-I-ty21a-836", "D-I-ty21a-857", "D-I-ty21a-888", "D-I-ty21a-900", "D-I-ty21a-912", "D-I-ty21a-965", "D-I-ty21a-968", "D-FgI-m01zh09-10", "D-FgI-m01zh09-170", "D-FgI-m01zh09-227", "D-FgI-m01zh09-317", "D-FgI-m01zh09-372", "D-FgI-m01zh09-388", "D-FgI-m01zh09-415", "D-FgI-m01zh09-453", "D-FgI-m01zh09-458", "D-FgI-m01zh09-467", "D-FgI-m01zh09-552", "D-FgI-m01zh09-586", "D-FgI-m01zh09-634", "D-FgI-m01zh09-745", "D-FgI-m01zh09-759", "D-FgI-m01zh09-770", "D-FgI-m01zh09-777", "D-FgI-m01zh09-791", "D-FgI-m01zh09-851", "D-FgI-m01zh09-882", "D-FgI-m01zh09-979", "D-FgI-plac-149", "D-FgI-plac-179", "D-FgI-plac-330", "D-FgI-plac-373", "D-FgI-plac-383", "D-FgI-plac-384", "D-FgI-plac-402", "D-FgI-plac-46", "D-FgI-plac-505", "D-FgI-plac-587", "D-FgI-plac-616", "D-FgI-plac-630", "D-FgI-plac-637", "D-FgI-plac-672", "D-FgI-plac-707", "D-FgI-plac-761", "D-FgI-plac-779", "D-FgI-plac-781", "D-FgI-plac-783", "D-FgI-plac-795", "D-FgI-plac-859", "D-FgI-plac-87", "D-FgI-plac-871", "D-FgI-plac-926", "D-FgI-plac-95", "D-FgI-plac-951", "D-FgI-ty21a-132", "D-FgI-ty21a-2", "D-FgI-ty21a-235", "D-FgI-ty21a-250", "D-FgI-ty21a-298", "D-FgI-ty21a-421", "D-FgI-ty21a-47", "D-FgI-ty21a-522", "D-FgI-ty21a-568", "D-FgI-ty21a-631", "D-FgI-ty21a-644", "D-FgI-ty21a-650", "D-FgI-ty21a-703", "D-FgI-ty21a-765", "D-FgI-ty21a-800", "D-FgI-ty21a-912"],
+    "groups": {
+      "hornick_cond": 1,
+      "md_fev": 11,
+      "md_inf": 6,
+      "ox_fev": 6,
+      "ox_fevginf_indiv": 63,
+      "ox_inf": 5,
+      "ox_inf_indiv": 90
+    },
+    "n_total": 998,
+    "y_total": 561,
+    "n_obs_tier": 182,
+    "dropped": [],
+    "ladder": {
+      "N_ladder": 3,
+      "ladder_T": [38, 38.5, 39],
+      "ladder_count": [16, 10, 8],
+      "ladder_N": 20
+    }
+  },
+  "inputs": {
+    "files": [
+      {
+        "path": "typhoid_dose_response.stan",
+        "exists": true,
+        "md5": "cb18e37276ed0f5ab184ea33d98ce0d5",
+        "bytes": 34445,
+        "mtime_utc": "2026-08-01T06:07:31Z"
+      },
+      {
+        "path": "dose_response_data.csv",
+        "exists": true,
+        "md5": "2f246c7bc0e592a346cde2170eea8b38",
+        "bytes": 5860,
+        "mtime_utc": "2026-07-31T19:25:33Z"
+      },
+      {
+        "path": "priors.yaml",
+        "exists": true,
+        "md5": "dba33f90c8f856c9abfc51f375a68c30",
+        "bytes": 11017,
+        "mtime_utc": "2026-08-01T06:11:29Z"
+      },
+      {
+        "path": "reference_points.csv",
+        "exists": true,
+        "md5": "9eb04e8d3ea2d60975197a87e00953a3",
+        "bytes": 2696,
+        "mtime_utc": "2026-07-15T19:22:36Z"
+      },
+      {
+        "path": "./../analysis_data/darton_individual_endpoints.csv",
+        "exists": true,
+        "md5": "6922c7f401c11a42d1b94ce25bb01b92",
+        "bytes": 5137,
+        "mtime_utc": "2026-05-27T20:30:07Z"
+      }
+    ]
+  },
+  "priors": {
+    "families": {
+      "log10_N50_inf": "normal",
+      "log10_N50_fevginf": "normal",
+      "d_fev": "half_normal",
+      "alpha_inf": "lognormal",
+      "alpha_fevginf": "lognormal",
+      "gamma_inf": "lognormal",
+      "gamma_fevginf": "lognormal",
+      "log10_delta": "normal",
+      "pi_susc": "beta",
+      "CoP_imm": "exponential",
+      "CoP_susc": "lognormal",
+      "phi0_a": "normal",
+      "phi0_b": "half_normal",
+      "eta_lo": "beta",
+      "kappa": "lognormal",
+      "psi_stool": "beta",
+      "frac_late": "beta",
+      "grand_overdispersion_rho": "beta",
+      "log_V_M01ZH09": "normal",
+      "log_V_Ty21a": "normal"
+    },
+    "stan_values": {
+      "pr_log10_N50_inf_mu": 2.5,
+      "pr_log10_N50_inf_sd": 1,
+      "pr_log10_N50_fevginf_mu": 2.8,
+      "pr_log10_N50_fevginf_sd": 1,
+      "pr_d_fev_mu": 0,
+      "pr_d_fev_sd": 1,
+      "pr_alpha_inf_mu": -1.5,
+      "pr_alpha_inf_sd": 0.8,
+      "pr_alpha_fevginf_mu": -1.5,
+      "pr_alpha_fevginf_sd": 0.8,
+      "pr_gamma_inf_mu": -1.6,
+      "pr_gamma_inf_sd": 0.7,
+      "pr_gamma_fevginf_mu": -1.6,
+      "pr_gamma_fevginf_sd": 0.7,
+      "pr_log10_delta_mu": 3.5,
+      "pr_log10_delta_sd": 0.7,
+      "pr_pi_susc_a": 7,
+      "pr_pi_susc_b": 4,
+      "pr_CoP_imm_rate": 0.074,
+      "pr_CoP_susc_mu": 0,
+      "pr_CoP_susc_sd": 0.3,
+      "pr_phi0_a_mu": 1,
+      "pr_phi0_a_sd": 1.5,
+      "pr_phi0_b_mu": 0,
+      "pr_phi0_b_sd": 2,
+      "pr_eta_lo_a": 5,
+      "pr_eta_lo_b": 5,
+      "pr_kappa_mu": 0,
+      "pr_kappa_sd": 1,
+      "pr_psi_stool_a": 3,
+      "pr_psi_stool_b": 2,
+      "pr_frac_late_a": 4,
+      "pr_frac_late_b": 1.5,
+      "pr_grand_overdispersion_rho_a": 1,
+      "pr_grand_overdispersion_rho_b": 49,
+      "pr_log_V_M01ZH09_mu": 0,
+      "pr_log_V_M01ZH09_sd": 1,
+      "pr_log_V_Ty21a_mu": 0,
+      "pr_log_V_Ty21a_sd": 1
+    },
+    "yaml_md5": "dba33f90c8f856c9abfc51f375a68c30"
+  },
+  "sampler": {
+    "chains": 4,
+    "iter_warmup": 1000,
+    "iter_sampling": 1000,
+    "adapt_delta": 0.9,
+    "seed": 2024,
+    "prior_only": 0,
+    "thin": 1
+  },
+  "code": {
+    "git_sha": "e31dcf58a8923233d5b3c03accda7fc2ab62d151",
+    "git_short": "e31dcf5",
+    "git_branch": "dose-response-tier1-resurrection",
+    "git_dirty": true,
+    "git_dirty_files": [" M metastudies/dose_response_model/calibration/CALIBRATION_WORKFLOW.md", " M metastudies/dose_response_model/calibration/TIER_LADDER.md", " M metastudies/dose_response_model/calibration/data_prep.R", " M metastudies/dose_response_model/calibration/dose_response_curves.R", " M metastudies/dose_response_model/calibration/figures.R", " M metastudies/dose_response_model/calibration/figures_grid.R", " M metastudies/dose_response_model/calibration/model_math.R", " M metastudies/dose_response_model/calibration/priors.yaml", " M metastudies/dose_response_model/calibration/test_obs_prob_parity.R", " M metastudies/dose_response_model/calibration/tier1.5_plan.md", " M metastudies/dose_response_model/calibration/tier_specs.R", " M metastudies/dose_response_model/calibration/typhoid_dose_response.stan", "?? metastudies/dose_response_model/calibration/tier2_plan.md"]
+  },
+  "env": {
+    "r_version": "R version 4.5.3 (2026-03-11)",
+    "platform": "aarch64-apple-darwin20.0.0",
+    "cmdstan_version": "2.39.0",
+    "packages": {
+      "cmdstanr": "0.9.0",
+      "posterior": "1.7.1",
+      "bayesplot": "1.15.0",
+      "loo": "2.9.0",
+      "priorsense": "1.2.0",
+      "ggplot2": "4.0.3",
+      "dplyr": "1.2.1",
+      "matrixStats": "1.5.0",
+      "jsonlite": "2.0.0",
+      "yaml": "2.3.12",
+      "ragg": "1.5.2"
+    }
+  },
+  "extra": [],
+  "fit": {
+    "n_divergent": 1,
+    "n_draws": 4000,
+    "div_rate": 0.00025,
+    "n_max_treedepth": 0,
+    "ebfmi_min": 0.94668108956,
+    "max_rhat": 1.0029484498,
+    "min_ess_bulk": 2113.0221771356,
+    "pars_diagnosed": ["log10_N50_inf", "d_fev", "alpha_inf", "alpha_fevginf", "gamma_inf", "gamma_fevginf", "log10_delta", "pi_susc", "CoP_imm", "CoP_susc", "phi0_a", "phi0_b", "eta_lo", "kappa", "grand_overdispersion_rho", "log_V_M01ZH09", "log_V_Ty21a", "psi_stool", "frac_late", "log10_N50_fevginf", "N50_inf", "N50_fevginf", "delta", "grand_concentration_k", "V_M01ZH09", "V_Ty21a"]
+  },
+  "outputs": {
+    "figures": ["calibration_targets.png", "cop_response_milk_doses.png", "delta_bridge.png", "density.png", "dose_cop_surface.png", "dose_response_fit.png", "dose_response_grid_all.png", "dose_response_grid_maryland.png", "dose_response_grid_oxford.png", "energy.png", "eta_detection.png", "maryland_mixture.png", "neff.png", "pairs.png", "phi_severity.png", "ppc.png", "prior_posterior.png", "rank.png", "rhat.png", "titre_protection.png", "trace.png"],
+    "subdir_figures": {
+      "grid": ["md_gilman_imm.png", "md_gilman_mix.png", "md_gilman_susc.png", "md_hornick.png", "md_levine.png", "ox_darton_m01.png", "ox_darton_plac.png", "ox_darton_ty21a.png", "ox_jin_ctrl.png", "ox_jin_vips.png", "ox_jin_vitt.png", "ox_naive.png"]
+    },
+    "has_fit_rds": true,
+    "stan_data_rds": true,
+    "curve_parity_max_abs_diff": 3.5287e-08
+  },
+  "regenerable": true
+}

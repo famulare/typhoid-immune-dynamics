@@ -3,7 +3,13 @@ typhoid_dose_response
 *.hpp
 
 # fit outputs (regenerate via fit_dose_response.R)
-results/
+results/*
+
+# The Tier 2 posterior and prior runs are retained as audited artifacts.
+!results/t2-indiv-vax__phi-rho-eta-psi-vax/
+!results/t2-indiv-vax__phi-rho-eta-psi-vax/**
+!results/t2-indiv-vax__phi-rho-eta-psi-vax-prior/
+!results/t2-indiv-vax__phi-rho-eta-psi-vax-prior/**
 
 # stray R default-device plot artifact
 Rplots.pdf

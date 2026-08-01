@@ -44,12 +44,7 @@ make_model_figures <- function(fit, stan_data, out_dir, label = basename(out_dir
 
   plot_calibration_targets(fit, stan_data, file.path(out_dir, "calibration_targets.png"),
                            label = label)
-  opts <- dose_response_plot_options(out_dir)
-  plot_dose_response_fit(fit, stan_data, file.path(out_dir, "dose_response_fit.png"),
-                         show_points = opts$show_points,
-                         show_errorbars = opts$show_errorbars,
-                         fixed_cop = opts$fixed_cop,
-                         include_phi_panel = opts$include_phi_panel)
+  plot_dose_response_fit(fit, stan_data, file.path(out_dir, "dose_response_fit.png"))
   plot_titre_protection(fit, stan_data, file.path(out_dir, "titre_protection.png"))
   plot_cop_response_milk(fit, stan_data, file.path(out_dir, "cop_response_milk_doses.png"),
                          label = label)
@@ -91,7 +86,7 @@ figures_from_dir <- function(run_dir, data_csv = "dose_response_data.csv", ...) 
 
 if (sys.nframe() == 0) {
   setwd(calib_dir())
-  source("priors.R"); source("data_prep.R"); source("tier_specs.R")
+  source("priors.R"); source("data_prep.R"); source("tier_specs.R"); source("provenance.R")
   suppressPackageStartupMessages(library(cmdstanr))
   args <- commandArgs(trailingOnly = TRUE)
   # Default: every REGENERABLE run dir, discovered from the audit rather than from a
