@@ -2,7 +2,7 @@
   "model": "t2-indiv-vax",
   "tier": "t2-indiv-vax",
   "n_obs": 182,
-  "wall_time_s": 5.48142409,
+  "wall_time_s": 5.2404871,
   "sampler": {
     "n_divergent": 1,
     "n_draws": 4000,

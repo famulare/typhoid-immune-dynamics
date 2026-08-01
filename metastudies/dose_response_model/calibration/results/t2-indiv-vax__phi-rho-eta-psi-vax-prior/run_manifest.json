@@ -4,8 +4,8 @@
     "kind": "prior_predictive",
     "model_name": "t2-indiv-vax-prior",
     "out_dir": "results/t2-indiv-vax__phi-rho-eta-psi-vax-prior",
-    "started_utc": "2026-08-01T06:22:33Z",
-    "finished_utc": "2026-08-01T06:23:15Z"
+    "started_utc": "2026-08-01T08:41:48Z",
+    "finished_utc": "2026-08-01T08:42:30Z"
   },
   "tier": {
     "key": "t2-indiv-vax",
@@ -54,30 +54,30 @@
       {
         "path": "typhoid_dose_response.stan",
         "exists": true,
-        "md5": "cb18e37276ed0f5ab184ea33d98ce0d5",
-        "bytes": 34445,
-        "mtime_utc": "2026-08-01T06:07:31Z"
+        "md5": "9e5cb8c8b56a9eb86b1f28f6b39d5a36",
+        "bytes": 34600,
+        "mtime_utc": "2026-08-01T08:19:07Z"
       },
       {
         "path": "dose_response_data.csv",
         "exists": true,
         "md5": "2f246c7bc0e592a346cde2170eea8b38",
         "bytes": 5860,
-        "mtime_utc": "2026-07-31T19:25:33Z"
+        "mtime_utc": "2026-08-01T06:45:33Z"
       },
       {
         "path": "priors.yaml",
         "exists": true,
         "md5": "dba33f90c8f856c9abfc51f375a68c30",
         "bytes": 11017,
-        "mtime_utc": "2026-08-01T06:11:29Z"
+        "mtime_utc": "2026-08-01T06:45:33Z"
       },
       {
         "path": "reference_points.csv",
         "exists": true,
         "md5": "9eb04e8d3ea2d60975197a87e00953a3",
         "bytes": 2696,
-        "mtime_utc": "2026-07-15T19:22:36Z"
+        "mtime_utc": "2026-08-01T06:45:33Z"
       },
       {
         "path": "./../analysis_data/darton_individual_endpoints.csv",
@@ -164,11 +164,11 @@
     "thin": 1
   },
   "code": {
-    "git_sha": "e31dcf58a8923233d5b3c03accda7fc2ab62d151",
-    "git_short": "e31dcf5",
-    "git_branch": "dose-response-tier1-resurrection",
+    "git_sha": "4ca115a2fd6c0c88e0e1a319dee46a8f10f7b441",
+    "git_short": "4ca115a",
+    "git_branch": "main",
     "git_dirty": true,
-    "git_dirty_files": [" M metastudies/dose_response_model/calibration/CALIBRATION_WORKFLOW.md", " M metastudies/dose_response_model/calibration/TIER_LADDER.md", " M metastudies/dose_response_model/calibration/data_prep.R", " M metastudies/dose_response_model/calibration/dose_response_curves.R", " M metastudies/dose_response_model/calibration/figures.R", " M metastudies/dose_response_model/calibration/figures_grid.R", " M metastudies/dose_response_model/calibration/model_math.R", " M metastudies/dose_response_model/calibration/priors.yaml", " M metastudies/dose_response_model/calibration/test_obs_prob_parity.R", " M metastudies/dose_response_model/calibration/tier1.5_plan.md", " M metastudies/dose_response_model/calibration/tier_specs.R", " M metastudies/dose_response_model/calibration/typhoid_dose_response.stan", "?? metastudies/dose_response_model/calibration/tier2_plan.md"]
+    "git_dirty_files": [" M metastudies/dose_response_model/calibration/CALIBRATION_WORKFLOW.md", " M metastudies/dose_response_model/calibration/figures_components.R", " M metastudies/dose_response_model/calibration/results/t2-indiv-vax__phi-rho-eta-psi-vax/delta_bridge.png", " M metastudies/dose_response_model/calibration/typhoid_dose_response.stan"]
   },
   "env": {
     "r_version": "R version 4.5.3 (2026-03-11)",

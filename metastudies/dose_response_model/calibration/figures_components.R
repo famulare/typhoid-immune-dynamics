@@ -80,12 +80,19 @@ plot_maryland_mixture <- function(fit, stan_data, outfile, priors = NULL,
 }
 
 #' The delta bridge: both eras on one bicarb-equivalent dose axis.
-#' delta is strongly confounded with both N50s, so the point positions carry real
-#' horizontal uncertainty; the inset scatter shows the confound directly.
+#' delta trades off against both N50s, so the point positions carry real horizontal
+#' uncertainty. The trade-off is moderate (r ~ -0.6 to -0.7, anisotropy ~2x), not a
+#' ridge -- the subtitle reports the contraction both ways so the caption cannot
+#' overstate it again.
 plot_delta_bridge <- function(fit, stan_data, outfile, ndraw_ribbon = 1000,
                               seed = 1, label = "Tier 1") {
   T_ref <- stan_data$T_ref %||% 38.0
-  p   <- mm_thin(mm_draws(fit, T_ref = T_ref), ndraw_ribbon, seed)
+  # Thinning is for ribbon rendering only. delta's reported median and 90% --
+  # which also set the plotted horizontal bars on the Maryland points -- come
+  # from the FULL draws, so this figure agrees with cop_response_milk_doses.png
+  # and with summary.csv rather than with a 1,000-draw subsample.
+  p_all <- mm_draws(fit, T_ref = T_ref)
+  p   <- mm_thin(p_all, ndraw_ribbon, seed)
   obs <- attr(stan_data, "obs")
   D   <- 10^seq(-1, 8, length.out = 90)
 
@@ -99,7 +106,16 @@ plot_delta_bridge <- function(fit, stan_data, outfile, ndraw_ribbon = 1000,
   # its raw dose (delta = 1 there by construction).
   fev <- obs %>% filter(likelihood_group %in% c("ox_fev", "md_fev"))
   ci  <- .wilson(fev$y, fev$n)
-  dq  <- stats::quantile(p$delta, c(0.05, 0.5, 0.95))
+  dq  <- stats::quantile(p_all$delta, c(0.05, 0.5, 0.95))
+  # Computed, not asserted. These were hardcoded literals (-0.78 / -0.72) that
+  # matched no fit in the repo: t1-indiv-vax gives -0.73/-0.66, t2-indiv-vax
+  # -0.69/-0.61, and summary.md's |r|>0.7 table does not list either pair at t2.
+  # The prior sds are the log10 scales in priors.yaml (N50s 1.0, delta 0.7).
+  r_fev <- stats::cor(p_all$log10_N50_fevginf, p_all$log10_delta)
+  r_inf <- stats::cor(p_all$log10_N50_inf,     p_all$log10_delta)
+  pri_sd_comb  <- sqrt(1.0^2 + 0.7^2)
+  contract_prod  <- pri_sd_comb / stats::sd(p_all$log10_N50_inf + p_all$log10_delta)
+  contract_split <- pri_sd_comb / stats::sd(p_all$log10_N50_inf - p_all$log10_delta)
   pts <- fev %>% mutate(
     era  = ifelse(likelihood_group == "md_fev", "Maryland (milk)", "Oxford (bicarb)"),
     x    = ifelse(likelihood_group == "md_fev", dose_cfu / dq[2], dose_cfu),
@@ -121,9 +137,10 @@ plot_delta_bridge <- function(fit, stan_data, outfile, ndraw_ribbon = 1000,
     labs(x = "bicarb-equivalent dose D/delta (CFU)", y = "P(fever)",
          title = sprintf("%s: the delta bridge -- both eras on one dose axis", label),
          subtitle = sprintf(paste0("Maryland points are divided by delta (median %.0fx, 90%% %.0f-%.0f); the horizontal bars ARE that uncertainty. Oxford sits at its raw dose.\n",
-                                   "How much of the ~10^3 CFU gap between the eras is absorbed by delta versus by phi. delta is strongly confounded with both N50s\n",
-                                   "(log10_N50_fevginf x log10_delta r = -0.78, log10_N50_inf x log10_delta r = -0.72), so its absolute value is not separately identified."),
-                            dq[2], dq[1], dq[3])) +
+                                   "How much of the ~10^3 CFU gap between the eras is absorbed by delta versus by phi. delta trades off against both N50s\n",
+                                   "(log10_N50_fevginf x log10_delta r = %+.2f, log10_N50_inf x log10_delta r = %+.2f), so read it as a fitted vehicle scalar, not a gastric-survival measurement.\n",
+                                   "The trade-off is moderate, not a ridge: the milk-frame product N50_inf*delta contracts %.1fx from prior, the N50_inf/delta split %.1fx."),
+                            dq[2], dq[1], dq[3], r_fev, r_inf, contract_prod, contract_split)) +
     theme_minimal(base_size = 11) + theme(legend.position = "bottom", legend.box = "vertical")
   .fig_save(p1, outfile, 11, 7.5)
   invisible(p1)

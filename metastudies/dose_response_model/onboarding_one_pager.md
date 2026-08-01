@@ -23,9 +23,11 @@ The two historical data regimes provide complementary information:
 | Maryland, 1960s-70s, milk delivery | Broad dose ladder, about 10^3-10^9 CFU | No baseline anti-Vi measurements; heterogeneous definitions |
 | Oxford, 2010s, bicarbonate delivery | Modern protocols, anti-Vi titres, vaccine contrasts | Narrow dose range; treatment truncates later shedding |
 
-The scalar `delta` bridges milk to bicarbonate-equivalent dose. It is useful but
-strongly confounded with the infection and fever dose scales, so it is not a direct
-measurement of gastric survival.
+The scalar `delta` bridges milk to bicarbonate-equivalent dose. It trades off
+against the infection and fever dose scales (r = -0.61 and -0.69 on the log10
+scale), so it is not a direct measurement of gastric survival -- it absorbs every
+era difference the vehicle stands in for. The trade-off is moderate, not a ridge;
+see the residual-limitations entry below for the contraction figures.
 
 ## The current model
 
@@ -68,10 +70,17 @@ permission to present weakly identified quantities as precise biological facts.
 
 ## What remains a limitation
 
-- `N50` and `delta` remain structurally confounded.
+- `N50` and `delta` trade off but are not jointly unidentified: marginals contract
+  about 2x from prior, the milk-frame product `N50_inf*delta` 3.3x, the split
+  between them 1.7x. Read `delta` as a fitted vehicle scalar, not a physiological
+  quantity. (Corrected 2026-08-01 from "structurally confounded".)
 - The Maryland immunity mixture is latent and partly prior-carried.
 - The Oxford `eta` correction and infection-definition terms are partly
-  confounded; `frac_late` is expected to be weakly identified.
+  confounded. `kappa` is prior-dominated as predicted; `frac_late` is not, and
+  `eta_lo` meets `tier2_plan.md` Sec 5's trigger for a second look. OPEN.
+- The fitted anti-Vi slope `gamma_inf` is shallower than every direct contrast in
+  the corpus and falls as individualized Darton rows accumulate. This may be a
+  likelihood-weighting artifact of individualization rather than biology. OPEN.
 - The posterior's single divergence should be reviewed before treating the fit as
   diagnostically final.
 - The Gibani rechallenge/susceptibility paradox and several unused outcomes remain

@@ -275,16 +275,24 @@ re-fit of the retired model was needed for the comparison.
 `psi_stool` / `psi_late` give infection the definition map that fever already has via
 `phi(T,D)`: today one probability serves Hornick's stool-or-blood culture, Levine's
 any-time stool, and Gilman's late shedding 4-30 d. Anchored by a decoupled binomial
-on the Darton cross-tab (19 of 26 `bact_or_stool` were stool-positive -> psi ~ 0.73),
-mirroring how the Darton temperature ladder pins `phi0`. Confounded with η at Oxford
-(both multiply P_inf; the ladder is measured at one dose) and `psi_late` is
-prior-carried. See ../joint_inference_plan.md Sec 2.8.
+on the Darton cross-tab, mirroring how the Darton temperature ladder pins `phi0`.
+Confounded with η at Oxford (both multiply P_inf; the ladder is measured at one dose)
+and `psi_late` is prior-carried. See ../joint_inference_plan.md Sec 2.8.
 
+**Corrected 2026-08-01.** This step originally recorded the anchor as the *marginal*
+19 of 26 (psi ~ 0.73). The subject-level cross-tab does not nest that way: only 15 of
+the 26 `bact_or_stool`-positive Darton placebo subjects are also stool-positive. The
+implemented anchor is the nested intersection, **15/26 (~0.58)** — see
+`tier2_plan.md` "Correction to §2.8's stated numbers" and `data_prep.R:128`. No fit
+ever used 19/26.
 
-Restore the 6 Oxford shedding rows (`tier2_active==1`, `N_ox_inf>0`). **Decide
-first:** η Option A (parametric `eta_lo`, `κ` — what the Stan code currently
-implements) vs Option C (fixed per-obs `eta_fixed_optC` from the CSV).
-Recommendation: Option A. Tier 2 is preferred for γ_inf identification.
+Restore the 5 Oxford shedding rows (`tier2_active==1`, `N_ox_inf>0`): `W-I-3`,
+`W-I-4`, `J-I-ctrl`, `J-I-ViTT`, `J-I-ViPS`. (`D-I-plac` is deliberately NOT
+restored — it double-counts the 30 individualized `ox_inf_indiv` rows for the same
+volunteers. `tier2_plan.md` §1.) **Decide first:** η Option A (parametric `eta_lo`,
+`κ` — what the Stan code currently implements) vs Option C (fixed per-obs
+`eta_fixed_optC` from the CSV). Recommendation: Option A. Tier 2 is preferred for
+γ_inf identification.
 
 ## Cross-cutting / deferred (track across steps)
 - **CoP titer model:** non-naive Oxford `CoP` (1.15, 1.12, 5.0, 2.0) are

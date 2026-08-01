@@ -71,10 +71,28 @@ locked as the working baseline, not described as diagnostically perfect.
 
 ## Residual limitations (not hidden by completion)
 
-- `N50` and the medium bridge `delta` remain structurally confounded.
+- `N50` and the medium bridge `delta` trade off (r = -0.61 / -0.69 on the log10
+  scale at `t2-indiv-vax`) but are NOT jointly unidentified: each marginal
+  contracts about 2x from its prior, the milk-frame product `N50_inf*delta`
+  contracts 3.3x, and the split between them still contracts 1.7x. The caution is
+  interpretive -- `delta` absorbs every era difference the vehicle stands in for --
+  not a claim that only the product is estimable. (Corrected 2026-08-01; the
+  earlier "structurally confounded" wording, and the hardcoded -0.72/-0.78 in the
+  `delta_bridge` caption, overstated it and matched no fit in the repo.)
 - The Maryland immunity mixture is latent and partly prior-carried.
 - `eta(D)`, `psi_stool`, and the late-shedding fraction are only partly separated
-  by the available Oxford data; `frac_late` is expected to be prior-carried.
+  by the available Oxford data. `kappa` IS prior-dominated as expected (priorsense
+  prior 0.63 / likelihood 0.05); `frac_late` is NOT (prior 0.08 / likelihood 0.20)
+  -- Gilman's `psi_def=2` row constrains it more than `joint_inference_plan.md`
+  Sec 2.8 assumed. `eta_lo` meets `tier2_plan.md` Sec 5's stated trigger for a
+  second look at the eta confound, though priorsense flags 16 of 26 parameters at
+  similar magnitudes, so the signal is not specific. OPEN.
+- `gamma_inf` falls monotonically as individualized Darton rows enter the
+  likelihood (t1-indiv 0.166, t1-indiv-vax 0.111, t2-indiv-vax 0.081) while
+  `gamma_fevginf` rises. The fitted titre slope is shallower than every direct
+  contrast in the corpus, including both Jin Vi-vaccine arms. Individualization
+  puts 153 thin-titre-range rows against 3 arm-level rows that carry the high-titre
+  information. A down-weighted / grouped-Darton sensitivity fit is the check. OPEN.
 - A single posterior divergence remains in the preferred fit.
 - The Gibani rechallenge/susceptibility paradox, incubation, seroconversion, and
   other unused outcomes remain outside the current likelihood.

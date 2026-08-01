@@ -65,7 +65,9 @@
 //   (any-time stool); psi_late = psi_stool*frac_late for Gilman (late shedding,
 //   STRUCTURALLY <= psi_stool -- "a narrower window cannot detect more"). Anchored by
 //   a NEW decoupled sub-likelihood (psi_crosstab_*, mirrors the phi0 ladder pattern):
-//   the Darton S1 stool-vs-broad cross-tab (19/26) pins psi_stool * eta(18200) jointly
+//   the Darton S1 stool-vs-broad cross-tab (15/26, the NESTED intersection -- not the
+//   marginal 19/26 that joint_inference_plan.md Sec 2.8 originally stated; corrected
+//   in tier2_plan.md 2026-07-31) pins psi_stool * eta(18200) jointly
 //   -- known confound with eta, documented not resolved (tier2_plan.md). Gated by
 //   `psi_active` (data flag) + per-row `psi_def` covariate so t1-* tiers, whose md_inf
 //   rows already exist, are BIT-IDENTICAL to before (psi_active=0 -> psi factor = 1
