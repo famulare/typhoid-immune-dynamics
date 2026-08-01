@@ -1,8 +1,11 @@
 # Joint Inference Plan: Typhoid Dose-Response Model Calibration
 
-**Date**: 2026-03-17
+**Original date**: 2026-03-17; current lock 2026-08-01
 **Authors**: Mike Famulare, Claude (Opus 4.6)
-**Status**: Draft revised after Reviewer 2 feedback (see `reviewer2_response.md`)
+**Status**: **LOCKED working specification** for the Tier 2 individualized-vaccine
+fit (`t2-indiv-vax`, stage `phi-rho-eta-psi-vax`). The original draft and its
+review history are retained below; implementation and result limitations are
+tracked in `progress_checklist.md` and the canonical fit summary.
 **Purpose**: Complete specification of a Bayesian joint inference framework for calibrating a two-outcome typhoid dose-response model to all available CHIM data, with explicit treatment of nuisance parameters, exchangeability assumptions, and cross-era bridging.
 
 ---
@@ -12,12 +15,13 @@
 We propose a joint Bayesian model that fits two dose-response curves — **infection** and **fever** — to data from all Oxford (2011-2017) and Maryland (1960s-1970s) controlled human infection studies. The model uses the modified beta-Poisson form with immunity scaling, a delivery medium offset, and latent immunity for the Maryland cohort. We work in **bicarbonate-equivalent dose units** as the reference frame, with the milk-to-bicarbonate conversion as an explicit parameter.
 
 The inference has three layers, each contributing information that the others cannot:
-1. **Oxford data** bounds N50_fev from above (fever >50% at 10³ bicarb) and estimates immunity scaling (γ_fev) from Vi-vaccine contrasts (Jin Vi-TT/Vi-PS). Oxford alone is **underconstrained** for α — with only 2 dose levels 1 log apart, both in the flat upper tail, the dose-response shape is not identifiable from Oxford alone. **Oxford shedding is excluded from the infection likelihood** (see Section 2.6) because early antibiotic treatment truncates shedding detection, producing systematic downward bias that worsens at higher doses.
+1. **Oxford data** bounds N50_fev from above (fever >50% at 10³ bicarb) and estimates immunity scaling (γ_fev) from Vi-vaccine contrasts (Jin Vi-TT/Vi-PS). Oxford alone is **underconstrained** for α — with only 2 dose levels 1 log apart, both in the flat upper tail, the dose-response shape is not identifiable from Oxford alone. **Tier 1 excludes Oxford shedding from the infection likelihood; locked Tier 2 restores five individualized Oxford shedding rows with the `eta(D)` treatment-truncation correction.**
 2. **Maryland data** is where α gets pinned: 6 orders of magnitude of dose range (10³-10⁹) spanning the full S-curve. Maryland also uniquely identifies the infection-fever conditional (Hornick Table 2: P(fever|infected) = 57% at 10⁷) and constrains the medium offset δ.
 3. **Cross-era bridging** requires explicit assumptions about what biology is portable across 50 years (strain virulence, α, γ, functional form) and what is not (delivery medium, background immunity, outcome definitions). This is the load-bearing structure of the entire inference.
 
-Total parameters: see `calibration/TIER_LADDER.md` (generated). As fitted: 14 declared in `typhoid_dose_response.stan`, of which `eta_lo`/`kappa` are inert until a group-2 row is active
-Active calibration observations: per configuration — see `calibration/TIER_LADDER.md`. The count depends on `individualize_darton`, which selects whether the Darton placebo arm enters grouped or per-subject
+Total parameters and active observation counts: see the generated
+`calibration/TIER_LADDER.md`. The preferred `t2-indiv-vax` fit has 27 reported
+parameters and 182 Stan observations (29 grouped, 153 individual).
 Validation observations: 4 (Darton M01ZH09/Ty21a, non-Vi mechanisms)
 
 ---
@@ -210,7 +214,9 @@ At every Oxford dose ≥10⁴, measured shedding < diagnosis. This violates the 
 
 **Tier 1 (primary model)**: Exclude all Oxford shedding from the infection likelihood. Oxford contributes **fever data only** plus vaccine contrasts on fever. The infection curve is identified entirely from Maryland shedding data through the δ bridge. This is conservative and avoids introducing bias. **However**, γ_inf is then unconstrained by Oxford vaccine data — only the Maryland mixture (H-antibody, not Vi) informs it. Since there are biological reasons to expect γ_inf < γ_fev (Vi immunity reduces fever severity more than colonization probability), and only the Jin Vi-vaccine shedding contrasts can distinguish them, the Tier 1 model may need to share γ = γ_inf = γ_fev, losing this biological nuance.
 
-**Tier 2 (η-correction model — RECOMMENDED)**: Restore Oxford shedding with an explicit shedding detection probability η that corrects for treatment-truncation bias. See Section 2.7.
+**Tier 2 (η-correction model — ADOPTED)**: Restore Oxford shedding with an
+explicit shedding detection probability η that corrects for treatment-truncation
+bias. This is implemented in the locked Tier 2 fit; see Section 2.7.
 
 ### 2.7 η-Correction for Oxford Shedding Detection (Tier 2 Model)
 
@@ -243,7 +249,9 @@ $$\eta(D) = \eta_{\text{lo}} + (1 - \eta_{\text{lo}}) \cdot \exp(-\kappa \cdot D
 
 where $\eta_{\text{lo}}$ is the minimum detection probability at very high doses (≈0.5 based on Waddington 10⁴) and κ controls the dose-dependence. At low doses (D << N50), η → 1 (plenty of time before diagnosis). At high doses, η → η_lo.
 
-This adds 2 parameters (η_lo, κ) but restores 8 observations (net gain of 6 degrees of freedom). This is better than dropping the observations.
+This adds 2 parameters (η_lo, κ). The tier registry carries six Tier 2 grouped
+Oxford infection rows; the preferred individualized configuration activates five
+of them because the grouped Darton row is replaced by the 30 per-subject rows.
 
 *Option B — Study-level constant η (simpler)*:
 
@@ -263,25 +271,34 @@ Fix η at observed shedding/diagnosis ratios per study-dose:
 
 This adds zero parameters but bakes in assumptions. Good for initial exploration; too rigid for final inference.
 
-**Recommendation**: Start with **Option C** (fixed η) for initial model fitting to verify the correction restores coherent results (shedding > fever after correction). Then upgrade to **Option A** (dose-dependent η) for the final model. Option B is the fallback if Option A is poorly identified.
+**Decision:** Option A (dose-dependent η) is the locked working choice. Option C
+remains a possible sensitivity analysis if the accepted cross-study confound needs
+to be stress-tested; Option B is not part of the locked fit.
 
 **What this restores**:
-- All 8 Oxford shedding observations (W-I-3, W-I-4, D-I-plac, J-I-ctrl, J-I-ViTT, J-I-ViPS, plus D-I-Ty21a/M01 for validation)
+- The Oxford shedding data needed for Tier 2: five grouped rows in the preferred
+  individualized fit (W-I-3, W-I-4, J-I-ctrl, J-I-ViTT, J-I-ViPS), with the grouped
+  Darton row excluded because its 30 volunteers are already individualized; the
+  Darton vaccine shedding rows remain validation-only.
 - The Jin Vi-TT and Vi-PS shedding contrasts, which are the **only data** that separately constrain γ_inf from γ_fev
 - The biological prior γ_inf < γ_fev becomes testable
 - Active observations increase when the Oxford shedding rows are restored (`t1-*` -> `t2-*`) at the cost of +2 parameters (η_lo, κ); counts per configuration in `calibration/TIER_LADDER.md`
 
 **Key insight**: The η-correction is not merely rescuing biased data — it is *modeling a real process* (time-to-shedding vs time-to-treatment) that we have partial information about. This is more principled than either dropping the data or using it uncorrected.
 
-For the **infection** outcome, the definition difference is smaller. Maryland's "infection" (Hornick Table 2: low-grade fever, serology, blood culture, or shedding >5 days) is broadly comparable to Oxford's shedding definition. We apply no definition correction for infection, but note that Maryland's broader infection criteria may yield slightly higher rates than Oxford's shedding-only ascertainment.
+For the **infection** outcome, the definition difference is smaller. Maryland's
+"infection" (Hornick Table 2: low-grade fever, serology, blood culture, or
+shedding >5 days) is broadly comparable to Oxford's shedding definition. Tier 1
+used no infection-definition correction; the locked Tier 2 model adds the
+`psi_d` sensitivity map in Section 2.8.
 
 ---
 
 ### 2.8 ψ-Correction: Infection-Endpoint Definition Sensitivity (Tier 2)
 
-**Status: Tier 2 design element, adopted 2026-07-31 [Mike]. Expected to be only
-partly identified at adoption, and that is accepted — document it, do not hide it
-(same treatment as `CoP_imm`).**
+**Status: implemented and locked 2026-07-31 [Mike].** The map is expected to be
+only partly identified, and that is accepted: document it, do not hide it (same
+treatment as `CoP_imm`).
 
 **The gap this closes.** Fever has a fitted definition map, `phi(T,D)` (Section 2.5).
 Infection has nothing. `obs_prob()` group 4 (`md_inf`) applies one probability to
@@ -305,34 +322,33 @@ $$
 with $\psi_d \in (0,1]$ the sensitivity of endpoint definition $d$ to true infection.
 Fix $\psi = 1$ for the broadest definition (stool-or-blood culture / `bact_or_stool`)
 as the reference, exactly as $T_{\text{ref}} = 38.0$ anchors φ. Free parameters:
-`psi_stool` (Levine, Oxford shedding) and `psi_late` (Gilman 4–30 d).
+`psi_stool` (Levine, Oxford shedding) and the implemented `frac_late` parameter,
+with `psi_late = psi_stool * frac_late` (Gilman 4–30 d).
 
 **Identification — a decoupled sub-likelihood, mirroring the Darton φ₀ ladder.**
 The φ₀ ladder pins the fever definition map with its own binomial term. The Darton S1
 cross-tabulation gives the exact infection analogue, measured **in the same men**:
 
-    among the 30 Darton placebo subjects:  stool_positive = 19,  bact_or_stool = 26
-    => 19 ~ binomial(26, psi_stool)                       # psi_stool_hat = 0.73
+    among the 30 Darton placebo subjects: 15 stool-positive among 26 bact_or_stool+
+    => 15 ~ binomial(26, psi_stool)                    # nested intersection
 
-**CORRECTION 2026-07-31 [Mike, caught mid-implementation, tier2_plan.md]**: the 19 and
-26 above are MARGINAL totals (19 total stool_positive, 26 total bact_or_stool+ among
-the 30 Placebo subjects) and do NOT nest at the subject level. The subject-level
-cross-tab (`analysis_data/darton_individual_endpoints.csv`) shows only **15** of the
-26 bact_or_stool+ subjects are ALSO stool_positive — 4 subjects have
+The marginal totals are 19 stool-positive and 26 `bact_or_stool+` among the 30
+placebo subjects, but they do not nest at the subject level. The subject-level
+cross-tab (`analysis_data/darton_individual_endpoints.csv`) shows only **15** of
+the **26** `bact_or_stool+` subjects are also stool-positive -- 4 subjects have
 `stool_positive=1` with `bact_or_stool=0` *and* `bacteremia=0`, so `bact_or_stool` is
 not a simple OR of its visible input columns in this extract (source of the
-discrepancy not yet traced to `darton_s1_extract.R`). **The implemented sub-likelihood
-uses the true nested intersection, 15 ~ binomial(26, psi_stool) (psi_stool_hat ≈
-0.58), not the marginal 19/26 (≈0.73) above.** Left uncorrected here as the record of
-what was originally proposed; the number actually in the model is 15/26.
+discrepancy remains untraced to `darton_s1_extract.R`). The implemented
+sub-likelihood uses the true nested intersection, 15/26 (posterior `psi_stool`
+median about 0.82 in the preferred fit), not the marginal 19/26.
 
 That is a direct measurement of stool-only sensitivity against the broad reference,
 and it does **not** compete with `pi_susc` / `CoP_imm` for Maryland variance — which
 was the identifiability worry. Source: `analysis_data/darton_cross_tabulation.csv`
 (Placebo row: 13 stool+/fever+, 6 stool+/fever−, 7 stool−/fever+, 4 stool−/fever−).
 
-**Corroboration from the fitted residuals** (implied sensitivity = observed / current
-model prediction, which currently forces ψ ≡ 1):
+**Pre-Tier-2 corroboration from fitted residuals** (implied sensitivity = observed /
+pre-Tier-2 model prediction, which forced ψ ≡ 1):
 
 | row | observed | model | implied ψ |
 |---|---|---|---|
@@ -702,7 +718,12 @@ where $g(\cdot)$ is the CoP mapping from the titer model. This applies to:
 - Proper integration over the within-group CoP distribution (addressing Jensen's inequality, per Reviewer 2 Minor Concern 4)
 - Direct calibration of the CoP mapping g(anti-Vi) → CoP for use in the dose-response model
 
-For the primary likelihood, the Darton placebo enters as a group-level **fever-only** observation (D-F-plac: 20/30) with the group's CoP distribution characterized by the individual-level anti-Vi titers from S1. D-I-plac (shedding) is excluded per Section 2.6. The individual-level data is available in `analysis_data/darton_individual_endpoints.csv`.
+For the Tier 1 grouped design, the Darton placebo enters as a group-level
+**fever-only** observation (D-F-plac: 20/30) with the group's CoP distribution
+characterized by the individual-level anti-Vi titers from S1. The locked
+individualized Tier 2 design instead uses the per-subject Darton infection and
+fever|infection cascade; the grouped shedding row is not also counted. The
+individual-level data is available in `analysis_data/darton_individual_endpoints.csv`.
 
 ### 5.4 Maryland Multi-Dose Data (Hornick)
 
@@ -933,14 +954,16 @@ These are the load-bearing assumptions of the cross-era bridge. Each should be t
 
 | Parameter | Prior | Justification |
 |-----------|-------|---------------|
-| $\log_{10}(N_{50,\text{inf}})$ | Normal(2.5, 1.0) | Expect ~300 bicarb CFU; constrained by Maryland shedding through δ bridge (Oxford shedding excluded per Section 2.6) |
+| $\log_{10}(N_{50,\text{inf}})$ | Normal(2.5, 1.0) | Expect ~300 bicarb CFU; constrained by Maryland shedding through the δ bridge and by Tier 2 Oxford shedding after η correction |
 | $\log_{10}(N_{50,\text{fev}})$ | Normal(2.8, 1.0) | Expect ~600 bicarb CFU; slightly higher than infection |
 | $\alpha_{\text{inf}}$ | LogNormal(-1.5, 0.8) | Expect ~0.1-0.5; must be positive; Oxford data suggests small α |
 | $\alpha_{\text{fev}}$ | LogNormal(-1.5, 0.8) | Same reasoning as infection |
 | $\gamma_{\text{inf}}$ | LogNormal(-0.5, 0.7) | Expect ~0.2-1.0; positive; immunity reduces infection somewhat |
 | $\gamma_{\text{fev}}$ | LogNormal(0.0, 0.7) | Expect ~0.3-2.0; positive; immunity reduces fever more than infection |
 
-**Ordering constraint**: Apply a soft prior penalty if $N_{50,\text{inf}} > N_{50,\text{fev}}$ (infection threshold should be lower than fever threshold). Specifically: $\log_{10}(N_{50,\text{fev}}) - \log_{10}(N_{50,\text{inf}}) \sim \text{HalfNormal}(0, 1)$ (positive, allowing 0-2 log difference).
+**Ordering constraint**: The implemented model preserves the intended
+$N_{50,\text{fev}} \geq N_{50,\text{inf}}$ ordering with the prior-preserving
+reparameterization `log10_N50_fevginf = log10_N50_inf + d_fev`, `d_fev >= 0`.
 
 ### 7.2 Nuisance Parameters
 
@@ -1205,13 +1228,26 @@ For quick reference, every binomial observation:
 | Lev-I-4 | Levine | Infection | 10⁵ | 16 | 6 | Maryland mixture. Trial 4, 1973. Any-time stool positive. |
 
 **Active observations (Tier 1 / primary likelihood)**: 7 Oxford fever (W-F-3, W-F-4, D-F-plac, J-F-ctrl, J-F-ViTT, J-F-ViPS, G20-F-naive) + 18 Maryland (4 Hornick fever + 2 Hornick infection/conditional + 3 Gilman fever strata + 1 Gilman infection + 4 Levine fever + 4 Levine infection) = 25 **CSV rows**. **This is the row set, not the fitted observation count** — the fitted count depends on `individualize_darton`, which replaces the grouped `D-F-plac` row with the Darton per-subject cascade (counts: `calibration/TIER_LADDER.md`). Struck rows (H-F-7, W-F-5, W-I-5, Gil-F-ctrl) and validation-only rows (D-F-Ty21a, D-F-M01, H-V-*) are already excluded from this count. Plus 6 validation observations.
-**Active observations (Tier 2 / η-correction)**: Restores 6 Oxford shedding rows (W-I-3, W-I-4, D-I-plac, J-I-ctrl, J-I-ViTT, J-I-ViPS) with η correction = 31 **CSV rows** + 2 parameters (η_lo, κ) or 0 (Option C fixed η). Note `D-I-plac` is the grouped Darton infection row and double-counts the 30 `ox_inf_indiv` per-subject rows whenever `individualize_darton = TRUE`; it is dropped in that case (`DARTON_PLACEBO_GROUPED_OBS`).
+**Active observations (Tier 2 / η-correction)**: Restores 5 Oxford shedding rows
+(W-I-3, W-I-4, J-I-ctrl, J-I-ViTT, J-I-ViPS) with η correction in the
+individualized configuration. The grouped Darton row `D-I-plac` is dropped because
+it double-counts the 30 `ox_inf_indiv` rows (`DARTON_PLACEBO_GROUPED_OBS`). The
+preferred Tier 2 fit presents 182 Stan observations across 29 grouped and 153
+individual rows.
 **Available but excluded**: 4 Hornick vaccine rows (CoP unmappable), 8 Oxford shedding rows (Tier 1 only; restored in Tier 2).
 **Effective independent observations** (per Reviewer 2): Tier 1 ~27-29; Tier 2 ~31-33, after correcting for within-group correlation.
-**Total parameters**: see `calibration/TIER_LADDER.md` (generated). `sigma_study` was deleted 2026-07-31 (inert at every configuration; the cohort RE is LOCKED-withdrawn), and `grand_overdispersion_rho` is designed but not yet implemented.
+**Total parameters**: see `calibration/TIER_LADDER.md` (generated). `sigma_study`
+was deleted 2026-07-31 (inert at every configuration; the cohort RE is
+LOCKED-withdrawn), and `grand_overdispersion_rho` is implemented in the
+`phi-rho` stage used by all active tiers.
 **Data-to-parameter ratio**: Tier 1 ~2.3:1; Tier 2 ~2.4:1. Both require informative priors. Tier 2 is preferred for γ_inf identification.
 **Canonical data source**: `dose_response_data.csv` in this directory. All observation counts verified against this file.
-**Definition warnings**: (1) Oxford shedding **EXCLUDED** (Section 2.6): treatment-truncation bias makes shedding < diagnosis at all doses ≥10⁴. Oxford contributes fever only. (2) Levine/Gilman/Hornick fever definitions **RESOLVED** (Section 2.5): study-specific φ(T) values derived from Oxford threshold ladder — Hornick φ≈0.25, Levine φ≈0.65, Gilman φ≈0.65. No extra parameters needed. (3) Darton S1 fever thresholds (T38, T39) are 1-2 subjects lower than published Table 2 — likely a minor definition difference in how the S1 encodes temperature events vs the publication's analysis.
+**Definition warnings**: (1) Oxford shedding is **excluded in Tier 1** but restored in
+Tier 2 with the treatment-truncation correction `eta(D)`. (2) Levine/Gilman/Hornick
+fever definitions are handled by the fitted `phi(T,D)` map. (3) Darton S1 fever
+thresholds (T38, T39) are 1-2 subjects lower than published Table 2 -- likely a
+minor definition difference in how the S1 encodes temperature events vs the
+publication's analysis.
 
 ---
 

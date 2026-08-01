@@ -1,7 +1,12 @@
 # Stan model structure — `typhoid_dose_response.stan`
 
-Updated 2026-07-31 from [typhoid_dose_response.stan](calibration/typhoid_dose_response.stan). Per-configuration observation counts: [calibration/TIER_LADDER.md](calibration/TIER_LADDER.md)
-(Tier 2 machinery; C3 dose-dependent phi + issue-#15 cascade). Two views:
+Updated 2026-08-01 from [typhoid_dose_response.stan](calibration/typhoid_dose_response.stan). Per-configuration observation counts: [calibration/TIER_LADDER.md](calibration/TIER_LADDER.md)
+(Tier 2 machinery; C3 dose-dependent phi + issue-#15 cascade; current as of
+2026-08-01). Two views:
+
+The preferred active configuration is `t2-indiv-vax`, stage
+`phi-rho-eta-psi-vax`; its generated tier counts are authoritative in
+`calibration/TIER_LADDER.md`.
 
 1. **Program dataflow** — how the Stan blocks feed each other.
 2. **`obs_prob` dispatch** — the scientific core: how each observation

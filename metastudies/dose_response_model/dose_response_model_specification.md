@@ -2,11 +2,16 @@
 
 **Purpose**: Define the reference model—the most elaborate model the literature supports, what we would fit with optimal data and unlimited precision. This serves as a benchmark for reasoning clearly about which simplifications are forced by data limitations versus chosen for parsimony.
 
-**Status**: Phase 3 complete. Sections 6-8 to be filled during Phases 4-5.
+**Status (2026-08-01)**: Reference model and practical mapping are complete.
+Sections 6-8 record the implemented calibration model, its data mapping, locked
+Tier 2 decisions, and residual identifiability limits. The canonical working fit
+is `t2-indiv-vax`, stage `phi-rho-eta-psi-vax`.
 
 **Related documents**:
-- `outcome_mapping.md` - Decision rules for mapping observed data to model variables
-- `cross_cutting_observations.md` - Patterns across the extraction corpus
+- `notes/outcome_mapping.md` - Decision rules for mapping observed data to model variables
+- `notes/cross_cutting_observations.md` - Patterns across the extraction corpus
+- `joint_inference_plan.md` - Locked joint likelihood and identifiability assumptions
+- `calibration/results/t2-indiv-vax__phi-rho-eta-psi-vax/summary.md` - Canonical Tier 2 fit
 
 ---
 
@@ -129,7 +134,9 @@ The definition varies by study/era—e.g., Maryland: ">103°F for 24-36hr + symp
 Outcomes are not fully independent given shared conditioning. Key correlations:
 - Bacteremia duration and fever severity
 - Shedding duration and seroconversion magnitude
-- (To be elaborated based on data availability)
+- These correlations are not separately parameterized in the practical fit; the
+  retained infection -> fever cascade and the observation-specific measurement
+  maps carry the dependency that the available data can support.
 
 ---
 
@@ -336,10 +343,11 @@ For the working model, this collapses to a scalar:
 
 $$\text{CoP} = g(\vec{\text{CoP}})$$
 
-**Key simplification assumptions** (to be documented in Section 6.5):
-- Which immune compartments dominate protection?
-- How do different compartments combine (additive? multiplicative? minimum?)?
-- What is lost by ignoring dynamics within a challenge study timescale?
+**Key simplification assumptions** (documented in Section 6.5 and the joint plan):
+- A scalar CoP is sufficient for the fitted Oxford protection channel.
+- Maryland protection is represented by a latent two-component mixture because
+  baseline anti-Vi is unavailable.
+- Within-challenge immune dynamics are outside the current likelihood.
 
 ### 5.5 Titers as Observations of CoP
 
@@ -401,7 +409,7 @@ It thus only makes sense practically to keep nonlinear cascades when they are ne
 
 ### 6.5 Specific Simplifications
 
-Status 2026-07-31: the practical model is `calibration/typhoid_dose_response.stan`;
+Status 2026-08-01: the practical model is `calibration/typhoid_dose_response.stan`;
 Tier 2 design is `joint_inference_plan.md`. This table records what was
 actually adopted, so the reference model and the fitted model stay reconcilable.
 
@@ -462,7 +470,7 @@ grouped rows plus 56 per-subject n=1 rows (30 infection + 26 fever|infection).
 | **Pre-challenge immunity** | 13 of 37 rows | Oxford only | `CoP` is NA for **all 24 Maryland rows** — no 1960s serology exists. Maryland immunity is latent (the mixture). Darton adds 30 per-subject anti-Vi titres, but only **12 of 30 are above detection**, which is why `gamma_inf` and `gamma_fevginf` do not separate. |
 | **Infection** | 12 rows (6 Maryland, 6 Oxford) | Definition-heterogeneous | The endpoint differs materially by study — Hornick stool-or-blood culture, Levine any-time stool, Gilman late shedding 4–30 d, Oxford stool shedding. This is what `psi_d` (§2.8 of the plan) exists to reconcile. All 6 Oxford infection rows are Tier 2 only. |
 | **Bacteremia** | Darton per-subject only | Good | 20 of 30 placebo bacteremic; 20 blood-positive. Not a separate likelihood layer — folded into `bact_or_stool` (26 of 30) as the broad infection marker. No Maryland bacteremia counts. |
-| **Stool shedding** | Oxford (Tier 2) + Levine + Gilman + Darton | Good where present | Darton measures it against the broad marker in the same men: 19 stool+ of 26 `bact_or_stool` — the anchor for `psi_stool`. Note fever is **not** nested in stool-positivity: 7 of 20 TD+ were stool-negative. |
+| **Stool shedding** | Oxford (Tier 2) + Levine + Gilman + Darton | Good where present | Darton measures it against the broad marker in the same men: 15 nested stool+ of 26 `bact_or_stool+` — the fitted anchor for `psi_stool`. The marginal total is 19 stool+ of 30; fever is **not** nested in stool-positivity: 7 of 20 TD+ were stool-negative. |
 | **Fever** | 24 rows (15 Maryland, 9 Oxford) | Good | Threshold definitions vary and are modelled by `phi(T,D)`: Hornick 39.4C, Levine 38.3C, Gilman assumed 38.3C (imported, see `data_prep.R`), Oxford composite TD at T_ref = 38.0C. |
 | **Fever severity** | Darton ladder only | Good but thin | Among 20 TD+ placebo subjects: 20/19/16/10/8 crossing >=37/37.5/38/38.5/39 C. Pins `phi0(T)`; **39.0 C is the maximum**, so Hornick's 39.4 C is extrapolation. |
 | **Fever given infection** | 1 Maryland row + 26 Darton subjects | Sparse | `H-FgI-7` (16/28) is the only grouped conditional. This layer is the thinnest in the whole dataset. |
@@ -492,7 +500,7 @@ that plan — if they disagree, the plan is authoritative and this is stale.
 |---|---|---|
 | Dose-outcome counts | Beta-binomial | `y ~ beta_binomial(n, p*k, (1-p)*k)`, `k = (1-rho)/rho`, `rho = grand_overdispersion_rho`. `rho = 0` is exactly the binomial. Grouped rows only; n=1 rows stay binomial. |
 | Fever definition | Fitted map `phi(T,D)` | Not stratification — a measurement model, pinned by the Darton temperature ladder |
-| Infection definition | Fitted map `psi_d` (Tier 2) | Pinned by the Darton stool-vs-`bact_or_stool` cross-tab, 19/26 |
+| Infection definition | Fitted map `psi_d` (Tier 2) | Pinned by the nested Darton stool-vs-`bact_or_stool` cross-tab, 15/26; the marginal 19/26 is not the fitted likelihood |
 | Shedding ascertainment | `eta(D)` (Tier 2, Oxford) | Treatment truncation; distinct mechanism from `psi` |
 | Dose uncertainty | **Point estimates** | Oxford reports ranges; NOT integrated over. Open. |
 | Missing immunity | Latent 2-component mixture | Maryland only |
@@ -533,21 +541,25 @@ Single source of truth: `calibration/priors.yaml` (hyperparameters are Stan *dat
 
 ### 8.5 Identifiability Concerns
 
-Measured on `results/tier1`, not hypothetical:
+Measured in the retained Tier 2 result, not hypothetical; the corresponding
+figures and full diagnostics are in
+`calibration/results/t2-indiv-vax__phi-rho-eta-psi-vax/`:
 
 | Issue | Status | Diagnostic / resolution |
 |---|---|---|
 | `N50` vs `delta` | **Confounded**: r = -0.72 (inf), -0.78 (fev\|inf) | Structural; `delta_bridge.png` shows it |
-| `CoP_imm` | **Unidentified**, prior-carried (priorsense prior 0.386 vs lik 0.071) | No Maryland serology; report as an assumption |
-| `gamma_inf` vs `gamma_fevginf` | **Do not separate** (both ~0.16-0.18) | Darton's titre range is thin: 12/30 above detection |
+| `CoP_imm` | **Prior-sensitive / weakly identified** (preferred-fit priorsense prior 0.425 vs likelihood 0.082) | No Maryland serology; report as an assumption |
+| `gamma_inf` vs `gamma_fevginf` | Separated in the preferred fit but still uncertain (posterior medians about 0.081 and 0.192) | Darton's titre range is thin: 12/30 above detection; Oxford vaccine/shedding contrasts provide the added leverage |
 | `psi_stool` vs `eta` | Confounded at Oxford (both multiply `P_inf`) | Darton cross-tab pins `psi*eta(18200)`; only eta's dose-dependence separates them |
-| `psi_late` (Gilman 4-30 d) | Will be prior-carried | No cross-tab exists; constrain below `psi_stool` |
+| `frac_late` (Gilman 4-30 d) | Weakly identified / prior-sensitive | No cross-tab exists; it structurally constrains `psi_late = psi_stool * frac_late` |
 | Cohort effects vs dose-response | Held by using one shared overdispersion parameter | Per-cohort offsets would compete with `N50_inf`/`alpha_inf` |
-| `sigma_study` | Declared in the .stan, given a prior, used in zero likelihood terms | Dead; delete when Step 2 lands |
+| `sigma_study` | Withdrawn and deleted | The cohort random effect was not identifiable on the available dose ladder; the shared beta-binomial `grand_overdispersion_rho` is the implemented alternative |
 
 ### 8.6 Gates
 
-Before adopting any Tier 2 increment:
+The following gates were used before adopting the Tier 2 increment. The retained
+fit reports the resulting parameter movement, priorsense, and diagnostics; the
+single remaining divergence is kept as a residual risk:
 1. `log10_N50_inf` and `alpha_inf` must not move materially (the signal-absorption gate).
 2. priorsense on the new parameter; if prior-dominated, report it as such.
 3. LOO must improve, using `compute_loo_units()` grouping (which merges the Hornick

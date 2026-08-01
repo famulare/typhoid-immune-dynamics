@@ -1,5 +1,12 @@
 # Dose-Response Model Data Extraction Contract
 
+**Current status (2026-08-01):** the extraction and calibration contract has been
+fulfilled for the locked Tier 2 working deliverable, whose canonical fit is
+`t2-indiv-vax` at stage `phi-rho-eta-psi-vax`. The canonical data, model,
+diagnostics, and result artifacts are linked from `progress_checklist.md`. The
+workflow below is retained as the audit trail; where it names a study random
+effect or a future step, the later locked decision takes precedence.
+
 ## Problem Statement
 
 We are calibrating a modified beta-Poisson dose-response model for typhoid fever that incorporates pre-existing immunity. The model predicts probability of infection and fever given bacterial challenge dose and a correlate of protection (CoP), with immunity scaling the effective "hit rate" in a mechanistically interpretable way.
@@ -31,8 +38,8 @@ The historical and contemporary literature on typhoid challenge studies is highl
 1. **Systematic extraction**: Create structured, traceable records from all relevant papers
 2. **Preserve uncertainty**: Store ambiguous values as intervals or alternative interpretations
 3. **Enable calibration**: Produce analysis-ready data that supports Bayesian inference with:
-   - Binomial likelihoods for dose-outcome observations
-   - Study-level random effects for protocol heterogeneity
+   - Binomial/beta-binomial likelihoods for dose-outcome observations
+   - One shared beta-binomial overdispersion parameter for replication variance
    - Latent immunity inference where serology is missing
 4. **Document decisions**: Maintain clear audit trail of interpretive choices
 
@@ -212,9 +219,11 @@ A paper extraction is complete when:
 
 **3.2 Create DAG** showing latent processes → observables
 
-**3.3 Document simplifications** needed to reach practical model (to be filled after Phase 4)
+**3.3 Document simplifications** needed to reach practical model (completed in
+`dose_response_model_specification.md` Section 6 and `joint_inference_plan.md`)
 
-**3.4 Map reference model to available data** (to be filled after Phase 4)
+**3.4 Map reference model to available data** (completed in
+`dose_response_model_specification.md` Section 7)
 
 ---
 
@@ -288,8 +297,11 @@ Lock decisions on how each observed outcome maps to model variables.
 
 **6.3 Heterogeneity structure**
 
-- Study random effects on which parameters? (N₅₀? multiplicative dose factor?)
-- Outcome-definition random effects if using mixed proxies
+- **Locked:** one shared beta-binomial overdispersion parameter,
+  `grand_overdispersion_rho`.
+- **Withdrawn:** study/cohort random effects; `sigma_study` was deleted because
+  the available dose ladder cannot identify per-cohort offsets separately from
+  the dose-response shape.
 
 **6.4 Latent immunity model**
 
@@ -299,7 +311,8 @@ Lock decisions on how each observed outcome maps to model variables.
 
 **6.5 Identifiability memo** (`notes/identifiability_memo.md`)
 
-Pre-fitting diagnostic:
+Pre-fitting diagnostic, now completed and recorded in the joint plan and fit
+summaries:
 - Can we identify N₅₀ and α from available dose spread?
 - Is γ identifiable without baseline immunity variation?
 - Which parameters are constrained by which studies?
@@ -310,7 +323,7 @@ Pre-fitting diagnostic:
 ## Phase 7: Prior Specification (`calibration/priors.yaml`)
 
 - Core parameters: Weakly informative centered at current defaults
-- Study random effects: Half-normal on SDs
+- Shared overdispersion: Beta prior on the ICC scale
 - Latent CoP: Informative based on cohort characteristics
 - Document rationale for each prior choice
 
@@ -318,7 +331,12 @@ Pre-fitting diagnostic:
 
 ## Phase 8: Fit, Validate, Document
 
-**8.1 Implementation** (Stan/brms)
+**Status:** complete for the locked Tier 2 working result. The retained fit,
+prior-predictive run, diagnostics, posterior-predictive checks, parity check, and
+figure suite are in `calibration/results/`. One posterior divergence remains an
+explicit residual risk; it does not change the default-result lock.
+
+**8.1 Implementation** (Stan)
 
 **8.2 Diagnostics**
 - Convergence (R-hat, ESS, trace plots)
@@ -339,4 +357,7 @@ Pre-fitting diagnostic:
 
 ## Working Agreement
 
-This document serves as the contract for the dose-response model calibration work. Progress will be tracked in the accompanying `progress_checklist.md` file. The work will proceed across multiple sessions as needed, with clear handoff points documented in the checklist.
+This document serves as the contract for the dose-response model calibration
+work. The completed handoff and residual limitations are tracked in
+`progress_checklist.md`; the default result is the locked Tier 2 individualized-
+vaccine fit described there.

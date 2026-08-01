@@ -4,19 +4,23 @@ This folder contains materials for calibrating a modified beta-Poisson dose-resp
 
 ## Current result
 
-The calibration workflow has landed and works end to end: fitting, diagnostics,
-summary generation, and the figure suite are all committed. The preferred
-working model is **Tier 2 individualized vaccine** (`t2-indiv-vax`, stage
-`phi-rho-eta-psi-vax`), which includes the individualized Darton placebo and
-vaccine arms, Oxford shedding correction, and the infection-definition
-correction.
+**Project status (locked 2026-08-01):** the reproducible calibration deliverable
+is complete. The canonical working model is **Tier 2 individualized vaccine**
+(`t2-indiv-vax`, stage `phi-rho-eta-psi-vax`). It includes the individualized
+Darton placebo and vaccine arms, the Oxford shedding correction, the infection-
+definition correction, and the shared beta-binomial overdispersion term.
+
+This is a lock on the default configuration and result artifact for downstream
+work, not a claim that the model is fully identified or that all adequacy questions
+are resolved.
 
 The [Tier 2 posterior summary](calibration/results/t2-indiv-vax__phi-rho-eta-psi-vax/summary.md)
 is the entry point for the fitted results, parameter tables, diagnostics, and
 the full set of linked figures. The [Tier 2 prior-predictive summary](calibration/results/t2-indiv-vax__phi-rho-eta-psi-vax-prior/summary.md)
-contains the corresponding prior run. The posterior fit has one divergent
-transition in 4,000 draws; see the summaries for the complete diagnostic and
-prior-sensitivity record.
+contains the corresponding prior run. The posterior has **1 divergent transition
+in 4,000 draws (0.025%)**, no max-treedepth hits, minimum E-BFMI 0.947, and
+maximum reported R-hat 1.003; retain that residual as a review item rather than
+calling the fit diagnostically perfect.
 
 For a fresh clone, the discoverable rebuild ladder is exactly
 `t1-grouped`, `t1-indiv`, `t1-indiv-vax`, `t2-indiv`, and `t2-indiv-vax`.
@@ -35,7 +39,10 @@ Estimate how the probability of infection and fever depends on:
 |----------|---------|
 | `dose_response_extraction_contract.md` | Project contract: goals, workflow, decision conventions |
 | `progress_checklist.md` | Phase-by-phase progress tracking |
+| `onboarding_one_pager.md` | Current project orientation and Tier 2 result lock |
 | `dose_response_model_specification.md` | Model specification: biology, causal structure, equations |
+| `joint_inference_plan.md` | Locked joint likelihood and identifiability assumptions |
+| `stan_model_structure.md` | Current Stan program dataflow and likelihood dispatch |
 | `notes/outcome_mapping.md` | Decision rules for mapping observed outcomes to model variables |
 | `notes/paper_triage.md` | Paper-by-paper inclusion/exclusion decisions |
 | `notes/cross_cutting_observations.md` | Patterns across the literature corpus |
@@ -49,7 +56,6 @@ dose_response_model/
 ├── input_papers/       # Source PDFs (21 papers)
 ├── extracts/           # Markdown extracts per paper (Phase 2 output)
 ├── notes/              # Working notes
-├── schemas/            # YAML schemas (Phase 5)
 ├── analysis_data/      # Final CSV for calibration (Phase 5)
 └── calibration/        # Likelihood design, priors (Phases 6-7)
 ```
