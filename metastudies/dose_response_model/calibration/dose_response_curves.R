@@ -18,6 +18,7 @@ suppressPackageStartupMessages({
 })
 if (!exists("mm_pars")) source("model_math.R")
 if (!exists(".wilson")) source("utils.R")
+if (!exists(".fig_save")) source("figures_common.R")
 
 #' @param fit cmdstanr fit; @param stan_data list with attr "obs"; @param outfile png path
 #' @param show_points whether to overlay observed-rate and Stan-fitted point markers
@@ -207,6 +208,82 @@ plot_titre_protection <- function(fit, stan_data, outfile, D_ref = 2e4,
   invisible(p)
 }
 
+#' CoP -> protection across fixed raw milk doses.
+#'
+#' This is the CoP-axis analogue of the dose-response figures. Each dose is fixed
+#' in the milk frame, so each posterior draw uses its own bicarb-equivalent dose
+#' `dose_milk / delta`. Each panel overlays the latent cascade quantities from
+#' model_math.R: P_inf, P_fev|inf, and P_fev = P_inf x P_fev|inf. No Maryland
+#' fever-threshold definition map (phi) is applied here.
+#' @param dose_milk raw challenge doses in the milk frame (CFU)
+#' @param cop_range positive CoP range to display
+plot_cop_response_milk <- function(fit, stan_data, outfile,
+                                   dose_milk = c(1e2, 1e4, 1e7),
+                                   cop_range = c(0.25, 400), ngrid = 80,
+                                   label = "Tier 1") {
+  if (!length(dose_milk) || any(!is.finite(dose_milk)) || any(dose_milk <= 0))
+    stop("dose_milk must contain positive finite values", call. = FALSE)
+  if (length(cop_range) != 2L || any(!is.finite(cop_range)) || any(cop_range <= 0) ||
+      cop_range[1] >= cop_range[2])
+    stop("cop_range must be two increasing positive finite values", call. = FALSE)
+  if (length(ngrid) != 1L || !is.finite(ngrid) || ngrid < 2 || ngrid != as.integer(ngrid))
+    stop("ngrid must be one integer >= 2", call. = FALSE)
+
+  T_ref_val <- if (!is.null(stan_data$T_ref)) stan_data$T_ref else 38.0
+  pars <- mm_draws(fit, T_ref = T_ref_val)
+  cop <- 10^seq(log10(cop_range[1]), log10(cop_range[2]), length.out = ngrid)
+  dose_label <- function(d) {
+    e <- log10(d)
+    if (abs(e - round(e)) < 1e-8) sprintf("10^%d CFU milk", round(e))
+    else paste0(format(d, scientific = TRUE, trim = TRUE), " CFU milk")
+  }
+  dose_labels <- vapply(dose_milk, dose_label, character(1))
+  curves <- bind_rows(lapply(seq_along(dose_milk), function(i) {
+    D_eff <- mm_by_grid(dose_milk[i], pars$.ndraws, length(cop)) /
+      mm_by_draw(pars$delta, pars$.ndraws, length(cop))
+    bind_rows(
+      mm_quantiles(mm_p_inf(D_eff, cop, pars), cop) %>%
+        mutate(endpoint = "P_inf"),
+      mm_quantiles(mm_p_fevginf(D_eff, cop, pars), cop) %>%
+        mutate(endpoint = "P_fev|inf"),
+      mm_quantiles(mm_p_fev(D_eff, cop, pars), cop) %>%
+        mutate(endpoint = "P_fev")
+    ) %>% mutate(dose = dose_labels[i])
+  }))
+  endpoint_levels <- c("P_inf", "P_fev|inf", "P_fev")
+  endpoint_colors <- c(P_inf = "#1b7837", `P_fev|inf` = "#762a83", P_fev = "#08519c")
+  curves$endpoint <- factor(curves$endpoint, levels = endpoint_levels)
+  curves$dose <- factor(curves$dose, levels = dose_labels)
+  delta_q <- stats::quantile(pars$delta, c(0.05, 0.5, 0.95))
+
+  p <- ggplot(curves, aes(x, med, colour = endpoint, fill = endpoint, group = endpoint)) +
+    geom_ribbon(aes(ymin = lo, ymax = hi), alpha = 0.15, colour = NA) +
+    geom_line(linewidth = 0.75) +
+    geom_vline(xintercept = 1, linetype = "dashed", colour = "grey50", linewidth = 0.4) +
+    facet_wrap(~dose, nrow = 1) +
+    scale_x_log10(breaks = c(0.25, 1, 10, 100, 400),
+                  labels = c("0.25", "1", "10", "100", "400")) +
+    scale_y_continuous(breaks = c(0, 0.5, 1), expand = expansion(mult = 0.03)) +
+    coord_cartesian(ylim = c(0, 1)) +
+    scale_colour_manual(values = endpoint_colors,
+                        labels = c(P_inf = "P_inf", `P_fev|inf` = "P_fev|inf", P_fev = "P_fev"),
+                        name = NULL) +
+    scale_fill_manual(values = endpoint_colors, guide = "none") +
+    labs(x = "CoP (anti-Vi titre / naive)", y = "probability",
+         title = sprintf("%s: CoP response across milk doses", label),
+         subtitle = paste0(
+           "line+ribbon: posterior median & 90%; dashed line: naive CoP = 1.\n",
+           "Each panel fixes raw milk dose; each draw uses D_eff = dose / delta. ",
+           sprintf("delta median %.0fx (90%% %.0f-%.0f).\n", delta_q[2], delta_q[1], delta_q[3]),
+           "P_fev is the latent cascade P_inf x P_fev|inf; no Maryland fever-threshold map phi is applied.")) +
+    theme_minimal(base_size = 11) +
+    theme(legend.position = "bottom", strip.text = element_text(size = 10),
+          plot.subtitle = element_text(size = 8.5))
+
+  .fig_save(p, outfile, w = 12, h = 5.5)
+  invisible(p)
+}
+
 # Standalone: Rscript dose_response_curves.R  (regenerate from the saved tier1 fit)
 if (sys.nframe() == 0) {
   setwd(calib_dir())
@@ -223,4 +300,6 @@ if (sys.nframe() == 0) {
                          fixed_cop = opts$fixed_cop,
                          include_phi_panel = opts$include_phi_panel)
   plot_titre_protection(fit, sd, file.path(run_dir, "titre_protection.png"))
+  plot_cop_response_milk(fit, sd, file.path(run_dir, "cop_response_milk_doses.png"),
+                        label = basename(run_dir))
 }

@@ -51,6 +51,8 @@ make_model_figures <- function(fit, stan_data, out_dir, label = basename(out_dir
                          fixed_cop = opts$fixed_cop,
                          include_phi_panel = opts$include_phi_panel)
   plot_titre_protection(fit, stan_data, file.path(out_dir, "titre_protection.png"))
+  plot_cop_response_milk(fit, stan_data, file.path(out_dir, "cop_response_milk_doses.png"),
+                         label = label)
   plot_grouping_grid(fit, stan_data, out_dir, specs, ngrid, n_spaghetti,
                      ndraw_ribbon, seed, label, write_columns)
   plot_phi_severity(fit, stan_data, file.path(out_dir, "phi_severity.png"),
